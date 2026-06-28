@@ -1,0 +1,16 @@
+# STUB — finalized in Phase 8. Seed: the Phase-0 labwc systemd *user* service
+# (~/.config/systemd/user/kiosk.service) launched via `systemctl --user enable`
+# + `sudo loginctl enable-linger`. Phase 8 promotes/hardens it to also autostart
+# the Chromium kiosk. No `After=seatd.service` (user units can't order against
+# system units); Restart=always handles the seatd-not-ready race.
+#
+# [Unit]
+# Description=labwc kiosk session
+#
+# [Service]
+# ExecStart=/usr/bin/labwc
+# Restart=always
+# RestartSec=2
+#
+# [Install]
+# WantedBy=default.target

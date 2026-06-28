@@ -1,0 +1,7 @@
+// STUB — authored in Phase 8. Installs to /etc/apt/apt.conf.d/50unattended-upgrades.
+// Planned: enable unattended security upgrades with automatic reboot at ~03:00,
+// which lands inside the 1a-6a blackout window (so the kiosk comes back to a
+// black overlay, not the bright dashboard — overlay is wall-clock-driven).
+//
+// Unattended-Upgrade::Automatic-Reboot "true";
+// Unattended-Upgrade::Automatic-Reboot-Time "03:00";

@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- STUB — authored in Phase 7. Installs to ~/.config/labwc/rc.xml.
+     Planned settings (from Phase-0 spikes):
+       - <touch mouseEmulation="no" />   (0.2/0.7: correct tap/scroll, kills touch pointer)
+       - HideCursor action binding        (0.8: labwc 0.9.7 >= 0.8.4 supports it)
+       - NO <calibrationMatrix>           (0.2: touch already aligned)
+       - NO <autoEnableOutputs>no</...>   (0.4: it stops labwc driving the fixed panel)
+-->
+<labwc_config>
+</labwc_config>

@@ -1,0 +1,15 @@
+# Secrets / env
+.env
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Runtime cache (CACHE_DIR)
+var/
+
+# macOS
+.DS_Store

@@ -1,0 +1,25 @@
+[project]
+name = "pi-dashboard"
+version = "0.1.0"
+description = "Weather & calendar dashboard for a Raspberry Pi 5 touchscreen kiosk"
+requires-python = ">=3.13.5"
+dependencies = [
+    "fastapi>=0.138.1",
+    "holidays>=0.99",
+    "icalendar>=7.2.0",
+    "pydantic-settings>=2.14.2",
+    "recurring-ical-events>=3.8.2",
+    "requests>=2.34.2",
+    "uvicorn[standard]>=0.49.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "ruff>=0.15.20",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
