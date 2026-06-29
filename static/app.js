@@ -121,9 +121,11 @@ function el(tag, className, text) {
 }
 
 function eventNode(ev) {
-  // Federal holiday / lesser observance -> pill above the day's events.
+  // Federal holiday / lesser observance -> identical pill above the day's
+  // events (no tiered visual weight — official and unofficial render the same;
+  // `kind` stays distinct in the data as provenance only).
   if (ev.kind === "holiday" || ev.kind === "observance") {
-    const pill = el("span", ev.kind === "holiday" ? "holiday" : "holiday observance");
+    const pill = el("span", "holiday");
     pill.innerHTML = STAR_SVG; // trusted own SVG constant only — never interpolate calendar/user strings here.
     pill.append(" " + ev.title); // title as a text node — never HTML
     return pill;

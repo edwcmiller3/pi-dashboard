@@ -45,11 +45,12 @@ def test_unofficial_is_kind_observance() -> None:
     assert by_title["Groundhog Day"]["kind"] == "observance"
 
 
-def test_all_ten_observances_present_over_the_year() -> None:
+def test_all_observances_present_over_the_year() -> None:
     items = H.get_holidays(date(2026, 1, 1), date(2026, 12, 31))
     observances = sorted(i["title"] for i in items if i["kind"] == "observance")
     assert observances == sorted(
         [
+            # unofficial, from the holidays lib — all 10 kept
             "Groundhog Day",
             "Valentine's Day",
             "Saint Patrick's Day",
@@ -60,8 +61,55 @@ def test_all_ten_observances_present_over_the_year() -> None:
             "Halloween",
             "Christmas Eve",
             "New Year's Eve",
+            # computed cultural extras, absent from the lib (Tax Day excluded)
+            "April Fools' Day",
+            "Earth Day",
+            "Cinco de Mayo",
+            "Black Friday",
+            "Cyber Monday",
+            "Mardi Gras",
         ]
     )
+
+
+# ── computed cultural extras — kind="observance", rule-based (no hardcoded dates)
+
+
+def test_fixed_date_extras() -> None:
+    items = H.get_holidays(date(2026, 1, 1), date(2026, 12, 31))
+    by_title = {i["title"]: i for i in items}
+    assert by_title["April Fools' Day"] == {
+        "start": "2026-04-01", "all_day": True, "title": "April Fools' Day", "kind": "observance"
+    }
+    assert by_title["Earth Day"]["start"] == "2026-04-22"
+    assert by_title["Cinco de Mayo"]["start"] == "2026-05-05"
+
+
+def test_thanksgiving_anchored_extras() -> None:
+    # Black Friday = Thanksgiving + 1 day; Cyber Monday = Thanksgiving + 4 days.
+    items = H.get_holidays(date(2026, 11, 1), date(2026, 11, 30))
+    by_title = {i["title"]: i for i in items}
+    assert by_title["Black Friday"]["start"] == "2026-11-27"
+    assert by_title["Cyber Monday"]["start"] == "2026-11-30"
+    assert by_title["Black Friday"]["kind"] == "observance"
+
+
+def test_mardi_gras_anchored_on_easter_outside_window() -> None:
+    # Mardi Gras = Easter - 47 days. Easter 2026 is Apr 5 (outside this Feb
+    # window), but Mardi Gras (Feb 17) must still resolve from the year's anchor.
+    items = H.get_holidays(date(2026, 2, 1), date(2026, 2, 28))
+    mardi = [i for i in items if i["title"] == "Mardi Gras"]
+    assert mardi == [
+        {"start": "2026-02-17", "all_day": True, "title": "Mardi Gras", "kind": "observance"}
+    ]
+
+
+def test_extras_respect_the_window() -> None:
+    # Narrow early-April window includes April Fools' but not Earth Day (Apr 22).
+    items = H.get_holidays(date(2026, 4, 1), date(2026, 4, 2))
+    titles = {i["title"] for i in items}
+    assert "April Fools' Day" in titles
+    assert "Earth Day" not in titles
 
 
 # ── DST markers — kind="info", from zoneinfo (not the holidays lib) ──────────
@@ -73,7 +121,7 @@ def test_dst_spring_forward_marker() -> None:
     assert len(dst) == 1
     assert dst[0]["start"] == "2026-03-08"  # spring forward
     assert dst[0]["all_day"] is True
-    assert "forward" in dst[0]["title"]
+    assert dst[0]["title"] == "Daylight Saving Time begins"
 
 
 def test_dst_fall_back_marker() -> None:
@@ -81,7 +129,7 @@ def test_dst_fall_back_marker() -> None:
     dst = [i for i in items if i["kind"] == "info"]
     assert len(dst) == 1
     assert dst[0]["start"] == "2026-11-01"  # fall back
-    assert "back" in dst[0]["title"]
+    assert dst[0]["title"] == "Daylight Saving Time ends"
 
 
 def test_no_dst_marker_in_a_quiet_window() -> None:

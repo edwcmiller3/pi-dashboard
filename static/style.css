@@ -310,8 +310,9 @@ body {
   font-size: 1.2rem;
 }
 
-/* Day markers above a day's events. holiday = federal (gold). observance =
-   lesser/unofficial (subtler, cool). info = DST etc. (plain muted line). */
+/* Day markers above a day's events. holiday = federal AND observance =
+   lesser/unofficial — both render identically (gold pill). info = DST etc.
+   (plain muted line). */
 .holiday {
   display: inline-flex;
   align-items: center;
@@ -330,15 +331,6 @@ body {
   width: 0.95rem;
   height: 0.95rem;
   fill: var(--gold);
-}
-.holiday.observance {
-  color: var(--cool);
-  font-weight: 500;
-  background: rgba(92, 200, 255, 0.1);
-  border-color: rgba(92, 200, 255, 0.28);
-}
-.holiday.observance svg {
-  fill: var(--cool);
 }
 .marker {
   align-self: flex-start;

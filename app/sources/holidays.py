@@ -9,7 +9,11 @@ Three tiers (per the 2026-06-28 decision; the lesser tier is the full set —
 user chose all 10):
   * federal US holidays -> kind="holiday"    (observed=False -> actual dates,
                                               no shifted "(observed)" ghost)
-  * lesser/unofficial   -> kind="observance" (Valentine's, Halloween, ...)
+  * lesser/unofficial   -> kind="observance" (Valentine's, Halloween, ...),
+                                              plus computed cultural extras the
+                                              lib lacks (Black Friday, Mardi
+                                              Gras, ... — rule-based, never
+                                              hardcoded per year)
   * DST start/end        -> kind="info"       (from zoneinfo, not the holidays
                                               lib — DST is not a holiday)
 """
@@ -46,11 +50,7 @@ def _us(start: date, end: date, category: str) -> dict[date, str]:
 
 def _dst_title(forward: bool) -> str:
     """forward = spring-forward (offset increased, e.g. -5h -> -4h)."""
-    return (
-        "Daylight Saving Time begins — clocks forward 1 h"
-        if forward
-        else "Daylight Saving Time ends — clocks back 1 h"
-    )
+    return "Daylight Saving Time begins" if forward else "Daylight Saving Time ends"
 
 
 def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]:
@@ -76,6 +76,41 @@ def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]
     ]
 
 
+# Cultural observances the `holidays` lib doesn't carry, as (month, day, title)
+# rules — fixed-date, so no per-year dates ever get hardcoded.
+_FIXED_EXTRAS = (
+    (4, 1, "April Fools' Day"),
+    (4, 22, "Earth Day"),
+    (5, 5, "Cinco de Mayo"),
+)
+
+
+def _named(start: date, end: date, category: str, name: str) -> list[date]:
+    """Dates of one specifically-named US holiday over the window's years. The
+    anchor may itself fall outside [start, end] (e.g. Easter anchors Mardi Gras
+    from a February window), so callers window the *derived* date, not this."""
+    return [d for d, n in _us(start, end, category).items() if n == name]
+
+
+def _extras(start: date, end: date) -> list[tuple[date, str]]:
+    """Common cultural observances absent from the `holidays` lib, as (date,
+    title). All rule-based — fixed month/day, or anchored on Thanksgiving /
+    Easter that the lib already gives us — so nothing is hardcoded per year."""
+    fixed = [
+        (date(y, month, day), title)
+        for y in _years(start, end)
+        for month, day, title in _FIXED_EXTRAS
+    ]
+    thanksgiving = _named(start, end, "public", "Thanksgiving Day")
+    easter = _named(start, end, "unofficial", "Easter Sunday")
+    anchored = (
+        [(d + timedelta(days=1), "Black Friday") for d in thanksgiving]
+        + [(d + timedelta(days=4), "Cyber Monday") for d in thanksgiving]
+        + [(d - timedelta(days=47), "Mardi Gras") for d in easter]
+    )
+    return fixed + anchored
+
+
 def _item(d: date, title: str, kind: str) -> dict[str, Any]:
     """A contract agenda-item. Holidays/markers are always all-day, date-only."""
     return {"start": d.isoformat(), "all_day": True, "title": title, "kind": kind}
@@ -93,7 +128,7 @@ def get_holidays(
     ]
     observances = [
         _item(d, title, "observance")
-        for d, title in _us(start, end, "unofficial").items()
+        for d, title in list(_us(start, end, "unofficial").items()) + _extras(start, end)
         if start <= d <= end
     ]
     markers = [_item(d, title, "info") for d, title in _dst_markers(start, end, tz_name)]
