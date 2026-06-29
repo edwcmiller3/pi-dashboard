@@ -15,6 +15,7 @@ the cards use `daily[1:5]`, the hero uses `daily[0]`.
 from __future__ import annotations
 
 import asyncio
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -47,9 +48,16 @@ _PARAMS: dict[str, Any] = {
 _REQUEST_TIMEOUT_SECONDS = 10
 
 
+def _round_half_up(value: float) -> int:
+    """Round to nearest int with halves going UP (72.5 -> 73). Python's built-in
+    `round` is banker's rounding (round-half-to-even: round(72.5) == 72), which
+    surprises on a temperature readout — use this for every displayed number."""
+    return math.floor(value + 0.5)
+
+
 def _pct(value: Any) -> int:
     """precipitation_probability_max can be null in the feed -> treat as 0%."""
-    return 0 if value is None else round(value)
+    return 0 if value is None else _round_half_up(value)
 
 
 def _forecast_day(daily: dict[str, Any], i: int) -> dict[str, Any]:
@@ -60,8 +68,8 @@ def _forecast_day(daily: dict[str, Any], i: int) -> dict[str, Any]:
         "code": int(daily["weather_code"][i]),
         "text": cond["text"],
         "icon": cond["icon"],
-        "high_f": round(daily["temperature_2m_max"][i]),
-        "low_f": round(daily["temperature_2m_min"][i]),
+        "high_f": _round_half_up(daily["temperature_2m_max"][i]),
+        "low_f": _round_half_up(daily["temperature_2m_min"][i]),
         "precip_prob_pct": _pct(daily["precipitation_probability_max"][i]),
     }
 
@@ -73,18 +81,18 @@ def normalize_weather(raw: dict[str, Any]) -> dict[str, Any]:
     is_day = bool(cur["is_day"])
     cond = describe(int(cur["weather_code"]), is_day)
     current = {
-        "temp_f": round(cur["temperature_2m"]),
-        "feels_like_f": round(cur["apparent_temperature"]),
+        "temp_f": _round_half_up(cur["temperature_2m"]),
+        "feels_like_f": _round_half_up(cur["apparent_temperature"]),
         "code": int(cur["weather_code"]),
         "text": cond["text"],
         "icon": cond["icon"],
         "is_day": is_day,
-        "humidity_pct": round(cur["relative_humidity_2m"]),
-        "wind_mph": round(cur["wind_speed_10m"]),
+        "humidity_pct": _round_half_up(cur["relative_humidity_2m"]),
+        "wind_mph": _round_half_up(cur["wind_speed_10m"]),
         # hero precip% = TODAY's daily max (current block has no probability)
         "precip_prob_pct": _pct(daily["precipitation_probability_max"][0]),
-        "high_f": round(daily["temperature_2m_max"][0]),
-        "low_f": round(daily["temperature_2m_min"][0]),
+        "high_f": _round_half_up(daily["temperature_2m_max"][0]),
+        "low_f": _round_half_up(daily["temperature_2m_min"][0]),
         # naive-local ISO from timezone=auto; the frontend renders the wall-clock
         "sunrise": daily["sunrise"][0],
         "sunset": daily["sunset"][0],

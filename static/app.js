@@ -15,6 +15,11 @@ const DATA_URL = "/api/data";
 // now a fixed poll matching the backend's fetch cadence is plenty.
 const POLL_INTERVAL_MS = 15 * 60 * 1000;
 
+// After a FAILED load, retry soon rather than waiting the full poll — so the
+// cold-boot 503 window (cache not yet warm) and transient blips clear in
+// seconds, not up to 15 minutes.
+const RETRY_INTERVAL_MS = 30 * 1000;
+
 // ── pure time helpers ───────────────────────────────────────────────────────
 
 // Split an ISO string into its date and (optional) local wall-clock time,
@@ -342,9 +347,28 @@ function renderStatus(data, opts = {}) {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-// Fetch the contract and repaint every data region. On any failure (including
-// the 503 the API returns before its first refresh tick), degrade visibly —
-// stale dots, "Updated —", and a glanceable notice — never a blank panel.
+// True once at least one fetch has painted real data. Drives how failures
+// degrade: BEFORE the first success (the cold-boot 503 window) we show honest
+// "unavailable" placeholders in EVERY data region; AFTER it, a failed poll
+// leaves the last-good render on screen and only flips the freshness dots stale
+// — so weather and the agenda degrade alike, never one wiped while the other stays.
+let hasRendered = false;
+
+// Cold-boot degrade: every data region gets an honest placeholder so nothing is
+// a blank glass box (the weather hero/forecast used to stay empty here).
+function renderUnavailable() {
+  const current = document.getElementById("current-card");
+  if (current) current.replaceChildren(el("div", "cur-unavailable", "Weather unavailable"));
+  const forecast = document.getElementById("forecast");
+  if (forecast) forecast.replaceChildren();
+  const agenda = document.getElementById("agenda-body");
+  if (agenda) agenda.replaceChildren(el("div", "agenda-empty", "Data unavailable"));
+}
+
+// Fetch the contract and repaint every data region. Returns true on success.
+// On any failure (including the 503 the API returns before its first refresh
+// tick) degrade visibly — stale dots, "Updated —", honest placeholders on cold
+// boot, last-good kept otherwise — never a blank panel.
 async function load() {
   try {
     const res = await fetch(DATA_URL, { cache: "no-store" });
@@ -354,19 +378,30 @@ async function load() {
     renderForecast(data.weather.forecast);
     renderAgenda(data.calendar.events);
     renderStatus(data);
+    hasRendered = true;
+    return true;
   } catch (err) {
     console.error("dashboard load failed:", err);
     renderStatus(null, { stale: true });
-    const agenda = document.getElementById("agenda-body");
-    if (agenda) agenda.replaceChildren(el("div", "agenda-empty", "Data unavailable"));
+    // No good data has ever painted → honest placeholders. After a prior
+    // success → leave the last-good render untouched; only the dots go stale.
+    if (!hasRendered) renderUnavailable();
+    return false;
   }
+}
+
+// Self-scheduling poll: on success, next fetch in POLL_INTERVAL_MS; on failure,
+// retry in the shorter RETRY_INTERVAL_MS. A single timer chain (not setInterval)
+// so a slow fetch can't stack overlapping polls.
+async function tick() {
+  const ok = await load();
+  setTimeout(tick, ok ? POLL_INTERVAL_MS : RETRY_INTERVAL_MS);
 }
 
 function init() {
   renderClock();
   setInterval(renderClock, 1000);
-  load();
-  setInterval(load, POLL_INTERVAL_MS);
+  tick();
 }
 
 // Browser-only bootstrap. Guarded so importing this module under node:test

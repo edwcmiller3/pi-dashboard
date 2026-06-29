@@ -1,4 +1,8 @@
-"""Cache interface — JSON-on-disk now, SQLite-swappable later.
+"""Cache interface — JSON files on disk. Deliberately simple: no Redis, no
+SQLite, no store migration planned (decided 2026-06-29). The cache holds two
+regenerable blobs for one local process, so a cache server / embedded DB would
+be pure overhead. The small read/write seam stays only to keep the loop and
+route decoupled and the tests clean.
 
 The handoff between the background refresh loop (writer) and the `/api/data`
 route (reader). Writes go through a temp file + `os.replace` so a concurrent

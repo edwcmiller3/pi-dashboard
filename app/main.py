@@ -17,6 +17,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -36,8 +37,13 @@ _REFRESH_INTERVAL_SECONDS = 900
 async def _refresh_once() -> None:
     """Build the dashboard doc from the live sources and cache it."""
     weather = await get_weather()
+    # generated_at = when THIS doc was assembled (not when any one source was
+    # fetched). Weather is currently the only timekeeping source, so we adopt its
+    # offset to stamp "now"; Phase 5 stamps this from a source-independent clock
+    # once the calendar lands and the two fetch times can diverge.
+    tz = datetime.fromisoformat(weather["fetched_at"]).tzinfo
     doc = {
-        "generated_at": weather["fetched_at"],
+        "generated_at": datetime.now(tz).isoformat(timespec="seconds"),
         "weather": weather,
         # Phase 5 wires the live Proton feed + holidays here; until then the
         # calendar reads as stale (ok=False) with no events — honest, not blank.

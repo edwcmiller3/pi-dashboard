@@ -68,6 +68,17 @@ def test_current_numbers_rounded_to_int() -> None:
     assert cur["low_f"] == 61  # daily.min[0] 61.2 -> 61
 
 
+def test_numbers_round_half_up_not_bankers() -> None:
+    # .5 rounds UP (73), not Python's default round-half-to-even (which gives 72).
+    cur = {**RAW["current"], "temperature_2m": 72.5, "wind_speed_10m": 6.5}
+    daily = {**RAW["daily"], "temperature_2m_max": [80.5, 78.1, 70.3, 76.0, 74.2]}
+    raw = {**RAW, "current": cur, "daily": daily}
+    norm = weather.normalize_weather(raw)
+    assert norm["current"]["temp_f"] == 73
+    assert norm["current"]["wind_mph"] == 7
+    assert norm["current"]["high_f"] == 81
+
+
 def test_current_icon_text_resolved_day() -> None:
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["code"] == 0
