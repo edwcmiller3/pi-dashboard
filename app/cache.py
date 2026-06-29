@@ -1,11 +1,15 @@
 """Cache interface — JSON-on-disk now, SQLite-swappable later.
 
-Phase 1 stub: defines the shape so sources can target a stable interface.
-Real read/write + TTL handling lands with the freshness hardening (Phase 6).
+The handoff between the background refresh loop (writer) and the `/api/data`
+route (reader). Writes go through a temp file + `os.replace` so a concurrent
+reader can never observe a half-written file (torn-read-safe). TTL handling,
+corrupt-file tolerance, and power-loss durability (fsync) land in Phase 6.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +21,19 @@ def _cache_path(key: str) -> Path:
 
 
 def read(key: str) -> Any | None:
-    """Return cached value for `key`, or None if absent/stale. (stub)"""
-    raise NotImplementedError("cache.read — implemented in Phase 6")
+    """Return the cached value for `key`, or None if it hasn't been written yet."""
+    try:
+        with _cache_path(key).open(encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        return None
 
 
 def write(key: str, value: Any) -> None:
-    """Persist `value` under `key`. (stub)"""
-    raise NotImplementedError("cache.write — implemented in Phase 6")
+    """Persist `value` under `key` as JSON, atomically (temp file + os.replace)."""
+    path = _cache_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="utf-8") as fh:
+        json.dump(value, fh)
+    os.replace(tmp, path)

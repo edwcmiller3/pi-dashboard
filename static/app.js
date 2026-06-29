@@ -1,15 +1,19 @@
 // Pi Dashboard front-end — vanilla, functional render of the data contract.
 //
-// Phase 2: reads a static ./data.json fixture. In Phase 3 the single DATA_URL
-// constant flips to the live JSON API ("/api/data" or similar) with no other
-// change — every render function below already consumes the final contract.
+// Phase 3: reads the live JSON API (/api/data), which the backend refresh loop
+// keeps warm. Every render function consumes the same contract the Phase-2 fake
+// data was authored against, so the swap was just this DATA_URL + a poll cycle.
 //
 // Time policy: event/sunrise/sunset times are rendered from the wall-clock
 // encoded in each ISO string's local part (honoring "render from the API
 // offset, not the Pi clock"). The big clock is the deliberate exception — it
 // ticks live from the browser (clock-sync honesty is a Phase-6 concern).
 
-const DATA_URL = "./data.json";
+const DATA_URL = "/api/data";
+
+// How often the page re-fetches the API. Phase 6 makes refresh TTL-aware; for
+// now a fixed poll matching the backend's fetch cadence is plenty.
+const POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 // ── pure time helpers ───────────────────────────────────────────────────────
 
@@ -338,9 +342,10 @@ function renderStatus(data, opts = {}) {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-async function init() {
-  renderClock();
-  setInterval(renderClock, 1000);
+// Fetch the contract and repaint every data region. On any failure (including
+// the 503 the API returns before its first refresh tick), degrade visibly —
+// stale dots, "Updated —", and a glanceable notice — never a blank panel.
+async function load() {
   try {
     const res = await fetch(DATA_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -351,12 +356,17 @@ async function init() {
     renderStatus(data);
   } catch (err) {
     console.error("dashboard load failed:", err);
-    // Degrade visibly: don't leave a black panel + ticking clock with no signal.
-    // Both source dots go stale, "Updated —", and a glanceable notice shows.
     renderStatus(null, { stale: true });
     const agenda = document.getElementById("agenda-body");
     if (agenda) agenda.replaceChildren(el("div", "agenda-empty", "Data unavailable"));
   }
+}
+
+function init() {
+  renderClock();
+  setInterval(renderClock, 1000);
+  load();
+  setInterval(load, POLL_INTERVAL_MS);
 }
 
 // Browser-only bootstrap. Guarded so importing this module under node:test

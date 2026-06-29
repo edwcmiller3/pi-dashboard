@@ -24,7 +24,10 @@ cp .env.example .env     # then fill in PROTON_ICS_URL (see Secrets below)
 uv run uvicorn app.main:app --reload    # dev (Mac): http://127.0.0.1:8000
 ```
 
-`/healthz` returns `{"status": "ok"}`. The static dashboard is served at `/`.
+`/healthz` returns `{"status": "ok"}`. The static dashboard is served at `/`,
+and `/api/data` serves the normalized weather/calendar contract the dashboard
+polls (a background loop refreshes it; weather is live, calendar lands in Phase 5).
+The JS unit tests run with `node --test` from `static/`.
 
 ## Test / lint
 

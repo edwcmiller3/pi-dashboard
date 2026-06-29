@@ -19,6 +19,7 @@ dev = [
     "mypy>=1.13",
     "pytest>=9.1.1",
     "ruff>=0.15.20",
+    "types-requests>=2.33.0.20260518",
 ]
 
 [tool.pytest.ini_options]
