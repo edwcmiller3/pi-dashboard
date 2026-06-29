@@ -83,19 +83,19 @@ ALL_CODES = [
 ]
 
 
-def test_clear_day_and_night():
+def test_clear_day_and_night() -> None:
     assert wc.describe(0, is_day=True) == {"icon": "wi-day-sunny", "text": "Clear"}
     assert wc.describe(0, is_day=False)["icon"] == "wi-night-clear"
 
 
-def test_mainly_clear_is_distinct_from_clear():
+def test_mainly_clear_is_distinct_from_clear() -> None:
     # Detailed granularity keeps "mainly clear" (1) separate from "clear" (0).
     assert wc.describe(1, is_day=True)["icon"] == "wi-day-sunny-overcast"
     assert wc.describe(1, is_day=False)["icon"] == "wi-night-alt-cloudy-high"
     assert wc.describe(1)["text"] == "Mainly clear"
 
 
-def test_neutral_buckets_ignore_is_day():
+def test_neutral_buckets_ignore_is_day() -> None:
     # Overcast/fog/mix/storm look the same day or night -> same glyph.
     for code in (3, 45, 95):
         assert (
@@ -104,48 +104,48 @@ def test_neutral_buckets_ignore_is_day():
         )
 
 
-def test_showers_distinct_from_steady_rain():
+def test_showers_distinct_from_steady_rain() -> None:
     assert wc.describe(63, is_day=True)["icon"] == "wi-day-rain"  # steady
     assert wc.describe(81, is_day=True)["icon"] == "wi-day-showers"  # showers
     assert wc.describe(85, is_day=True)["icon"] == "wi-day-sleet"  # snow showers
 
 
-def test_thunderstorm_family_is_generic_storm():
+def test_thunderstorm_family_is_generic_storm() -> None:
     for code in (95, 96, 99):
         assert wc.describe(code)["icon"] == "wi-thunderstorm"
 
 
-def test_unknown_code_falls_back_to_na():
+def test_unknown_code_falls_back_to_na() -> None:
     out = wc.describe(123)
     assert out["icon"] == "wi-na"
     assert out["text"]  # non-empty label, doesn't crash
 
 
-def test_every_documented_code_is_mapped():
+def test_every_documented_code_is_mapped() -> None:
     for code in ALL_CODES:
         out = wc.describe(code)
         assert out["icon"] in VENDORED
         assert out["text"]
 
 
-def test_no_code_maps_outside_the_vendored_subset():
+def test_no_code_maps_outside_the_vendored_subset() -> None:
     for code in ALL_CODES + [123, -1, 9999]:
         for is_day in (True, False):
             assert wc.describe(code, is_day=is_day)["icon"] in VENDORED
 
 
-def test_describe_defaults_to_day():
+def test_describe_defaults_to_day() -> None:
     assert wc.describe(0) == wc.describe(0, is_day=True)
 
 
-def test_vendored_font_covers_every_emittable_glyph():
+def test_vendored_font_covers_every_emittable_glyph() -> None:
     # Every glyph the module can emit must have a class in the vendored subset
     # CSS, or it would render as tofu on the kiosk.
     missing = wc.glyphs() - VENDORED_CSS_CLASSES
     assert not missing, f"glyphs not vendored in weather-icons.css: {sorted(missing)}"
 
 
-def test_hand_maintained_subset_matches_vendored_css():
+def test_hand_maintained_subset_matches_vendored_css() -> None:
     # The hand-listed VENDORED set must stay in sync with what's actually
     # shipped (minus the 5 hero stat icons, which have no WMO mapping).
     stat_icons = {

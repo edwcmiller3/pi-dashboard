@@ -16,10 +16,24 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "mypy>=1.13",
     "pytest>=9.1.1",
     "ruff>=0.15.20",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["app", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["recurring_ical_events.*"]   # ships no py.typed (used in Phase 5)
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
 

@@ -48,6 +48,8 @@ _WMO: dict[int, tuple[str, str, str]] = {
     80: ("wi-day-showers", "wi-night-alt-showers", "Light showers"),
     81: ("wi-day-showers", "wi-night-alt-showers", "Showers"),
     82: ("wi-day-showers", "wi-night-alt-showers", "Violent showers"),
+    # 85/86 night uses the neutral wi-sleet, not a wi-night-alt-* variant: the
+    # vendored font subset has no wi-night-alt-sleet, so this avoids tofu.
     85: ("wi-day-sleet", "wi-sleet", "Snow showers"),
     86: ("wi-day-sleet", "wi-sleet", "Snow showers"),
     95: ("wi-thunderstorm", "wi-thunderstorm", "Thunderstorm"),
@@ -76,6 +78,6 @@ def glyphs() -> frozenset[str]:
 
     Drives the font subset: exactly these glyphs are vendored.
     """
-    used = {g for day, night, _ in _WMO.values() for g in (day, night)}
-    used.add(_UNKNOWN[0])
-    return frozenset(used)
+    return frozenset(
+        {g for day, night, _ in _WMO.values() for g in (day, night)} | {_UNKNOWN[0]}
+    )

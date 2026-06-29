@@ -203,7 +203,9 @@ body {
 
 /* ───────────── agenda: two-column timeline ───────────── */
 .agenda-card {
-  padding: 1.4rem 1.8rem 1.2rem;
+  /* bottom padding reserves the absolutely-positioned status row's zone so
+     agenda content can never slide under "Updated …". */
+  padding: 1.4rem 1.8rem 2.6rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -223,10 +225,23 @@ body {
   gap: 0 2.4rem;
   align-content: start;
   overflow: hidden;
+  /* flex child of .agenda-card: fill the remaining card height and allow
+     shrink (min-height:0) so clientHeight is the true fit budget app.js
+     measures columns against. */
+  flex: 1;
+  min-height: 0;
 }
 .agenda-col {
   display: flex;
   flex-direction: column;
+}
+/* "+N more" / "+N more days" truncation indicator (app.js measure-and-fit). */
+.agenda-more {
+  align-self: flex-start;
+  color: var(--faint);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0;
 }
 .day-row {
   display: grid;
@@ -331,6 +346,14 @@ body {
   font-size: 0.95rem;
   letter-spacing: 0.02em;
   margin: 0.1rem 0 0.4rem;
+}
+
+/* shown when the initial fetch fails — glanceable, in-theme, unobtrusive */
+.agenda-empty {
+  color: var(--faint);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0;
 }
 
 /* status */

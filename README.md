@@ -32,6 +32,7 @@ uv run uvicorn app.main:app --reload    # dev (Mac): http://127.0.0.1:8000
 uv run pytest
 uv run ruff check .
 uv run ruff format .
+uv run mypy             # strict type-check gate (app + tests)
 ```
 
 ## Secrets & data handling
