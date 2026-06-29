@@ -48,6 +48,20 @@ _PARAMS: dict[str, Any] = {
 _REQUEST_TIMEOUT_SECONDS = 10
 
 
+def _tz(utc_offset_seconds: int) -> timezone:
+    """The dashboard location's fixed UTC offset (per the API's
+    `utc_offset_seconds`) — the single zone we stamp and emit every time in."""
+    return timezone(timedelta(seconds=utc_offset_seconds))
+
+
+def _with_offset(naive_local_iso: str, tz: timezone) -> str:
+    """Attach the location's offset to a naive-local Open-Meteo time so it obeys
+    the contract's "every time is ISO-local-with-offset" rule — uniform with
+    `fetched_at`/events and correct for a consumer that does `new Date(...)`.
+    `'2026-06-29T06:22'` -> `'2026-06-29T06:22:00-04:00'`."""
+    return datetime.fromisoformat(naive_local_iso).replace(tzinfo=tz).isoformat()
+
+
 def _round_half_up(value: float) -> int:
     """Round to nearest int with halves going UP (72.5 -> 73). Python's built-in
     `round` is banker's rounding (round-half-to-even: round(72.5) == 72), which
@@ -78,6 +92,7 @@ def normalize_weather(raw: dict[str, Any]) -> dict[str, Any]:
     """Raw Open-Meteo JSON -> the contract's `weather` block (pure)."""
     cur = raw["current"]
     daily = raw["daily"]
+    tz = _tz(int(raw["utc_offset_seconds"]))
     is_day = bool(cur["is_day"])
     cond = describe(int(cur["weather_code"]), is_day)
     current = {
@@ -93,9 +108,10 @@ def normalize_weather(raw: dict[str, Any]) -> dict[str, Any]:
         "precip_prob_pct": _pct(daily["precipitation_probability_max"][0]),
         "high_f": _round_half_up(daily["temperature_2m_max"][0]),
         "low_f": _round_half_up(daily["temperature_2m_min"][0]),
-        # naive-local ISO from timezone=auto; the frontend renders the wall-clock
-        "sunrise": daily["sunrise"][0],
-        "sunset": daily["sunset"][0],
+        # Open-Meteo returns naive-local (timezone=auto); attach the offset so
+        # these obey the contract's ISO-local-with-offset rule like every time.
+        "sunrise": _with_offset(daily["sunrise"][0], tz),
+        "sunset": _with_offset(daily["sunset"][0], tz),
     }
     # Cards = the 4 FUTURE days (daily[1:5]); today (daily[0]) feeds the hero.
     forecast = [_forecast_day(daily, i) for i in range(1, 5)]
@@ -106,8 +122,7 @@ def _stamp(utc_offset_seconds: int) -> str:
     """Stamp "now" in the dashboard location's offset (per the API, not the Pi
     clock), as ISO with an explicit offset — so the frontend renders the right
     wall-clock and compares instants correctly."""
-    tz = timezone(timedelta(seconds=utc_offset_seconds))
-    return datetime.now(tz).isoformat(timespec="seconds")
+    return datetime.now(_tz(utc_offset_seconds)).isoformat(timespec="seconds")
 
 
 def _fetch_raw() -> dict[str, Any]:

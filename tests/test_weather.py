@@ -100,10 +100,14 @@ def test_current_precip_prob_is_todays_daily_max() -> None:
     assert cur["precip_prob_pct"] == 10
 
 
-def test_current_sunrise_sunset_passed_through_as_local_iso() -> None:
+def test_current_sunrise_sunset_emitted_with_offset() -> None:
+    # Contract rule: every emitted time is ISO-local-WITH-offset. Open-Meteo
+    # returns naive-local strings (timezone=auto), so we attach the location's
+    # utc_offset_seconds (-14400 -> -04:00) — uniform with fetched_at/events,
+    # and correct for any consumer that does `new Date(sunrise)`.
     cur = weather.normalize_weather(RAW)["current"]
-    assert cur["sunrise"] == "2026-06-29T06:18"
-    assert cur["sunset"] == "2026-06-29T20:51"
+    assert cur["sunrise"] == "2026-06-29T06:18:00-04:00"
+    assert cur["sunset"] == "2026-06-29T20:51:00-04:00"
 
 
 # ── normalize_weather: forecast (4 future days = daily[1:5]) ─────────────────
