@@ -1,10 +1,37 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>pi-dashboard</title>
-<link rel="stylesheet" href="/style.css" />
-<!-- Phase 2 fills this with the v4 layout (1280x800 effective viewport). -->
+<title>Pi Dashboard</title>
+<!-- Self-hosted, subset weather-icons font (no CDN — prod requirement). -->
+<link rel="stylesheet" href="vendor/weather-icons/weather-icons.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
 <body>
-  <main id="app">pi-dashboard — Phase 1 skeleton</main>
-  <script src="/app.js"></script>
+  <!-- v4 layout (bento over ambient glow, no-blur safe build). Designed for the
+       1280x800 effective viewport (scale 1.5). app.js fills every region from
+       data.json; only the shell + the "Upcoming" heading are static. -->
+  <div class="screen">
+
+    <div class="top">
+      <section class="glass clock-card">
+        <div class="clock" id="clock"></div>
+        <div class="date" id="date"></div>
+      </section>
+      <section class="glass current-card" id="current-card"></section>
+    </div>
+
+    <!-- Forecast = 4 FUTURE days only (today's H/L lives in the hero). -->
+    <div class="forecast" id="forecast"></div>
+
+    <section class="glass agenda-card">
+      <h1>Upcoming</h1>
+      <div class="agenda-body" id="agenda-body"></div>
+      <div class="status" id="status"></div>
+    </section>
+
+  </div>
+  <script src="app.js"></script>
 </body>
+</html>

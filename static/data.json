@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-06-28T09:40:00-04:00",
+  "weather": {
+    "ok": true,
+    "fetched_at": "2026-06-28T09:40:00-04:00",
+    "current": {
+      "temp_f": 72,
+      "feels_like_f": 70,
+      "code": 0,
+      "text": "Clear",
+      "icon": "wi-day-sunny",
+      "is_day": true,
+      "humidity_pct": 44,
+      "wind_mph": 6,
+      "precip_prob_pct": 10,
+      "high_f": 75,
+      "low_f": 61,
+      "sunrise": "2026-06-28T06:18:00-04:00",
+      "sunset": "2026-06-28T20:51:00-04:00"
+    },
+    "forecast": [
+      {
+        "date": "2026-06-29",
+        "code": 2,
+        "text": "Partly cloudy",
+        "icon": "wi-day-cloudy",
+        "high_f": 78,
+        "low_f": 63,
+        "precip_prob_pct": 20
+      },
+      {
+        "date": "2026-06-30",
+        "code": 63,
+        "text": "Rain",
+        "icon": "wi-day-rain",
+        "high_f": 70,
+        "low_f": 59,
+        "precip_prob_pct": 80
+      },
+      {
+        "date": "2026-07-01",
+        "code": 0,
+        "text": "Clear",
+        "icon": "wi-day-sunny",
+        "high_f": 76,
+        "low_f": 60,
+        "precip_prob_pct": 5
+      },
+      {
+        "date": "2026-07-02",
+        "code": 1,
+        "text": "Mainly clear",
+        "icon": "wi-day-sunny-overcast",
+        "high_f": 74,
+        "low_f": 58,
+        "precip_prob_pct": 10
+      }
+    ]
+  },
+  "calendar": {
+    "ok": false,
+    "fetched_at": "2026-06-28T08:10:00-04:00",
+    "events": [
+      { "start": "2026-06-28T08:30:00-04:00", "all_day": false, "title": "Team standup", "kind": "personal" },
+      { "start": "2026-06-28T10:00:00-04:00", "all_day": false, "title": "1:1 with Priya", "kind": "personal" },
+      { "start": "2026-06-28T12:00:00-04:00", "all_day": false, "title": "Lunch with Sam", "kind": "personal" },
+      { "start": "2026-06-28T14:00:00-04:00", "all_day": false, "title": "Code review", "kind": "personal" },
+      { "start": "2026-06-28T18:00:00-04:00", "all_day": false, "title": "Gym", "kind": "personal" },
+      { "start": "2026-06-29T11:00:00-04:00", "all_day": false, "title": "Brunch with Mom", "kind": "personal" },
+      { "start": "2026-06-29T16:00:00-04:00", "all_day": false, "title": "Call with Sam", "kind": "personal" },
+      { "start": "2026-06-30", "all_day": true, "title": "Cabin trip", "kind": "personal" },
+      { "start": "2026-06-30T10:00:00-04:00", "all_day": false, "title": "Farmers market", "kind": "personal" },
+      { "start": "2026-07-04", "all_day": true, "title": "Independence Day", "kind": "holiday" },
+      { "start": "2026-07-04T13:00:00-04:00", "all_day": false, "title": "BBQ at Mike's", "kind": "personal" },
+      { "start": "2026-07-04T21:15:00-04:00", "all_day": false, "title": "Fireworks downtown", "kind": "personal" }
+    ]
+  }
+}
