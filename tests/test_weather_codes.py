@@ -5,7 +5,24 @@ the vendored weather-icons font subset and the Phase-4 weather transform, so
 these tests also guard that no glyph outside the subset can sneak in.
 """
 
+import re
+from pathlib import Path
+
 from app import weather_codes as wc
+
+# The vendored, subset weather-icons CSS — the real source of truth for which
+# glyphs actually ship in the font. Parsed live so the test fails if the module
+# can emit a glyph that wasn't subset into static/vendor/.
+_VENDOR_CSS = (
+    Path(__file__).resolve().parent.parent
+    / "static"
+    / "vendor"
+    / "weather-icons"
+    / "weather-icons.css"
+)
+VENDORED_CSS_CLASSES = set(
+    re.findall(r"\.(wi-[a-z0-9-]+)::before", _VENDOR_CSS.read_text())
+)
 
 # The exact glyph set we vendor (Detailed granularity, 2026-06-28). If a code
 # maps to anything outside this, the font subset would be missing a glyph.
@@ -119,3 +136,23 @@ def test_no_code_maps_outside_the_vendored_subset():
 
 def test_describe_defaults_to_day():
     assert wc.describe(0) == wc.describe(0, is_day=True)
+
+
+def test_vendored_font_covers_every_emittable_glyph():
+    # Every glyph the module can emit must have a class in the vendored subset
+    # CSS, or it would render as tofu on the kiosk.
+    missing = wc.glyphs() - VENDORED_CSS_CLASSES
+    assert not missing, f"glyphs not vendored in weather-icons.css: {sorted(missing)}"
+
+
+def test_hand_maintained_subset_matches_vendored_css():
+    # The hand-listed VENDORED set must stay in sync with what's actually
+    # shipped (minus the 5 hero stat icons, which have no WMO mapping).
+    stat_icons = {
+        "wi-strong-wind",
+        "wi-humidity",
+        "wi-raindrop",
+        "wi-sunrise",
+        "wi-sunset",
+    }
+    assert VENDORED == VENDORED_CSS_CLASSES - stat_icons
