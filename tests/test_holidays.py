@@ -68,6 +68,10 @@ def test_all_observances_present_over_the_year() -> None:
             "Black Friday",
             "Cyber Monday",
             "Mardi Gras",
+            "Pi Day",
+            "Talk Like a Pirate Day",
+            "May Day",
+            "Election Day",  # 2026 is an even (election) year
         ]
     )
 
@@ -83,6 +87,33 @@ def test_fixed_date_extras() -> None:
     }
     assert by_title["Earth Day"]["start"] == "2026-04-22"
     assert by_title["Cinco de Mayo"]["start"] == "2026-05-05"
+    assert by_title["Pi Day"]["start"] == "2026-03-14"
+    assert by_title["May Day"]["start"] == "2026-05-01"
+    assert by_title["Talk Like a Pirate Day"]["start"] == "2026-09-19"
+
+
+def test_election_day_even_year_is_tuesday_after_first_monday() -> None:
+    # 2026 midterm: Nov 1 is a Sunday -> first Monday Nov 2 -> Election Day Nov 3.
+    items = H.get_holidays(date(2026, 11, 1), date(2026, 11, 30))
+    election = [i for i in items if i["title"] == "Election Day"]
+    assert election == [
+        {"start": "2026-11-03", "all_day": True, "title": "Election Day", "kind": "observance"}
+    ]
+
+
+def test_no_election_day_in_odd_year() -> None:
+    items = H.get_holidays(date(2027, 1, 1), date(2027, 12, 31))
+    assert not any(i["title"] == "Election Day" for i in items)
+
+
+def test_election_day_not_duplicated_in_presidential_year() -> None:
+    # The lib emits its own (quadrennial) Election Day in presidential years; we
+    # filter it and own the computation, so 2028 must have exactly one.
+    items = H.get_holidays(date(2028, 1, 1), date(2028, 12, 31))
+    election = [i for i in items if i["title"] == "Election Day"]
+    assert election == [
+        {"start": "2028-11-07", "all_day": True, "title": "Election Day", "kind": "observance"}
+    ]
 
 
 def test_thanksgiving_anchored_extras() -> None:

@@ -79,9 +79,12 @@ def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]
 # Cultural observances the `holidays` lib doesn't carry, as (month, day, title)
 # rules — fixed-date, so no per-year dates ever get hardcoded.
 _FIXED_EXTRAS = (
+    (3, 14, "Pi Day"),
     (4, 1, "April Fools' Day"),
     (4, 22, "Earth Day"),
+    (5, 1, "May Day"),
     (5, 5, "Cinco de Mayo"),
+    (9, 19, "Talk Like a Pirate Day"),
 )
 
 
@@ -92,14 +95,28 @@ def _named(start: date, end: date, category: str, name: str) -> list[date]:
     return [d for d, n in _us(start, end, category).items() if n == name]
 
 
+def _election_day(year: int) -> date:
+    """US federal general Election Day — the Tuesday after the first Monday of
+    November (= first Monday + 1 day)."""
+    nov1 = date(year, 11, 1)
+    first_monday = nov1 + timedelta(days=(-nov1.weekday()) % 7)
+    return first_monday + timedelta(days=1)
+
+
 def _extras(start: date, end: date) -> list[tuple[date, str]]:
     """Common cultural observances absent from the `holidays` lib, as (date,
-    title). All rule-based — fixed month/day, or anchored on Thanksgiving /
-    Easter that the lib already gives us — so nothing is hardcoded per year."""
+    title). All rule-based — fixed month/day, anchored on Thanksgiving / Easter
+    the lib already gives us, or a weekday rule — so nothing is hardcoded per
+    year. Election Day is computed for every even (election) year, so it isn't
+    limited to the lib's presidential-year-only entry (which `get_holidays`
+    filters out to avoid a duplicate)."""
     fixed = [
         (date(y, month, day), title)
         for y in _years(start, end)
         for month, day, title in _FIXED_EXTRAS
+    ]
+    election = [
+        (_election_day(y), "Election Day") for y in _years(start, end) if y % 2 == 0
     ]
     thanksgiving = _named(start, end, "public", "Thanksgiving Day")
     easter = _named(start, end, "unofficial", "Easter Sunday")
@@ -108,7 +125,16 @@ def _extras(start: date, end: date) -> list[tuple[date, str]]:
         + [(d + timedelta(days=4), "Cyber Monday") for d in thanksgiving]
         + [(d - timedelta(days=47), "Mardi Gras") for d in easter]
     )
-    return fixed + anchored
+    return fixed + election + anchored
+
+
+def _unofficial(start: date, end: date) -> list[tuple[date, str]]:
+    """The lib's unofficial observances minus 'Election Day' — `_extras` owns
+    that (computed biennially, incl. midterms), so it never duplicates the lib's
+    presidential-year-only entry."""
+    return [
+        (d, n) for d, n in _us(start, end, "unofficial").items() if n != "Election Day"
+    ]
 
 
 def _item(d: date, title: str, kind: str) -> dict[str, Any]:
@@ -128,7 +154,7 @@ def get_holidays(
     ]
     observances = [
         _item(d, title, "observance")
-        for d, title in list(_us(start, end, "unofficial").items()) + _extras(start, end)
+        for d, title in _unofficial(start, end) + _extras(start, end)
         if start <= d <= end
     ]
     markers = [_item(d, title, "info") for d, title in _dst_markers(start, end, tz_name)]
