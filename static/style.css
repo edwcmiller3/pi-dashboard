@@ -407,6 +407,21 @@ body {
   fill: none;
   stroke-width: 2;
 }
+/* In-flight manual refresh: spin the glyph. Tiny region, so the rotate is cheap
+   even on a software compositor (unlike the shelved backdrop-filter). */
+.status .refresh.is-spinning svg {
+  transform-origin: 50% 50%;
+  animation: refresh-spin 0.8s linear infinite;
+}
+/* Brief feedback when POST /refresh failed (no visible console on the kiosk). */
+.status .refresh.is-error svg {
+  stroke: var(--stale);
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Nightly blackout (1a–6a) — wall-clock-driven full-screen black overlay.
    The panel has no DDC/CI and no /sys/class/backlight (spikes 0.4/0.5), and

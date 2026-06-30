@@ -404,8 +404,60 @@ function renderStatus(data, opts = {}) {
 
   const refresh = el("span", "refresh");
   refresh.setAttribute("title", "refresh");
+  refresh.setAttribute("role", "button");
   refresh.innerHTML = REFRESH_SVG; // trusted backend/own SVG markup only — never interpolate calendar/user strings here.
+  // Reflect an in-flight manual refresh: renderStatus rebuilds this node on every
+  // poll, so the spin can't live only on the old node — re-derive it from the
+  // module flag each render so a repaint mid-refresh keeps spinning.
+  if (refreshing) refresh.classList.add("is-spinning");
+  refresh.addEventListener("click", onRefresh); // tap → click (Chromium synthesizes it from wl_touch even with mouseEmulation="no")
   status.append(refresh);
+}
+
+// ── manual refresh ─────────────────────────────────────────────────────────
+
+// True while a manual POST /refresh is in flight. Guards against a double-tap (or
+// a poll-driven repaint) starting a second concurrent refresh, and is the source
+// of truth for the spin state across renderStatus rebuilds.
+let refreshing = false;
+
+// Toggle the spin class on whatever .refresh node is currently mounted (the node
+// identity changes across repaints, so re-query rather than capturing it).
+function setRefreshSpinning(on) {
+  const r = document.querySelector("#status .refresh");
+  if (r) r.classList.toggle("is-spinning", on);
+}
+
+// Briefly flag the control red so a failed refresh isn't silent on a kiosk with
+// no visible console. Cleared after a beat; a repaint in between is harmless.
+function flashRefreshError() {
+  const r = document.querySelector("#status .refresh");
+  if (!r) return;
+  r.classList.add("is-error");
+  setTimeout(() => {
+    const cur = document.querySelector("#status .refresh");
+    if (cur) cur.classList.remove("is-error");
+  }, 1500);
+}
+
+// Force an immediate backend refetch of every source, then reload the contract to
+// repaint. POST /refresh is serialized server-side (asyncio.Lock) against the
+// background loop, so this can't race a scheduled tick into a double-fetch.
+async function onRefresh() {
+  if (refreshing) return; // ignore taps while one is already running
+  refreshing = true;
+  setRefreshSpinning(true);
+  try {
+    const res = await fetch("/refresh", { method: "POST", cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await load(); // repaint with the freshly-refreshed doc (rebuilds the spinning node)
+  } catch (err) {
+    console.error("manual refresh failed:", err);
+    flashRefreshError();
+  } finally {
+    refreshing = false;
+    setRefreshSpinning(false);
+  }
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────────
