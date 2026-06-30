@@ -94,6 +94,15 @@ body {
   color: var(--muted);
   margin-top: 0.6rem;
 }
+.clock-warn {
+  font-size: 0.85rem;
+  color: var(--stale);
+  margin-top: 0.5rem;
+  letter-spacing: 0.01em;
+}
+.clock-warn[hidden] {
+  display: none;
+}
 
 .current-card {
   padding: 1.4rem 1.7rem;

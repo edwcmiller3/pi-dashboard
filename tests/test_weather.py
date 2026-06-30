@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
+
 from app.sources import weather
 
 # A realistic single-call Open-Meteo response (shape confirmed live in 0.D4 +
@@ -157,6 +159,25 @@ def test_unknown_code_falls_back_to_wi_na() -> None:
     cur = weather.normalize_weather(raw)["current"]
     assert cur["icon"] == "wi-na"
     assert cur["text"] == "Unknown"
+
+
+def test_short_daily_response_raises_clear_valueerror() -> None:
+    # A truncated Open-Meteo payload (<5 daily entries) used to raise a cryptic
+    # IndexError from the daily[1:5] slice / daily[0] index. Guard it into a
+    # descriptive ValueError so the refresh loop logs an intelligible cause and
+    # keeps the last-good doc (all-or-nothing keep-last-good is deliberate — the
+    # frontend never renders a half-built weather block).
+    short = {k: v[:2] for k, v in RAW["daily"].items()}  # only 2 days
+    raw = {**RAW, "daily": short}
+    with pytest.raises(ValueError, match="daily"):
+        weather.normalize_weather(raw)
+
+
+def test_missing_top_level_block_raises_clear_valueerror() -> None:
+    # A response missing `current`/`daily` entirely -> a legible ValueError, not
+    # a bare KeyError.
+    with pytest.raises(ValueError, match="current"):
+        weather.normalize_weather({"daily": RAW["daily"]})
 
 
 # ── get_weather: async wrapper (network monkeypatched out) ───────────────────

@@ -293,6 +293,73 @@ def test_get_calendar_no_url_is_holidays_only(monkeypatch: Any) -> None:
     assert any(e["title"] == "Independence Day" for e in block["events"])
 
 
+def test_get_calendar_proton_failure_keeps_last_good_personal(monkeypatch: Any) -> None:
+    # Phase 6 per-source last-good: a transient Proton blip must NOT wipe the
+    # user's personal events from the agenda. With a last-good doc in hand, the
+    # in-window personal events are kept (ok=False) and holidays still merge.
+    monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
+
+    def boom(url: str, start: Any, end: Any, tz: Any) -> Any:
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(calendar, "_fetch_personal", boom)
+    last_good = {
+        "ok": True,
+        "fetched_at": "2026-07-01T08:00:00-04:00",
+        "events": [
+            {
+                "start": "2026-07-02T08:30:00-04:00",
+                "all_day": False,
+                "title": "Team standup",
+                "kind": "personal",
+            },
+            # A holiday in last-good must NOT be carried as personal (holidays are
+            # recomputed fresh every tick); only kind=="personal" survives.
+            {
+                "start": "2026-07-04",
+                "all_day": True,
+                "title": "Independence Day",
+                "kind": "holiday",
+            },
+        ],
+    }
+    block = asyncio.run(calendar.get_calendar(NOW, last_good=last_good))
+    assert block["ok"] is False  # still flagged stale (Proton fetch failed)
+    titles = [e["title"] for e in block["events"]]
+    assert "Team standup" in titles  # last-good personal event preserved
+    assert (
+        titles.count("Independence Day") == 1
+    )  # holiday merged once (fresh), not doubled
+
+
+def test_get_calendar_last_good_personal_outside_window_is_dropped(
+    monkeypatch: Any,
+) -> None:
+    # As the window slides during a prolonged outage, last-good personal events
+    # that fall out of [today, today+5) must drop (else they bucket into a day
+    # the agenda never renders) — matching the live-fetch window filter.
+    monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
+    monkeypatch.setattr(
+        calendar,
+        "_fetch_personal",
+        lambda url, s, e, tz: (_ for _ in ()).throw(RuntimeError("down")),
+    )
+    last_good = {
+        "ok": True,
+        "fetched_at": None,
+        "events": [
+            {
+                "start": "2026-06-20T08:30:00-04:00",  # well before the 07-01 window
+                "all_day": False,
+                "title": "Old meeting",
+                "kind": "personal",
+            },
+        ],
+    }
+    block = asyncio.run(calendar.get_calendar(NOW, last_good=last_good))
+    assert all(e["title"] != "Old meeting" for e in block["events"])
+
+
 def test_get_calendar_failure_does_not_leak_url(monkeypatch: Any, caplog: Any) -> None:
     secret = "https://calendar.proton.me/SECRET-TOKEN-xyz?PassphraseKey=DECRYPTKEY"
     monkeypatch.setattr(settings, "proton_ics_url", secret)

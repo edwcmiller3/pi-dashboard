@@ -47,6 +47,10 @@ _PARAMS: dict[str, Any] = {
 
 _REQUEST_TIMEOUT_SECONDS = 10
 
+# forecast_days=5 -> today (hero) + 4 future (cards). The normalize step indexes
+# daily[0] and slices daily[1:5], so a shorter series can't build a full block.
+_REQUIRED_DAILY_DAYS = 5
+
 
 def _tz(utc_offset_seconds: int) -> timezone:
     """The dashboard location's fixed UTC offset (per the API's
@@ -88,10 +92,29 @@ def _forecast_day(daily: dict[str, Any], i: int) -> dict[str, Any]:
     }
 
 
+def _require(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate the shape `normalize_weather` indexes into, turning a cryptic
+    KeyError/IndexError on a malformed or truncated payload into a legible
+    ValueError. The transform stays all-or-nothing: a bad response raises and
+    the refresh loop keeps the last-good doc rather than rendering a partial
+    weather block (per-field tolerance was rejected — see the Phase-6 notes)."""
+    try:
+        cur = raw["current"]
+        daily = raw["daily"]
+    except KeyError as exc:
+        raise ValueError(f"Open-Meteo response missing top-level {exc}") from exc
+    days = len(daily.get("time", []))
+    if days < _REQUIRED_DAILY_DAYS:
+        raise ValueError(
+            f"Open-Meteo daily series too short: got {days}, "
+            f"need {_REQUIRED_DAILY_DAYS}"
+        )
+    return cur, daily
+
+
 def normalize_weather(raw: dict[str, Any]) -> dict[str, Any]:
     """Raw Open-Meteo JSON -> the contract's `weather` block (pure)."""
-    cur = raw["current"]
-    daily = raw["daily"]
+    cur, daily = _require(raw)
     tz = _tz(int(raw["utc_offset_seconds"]))
     is_day = bool(cur["is_day"])
     cond = describe(int(cur["weather_code"]), is_day)

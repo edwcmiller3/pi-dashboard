@@ -118,6 +118,25 @@ def _fetch_personal(
     return normalize_events(resp.text, start, end, tz)
 
 
+def _last_good_personal(
+    last_good: dict[str, Any] | None, start: datetime, end: datetime
+) -> list[dict[str, Any]]:
+    """The personal events to fall back on when the Proton fetch fails — the
+    `kind="personal"` items from the last-good doc, filtered to the CURRENT
+    window. Holidays are excluded (they're recomputed fresh every tick, so
+    carrying them would double them); out-of-window items are dropped so a
+    prolonged outage doesn't surface stale events as the window slides forward."""
+    if not last_good:
+        return []
+    lo = start.date().isoformat()
+    hi = end.date().isoformat()
+    return [
+        e
+        for e in last_good.get("events", [])
+        if e.get("kind") == "personal" and lo <= str(e.get("start", ""))[:10] < hi
+    ]
+
+
 def _merge(
     ok: bool,
     fetched_at: str | None,
@@ -135,23 +154,28 @@ def _merge(
 
 
 async def get_calendar(
-    now: datetime | None = None, tz_name: str = _DISPLAY_TZ
+    now: datetime | None = None,
+    tz_name: str = _DISPLAY_TZ,
+    last_good: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The merged `calendar` block for the agenda window.
 
     Holidays/observances/DST (offline, never-fail) always merge in. The Proton
     fetch is best-effort: on any failure — or no URL configured — `ok=False`,
-    `fetched_at=None`, personal events empty, holidays still shown. Never raises
-    for a Proton outage, so a calendar blip doesn't fail the whole refresh tick.
+    `fetched_at=None`, and the last-good personal events (if any, in-window) are
+    kept so a transient Proton blip doesn't wipe the user's meetings; holidays
+    still show. Never raises for a Proton outage, so a calendar blip doesn't fail
+    the whole refresh tick.
     """
     tz = ZoneInfo(tz_name)
     now = now or datetime.now(tz)
     start, end = _window(now)
     # Inclusive end date for the offline source (window end is exclusive).
     holiday = get_holidays(start.date(), (end - timedelta(days=1)).date(), tz_name)
+    fallback = _last_good_personal(last_good, start, end)
 
     if not settings.proton_ics_url:
-        return _merge(ok=False, fetched_at=None, personal=[], holiday=holiday)
+        return _merge(ok=False, fetched_at=None, personal=fallback, holiday=holiday)
 
     try:
         personal = await asyncio.to_thread(
@@ -161,10 +185,11 @@ async def get_calendar(
         # NEVER log `exc` / use log.exception — the message+traceback carry the
         # secret URL. Log the type only.
         log.warning(
-            "Proton calendar fetch/parse failed (%s); showing holidays only",
+            "Proton calendar fetch/parse failed (%s); keeping last-good personal "
+            "events + holidays",
             type(exc).__name__,
         )
-        return _merge(ok=False, fetched_at=None, personal=[], holiday=holiday)
+        return _merge(ok=False, fetched_at=None, personal=fallback, holiday=holiday)
 
     fetched_at = datetime.now(tz).isoformat(timespec="seconds")
     return _merge(ok=True, fetched_at=fetched_at, personal=personal, holiday=holiday)

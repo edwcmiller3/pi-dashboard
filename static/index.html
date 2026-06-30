@@ -18,6 +18,9 @@
       <section class="glass clock-card">
         <div class="clock" id="clock"></div>
         <div class="date" id="date"></div>
+        <!-- Shown only while the Pi clock is NOT NTP-synced (clock_synced=false),
+             since the big clock ticks from the browser and would be wrong. -->
+        <div class="clock-warn" id="clock-warn" hidden>clock not yet synced</div>
       </section>
       <section class="glass current-card" id="current-card"></section>
     </div>

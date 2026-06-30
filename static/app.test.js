@@ -17,6 +17,7 @@ import {
   groupByDay,
   splitColumns,
   dayLabel,
+  pickUpdated,
 } from "./app.js";
 
 // ── localParts ───────────────────────────────────────────────────────────────
@@ -194,4 +195,48 @@ test("dayLabel: a non-today date -> isToday false, weekday name (not 'Today')", 
   assert.notEqual(future.dname, "Today");
   assert.equal(typeof future.dname, "string");
   assert.ok(future.dname.length > 0);
+});
+
+// ── pickUpdated ("Updated" = OLDEST ok source = min) ──────────────────────────
+
+test("pickUpdated: no sources -> null", () => {
+  assert.equal(pickUpdated([]), null);
+});
+
+test("pickUpdated: no ok source with a stamp -> null", () => {
+  assert.equal(
+    pickUpdated([
+      { ok: false, fetched_at: "2026-07-01T09:00:00-04:00" },
+      { ok: true, fetched_at: null },
+    ]),
+    null,
+  );
+});
+
+test("pickUpdated: single ok source -> its stamp", () => {
+  assert.equal(
+    pickUpdated([{ ok: true, fetched_at: "2026-07-01T09:40:00-04:00" }]),
+    "2026-07-01T09:40:00-04:00",
+  );
+});
+
+test("pickUpdated: returns the OLDEST (min) ok stamp, not the newest", () => {
+  // "Updated X" must mean EVERY ok source is fresh as of at least X — so the
+  // oldest wins, never the most recent (which would over-claim freshness).
+  const got = pickUpdated([
+    { ok: true, fetched_at: "2026-07-01T09:40:00-04:00" }, // weather, newer
+    { ok: true, fetched_at: "2026-07-01T09:38:00-04:00" }, // calendar, older
+  ]);
+  assert.equal(got, "2026-07-01T09:38:00-04:00");
+});
+
+test("pickUpdated: compares by instant across mixed offsets, excludes !ok", () => {
+  // 12:30Z (= 08:30-04:00) is the earlier instant than 09:00-04:00 (= 13:00Z),
+  // even though its local wall-clock reads later — compare epochs, not strings.
+  const got = pickUpdated([
+    { ok: true, fetched_at: "2026-07-01T09:00:00-04:00" },
+    { ok: true, fetched_at: "2026-07-01T12:30:00+00:00" },
+    { ok: false, fetched_at: "2026-07-01T00:00:00-04:00" }, // stale -> ignored
+  ]);
+  assert.equal(got, "2026-07-01T12:30:00+00:00");
 });

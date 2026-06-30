@@ -91,6 +91,21 @@ export function splitColumns(groups) {
   return [groups.slice(0, 1), groups.slice(1)];
 }
 
+// "Updated" = the OLDEST fetched_at among sources that fetched OK — so the
+// stamp honestly means "every fresh source is at least this current," never
+// over-claiming by showing the most-recent one. Compared by instant (epoch) so
+// mixed UTC offsets order correctly. Returns the chosen ISO string, or null
+// when nothing fetched OK.
+export function pickUpdated(sources) {
+  const stamps = sources
+    .filter((s) => s && s.ok && s.fetched_at)
+    .map((s) => s.fetched_at);
+  return stamps.reduce(
+    (best, iso) => (best === null || Date.parse(iso) < Date.parse(best) ? iso : best),
+    null,
+  );
+}
+
 export function dayLabel(dateStr) {
   const dt = localDate(dateStr);
   const isToday = isSameDay(dt, new Date());
@@ -155,6 +170,15 @@ function dayRowNode(group) {
 }
 
 // ── region renderers ─────────────────────────────────────────────────────────
+
+// Surface the Pi's clock-sync honesty: the big clock ticks from the browser, so
+// if the Pi clock isn't NTP-synced yet (no RTC, pre-network boot) it's wrong.
+// Warn only when the backend explicitly reports clock_synced === false; an
+// absent/true value (older cache, dev host) hides it.
+function setClockWarning(synced) {
+  const warn = document.getElementById("clock-warn");
+  if (warn) warn.hidden = synced !== false;
+}
 
 // Live wall-clock from the browser (the one time source NOT taken from the API).
 function renderClock() {
@@ -321,20 +345,11 @@ function renderStatus(data, opts = {}) {
     ["Calendar", data && data.calendar],
   ];
 
-  // "Updated" = the LATEST fetched_at among sources that fetched OK. Pick by
-  // actual instant (epoch) so mixed UTC offsets compare chronologically, then
-  // render that chosen string's LOCAL wall-clock part (not the Pi clock).
-  const okStamps = opts.stale
-    ? []
-    : sources
-        .map(([, s]) => s)
-        .filter((s) => s && s.ok && s.fetched_at)
-        .map((s) => s.fetched_at);
-  const latest = okStamps.reduce(
-    (best, iso) => (best === null || Date.parse(iso) > Date.parse(best) ? iso : best),
-    null,
-  );
-  const updated = latest ? fmtLong(localParts(latest).time) : "—";
+  // "Updated" = the OLDEST fetched_at among OK sources (pickUpdated) so the
+  // stamp can't over-claim freshness; rendered from that string's LOCAL
+  // wall-clock part (not the Pi clock). opts.stale forces "—".
+  const chosen = opts.stale ? null : pickUpdated(sources.map(([, s]) => s));
+  const updated = chosen ? fmtLong(localParts(chosen).time) : "—";
 
   const status = document.getElementById("status");
   status.replaceChildren();
@@ -380,6 +395,7 @@ async function load() {
     renderForecast(data.weather.forecast);
     renderAgenda(data.calendar.events);
     renderStatus(data);
+    setClockWarning(data.clock_synced);
     hasRendered = true;
     return true;
   } catch (err) {
