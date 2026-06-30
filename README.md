@@ -24,10 +24,18 @@ cp .env.example .env     # then fill in PROTON_ICS_URL (see Secrets below)
 uv run uvicorn app.main:app --reload    # dev (Mac): http://127.0.0.1:8000
 ```
 
-`/healthz` returns `{"status": "ok"}`. The static dashboard is served at `/`,
-and `/api/data` serves the normalized weather/calendar contract the dashboard
-polls (a background loop refreshes it; weather is live, calendar lands in Phase 5).
+`/healthz` returns `{"status": "ok"}`. The static dashboard is served at `/`
+(with `Cache-Control: no-cache` so a deploy's new bundle is picked up on the next
+load rather than a stale cached copy), and `/api/data` serves the normalized
+weather/calendar contract the dashboard polls (a background loop refreshes it).
 The JS unit tests run with `node --test` from `static/`.
+
+## Deploy (Pi)
+
+Production runs on the Pi as systemd user services (backend + labwc + Chromium
+kiosk) plus root-level system config. See [`deploy/README.md`](deploy/README.md)
+for the storage decision, install steps, quiet-boot tokens, and the on-Pi
+acceptance checklist.
 
 ## Test / lint
 

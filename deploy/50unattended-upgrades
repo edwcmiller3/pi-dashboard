@@ -1,7 +1,29 @@
-// STUB — authored in Phase 8. Installs to /etc/apt/apt.conf.d/50unattended-upgrades.
-// Planned: enable unattended security upgrades with automatic reboot at ~03:00,
-// which lands inside the 1a-6a blackout window (so the kiosk comes back to a
-// black overlay, not the bright dashboard — overlay is wall-clock-driven).
+// Unattended security upgrades + nightly auto-reboot for the kiosk.
+// Installs to /etc/apt/apt.conf.d/50unattended-upgrades (system file; needs root).
+// Pair with 20auto-upgrades (this dir), which enables the apt periodic timers
+// that actually run this.
 //
-// Unattended-Upgrade::Automatic-Reboot "true";
-// Unattended-Upgrade::Automatic-Reboot-Time "03:00";
+// Read-write SD root (storage decision 2026-06-30): apt can persist installs, so
+// unattended-upgrades is viable here. (It would be pointless on a read-only
+// overlayfs root — installs would land in the tmpfs upper layer and vanish on
+// reboot; that build updates by re-imaging instead.)
+//
+// Reboot at 03:00 lands INSIDE the app's 1a-6a CSS blackout, so the kiosk comes
+// back to the black overlay (wall-clock-driven), not a bright dashboard flash.
+// The backend + kiosk are enabled systemd units, so they restart automatically
+// on the reboot.
+
+Unattended-Upgrade::Origins-Pattern {
+    // Security updates only — keep the appliance stable; no feature churn.
+    "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+    "origin=Raspbian,codename=${distro_codename},label=Raspbian";
+    "origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation";
+};
+
+// Clean up obsolete deps/kernels so /boot and the SD don't fill over time.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// Reboot automatically if an upgrade needs it, at 03:00 (inside the blackout).
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "03:00";

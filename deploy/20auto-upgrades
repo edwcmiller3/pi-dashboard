@@ -1,0 +1,12 @@
+// Enables the apt periodic timers that run unattended-upgrades.
+// Installs to /etc/apt/apt.conf.d/20auto-upgrades (system file; needs root).
+// Without this, 50unattended-upgrades is configured but never triggered.
+//
+// Update the package lists and run the unattended upgrade once per day; the
+// upgrade run (and any 03:00 reboot it triggers) is scheduled by
+// apt-daily-upgrade.timer.
+
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+// Clean the apt cache weekly so it doesn't grow unbounded on the SD card.
+APT::Periodic::AutocleanInterval "7";

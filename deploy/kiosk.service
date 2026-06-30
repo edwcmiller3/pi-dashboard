@@ -1,16 +1,26 @@
-# STUB — finalized in Phase 8. Seed: the Phase-0 labwc systemd *user* service
-# (~/.config/systemd/user/kiosk.service) launched via `systemctl --user enable`
-# + `sudo loginctl enable-linger`. Phase 8 promotes/hardens it to also autostart
-# the Chromium kiosk. No `After=seatd.service` (user units can't order against
-# system units); Restart=always handles the seatd-not-ready race.
+# labwc compositor — the Wayland session the Chromium kiosk runs inside.
+# systemd USER service. Installs to ~/.config/systemd/user/kiosk.service.
+# Promoted from the Phase-0 bring-up unit (see plan 0.0); Chromium is now its
+# OWN unit (chromium-kiosk.service) layered on top, so each respawns independently
+# and the nightly reload can restart the browser without bouncing the compositor.
 #
-# [Unit]
-# Description=labwc kiosk session
+#   systemctl --user enable --now kiosk.service
+#   sudo loginctl enable-linger "$USER"   # start at boot without an interactive login
 #
-# [Service]
-# ExecStart=/usr/bin/labwc
-# Restart=always
-# RestartSec=2
-#
-# [Install]
-# WantedBy=default.target
+# No `After=seatd.service`: a USER unit can't order against a SYSTEM unit, so it
+# would be inert. Restart=always covers the seatd-not-ready boot race (labwc exits,
+# is retried every RestartSec until seatd's socket is up) and any labwc crash.
+# Do NOT set <autoEnableOutputs>no</autoEnableOutputs> in rc.xml (spike 0.4 — it
+# stops labwc driving the single fixed panel at all).
+
+[Unit]
+Description=labwc kiosk compositor
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/labwc
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,35 @@
+# FastAPI backend (uvicorn) — the data/app server the Chromium kiosk points at.
+# systemd USER service. Installs to ~/.config/systemd/user/pi-dashboard.service.
+#
+#   systemctl --user enable --now pi-dashboard.service
+#   sudo loginctl enable-linger "$USER"   # start at boot without an interactive login
+#
+# Independent of the GUI: this serves http://127.0.0.1:8000 whether or not labwc
+# / Chromium are up, so the data layer is decoupled from the display layer. The
+# kiosk (chromium-kiosk.service) just renders what this serves.
+#
+# Adjust WorkingDirectory / the uv path if the repo lives elsewhere or uv is
+# installed for a different user. `uv run` resolves the pinned (.python-version)
+# interpreter + the locked venv, so no manual venv activation is needed.
+
+[Unit]
+Description=pi-dashboard FastAPI backend
+# Best-effort ordering: the network helps weather/calendar fetch, but the app
+# tolerates a cold start (serves 503 "warming up" until the first tick), so this
+# is Wants, not Requires — the backend must come up even if the network is late.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=%h/pi-dashboard
+ExecStart=%h/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=2
+# Cache lives under the repo (var/, git-ignored) on the read-write SD root, so
+# last-good survives the nightly reboot. CACHE_DIR is overridable here if a
+# future box routes the cache to tmpfs (e.g. a read-only-root build).
+# Environment=CACHE_DIR=/run/user/%U/pi-dashboard
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,61 @@
+# Chromium kiosk — renders http://localhost:8000 fullscreen inside the labwc
+# session. systemd USER service. Installs to ~/.config/systemd/user/.
+#
+#   systemctl --user enable --now chromium-kiosk.service
+#
+# Its OWN unit (not a labwc autostart entry) so Restart=always respawns it on a
+# crash — the 0.10 soak noted Chromium was NOT auto-respawned before Phase 8 —
+# and so the nightly reload (chromium-reload.timer) can `restart` just the browser
+# without bouncing the compositor.
+#
+# Ordering: After kiosk.service (labwc). A USER unit ordering against another USER
+# unit is valid, but "active" != "wayland socket ready", so ExecStartPre waits for
+# the socket and Restart=always covers any residual race.
+#
+# PINNED FLAG SET (Phase 8 determinism + quiet log + SD-wear):
+#   --ozone-platform=wayland --enable-features=UseOzonePlatform  native Wayland (0.7)
+#   --kiosk --app=...                fullscreen, no chrome, single app
+#   --force-device-scale-factor=1.5  effective 1280x800 viewport (decision 2026-06-27)
+#   --noerrdialogs --disable-infobars --disable-session-crashed-bubble --no-first-run
+#                                    suppress dialogs/bubbles (spec flag set)
+#   --disable-background-networking  kills GCM/push registration + component-update
+#                                    chatter (the soak's DEPRECATED_ENDPOINT noise)
+#   --disable-component-update --disable-sync --disable-translate
+#   --check-for-update-interval=31536000   never nag for updates
+#   --overscroll-history-navigation=0      no touch swipe-to-go-back on the panel
+#   --password-store=basic           no gnome-keyring prompt on a headless kiosk
+#   --disk-cache-dir / --user-data-dir under $XDG_RUNTIME_DIR (tmpfs) + a capped
+#                                    --disk-cache-size keep Chromium's churn OFF
+#                                    the SD card (SD-wear: read-write SD root).
+#
+# NOTE on the wrapper: Pi OS /usr/bin/chromium injects extra flags from
+# /etc/chromium.d/* (incl. a stale --js-flags=--no-decommit-pooled-pages that V8
+# logs as "unrecognized flag" — cosmetic, confirmed harmless in the 0.10 soak).
+# Our flags append/override; to fully silence it, clear /etc/chromium.d or set an
+# empty CHROMIUM_FLAGS (see deploy/README) — not done here to avoid masking the
+# distro's other defaults.
+
+[Unit]
+Description=Chromium kiosk (pi-dashboard)
+After=kiosk.service pi-dashboard.service
+Wants=pi-dashboard.service
+
+[Service]
+Type=simple
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/bin/sh -c 'until [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; do sleep 0.5; done'
+ExecStart=/usr/bin/chromium \
+  --ozone-platform=wayland --enable-features=UseOzonePlatform \
+  --kiosk --app=http://localhost:8000 \
+  --force-device-scale-factor=1.5 \
+  --noerrdialogs --disable-infobars --disable-session-crashed-bubble --no-first-run \
+  --disable-background-networking --disable-component-update --disable-sync \
+  --disable-translate --check-for-update-interval=31536000 \
+  --overscroll-history-navigation=0 --password-store=basic \
+  --disk-cache-dir=%t/chromium-cache --disk-cache-size=33554432 \
+  --user-data-dir=%t/chromium-profile
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

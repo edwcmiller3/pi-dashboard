@@ -25,6 +25,8 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from app import cache
 from app.config import settings
@@ -322,7 +324,26 @@ async def refresh() -> JSONResponse:
     return JSONResponse({"status": "refreshed"})
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    """`StaticFiles` that forces revalidation of the dashboard bundle.
+
+    Sends `Cache-Control: no-cache` on every static response so the kiosk's
+    Chromium keeps its cached copy but MUST revalidate it against the server on
+    each load. Combined with the ETag/Last-Modified `StaticFiles` already stamps,
+    an unchanged asset short-circuits to a 304 (free over localhost) while a
+    deploy (`git pull`) is picked up the instant the file differs — no stale
+    `app.js` surviving until a hard refresh / nightly reload / 03:00 reboot.
+    `/api/data` is a separate route (unaffected); the frontend already fetches it
+    with `cache:"no-store"`.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last
 # so /healthz and /api/* take precedence over the catch-all static mount.
 _static_dir = Path(__file__).resolve().parent.parent / "static"
-app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
+app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")
