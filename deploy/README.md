@@ -130,6 +130,17 @@ disable_splash=1
 (`force_hotplug` flags are NOT needed — spike 0.0 got signal flag-free; 0.4 found
 signal-off blackout non-viable, so `vc4.force_hotplug` was never required.)
 
+Also empty the Pi OS IP banner drop-in — `agetty --noissue` (in
+`getty-autologin.conf`) suppresses `/etc/issue` but NOT the `issue.d` drop-in that
+prints "My IP address is ..." on Trixie:
+
+```sh
+sudo truncate -s 0 /etc/issue.d/IP.issue   # silences the boot-time IP banner
+```
+
+(Emptying rather than deleting: it's a packaged conffile, so the empty version is
+kept across `apt`/unattended upgrades, and a reinstall restores it cleanly.)
+
 ### 4. Chromium wrapper noise (optional)
 
 Pi OS `/usr/bin/chromium` injects `/etc/chromium.d/*` flags, incl. a stale

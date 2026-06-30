@@ -307,6 +307,15 @@ def api_data() -> JSONResponse:
     doc = cache.read(_CACHE_KEY)
     if doc is None:
         return JSONResponse({"detail": "warming up"}, status_code=503)
+    # clock_synced reflects the clock *now*, not when the doc was assembled.
+    # Overlay the live value (a cheap marker-file check) so the "clock not synced"
+    # warning clears within one frontend poll of NTP sync (~1 min after a boot or
+    # mid-day outage) instead of lingering until the next 15-min refresh tick
+    # rebuilds the cached doc. The boot tick stamps clock_synced=False because NTP
+    # hasn't synced yet (~1 min post-boot); without this overlay that stale False
+    # would be served for up to a full refresh interval.
+    if isinstance(doc, dict):
+        doc = {**doc, "clock_synced": _clock_synced()}
     return JSONResponse(doc)
 
 

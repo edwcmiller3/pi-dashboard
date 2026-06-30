@@ -417,6 +417,14 @@ function renderStatus(data, opts = {}) {
 // — so weather and the agenda degrade alike, never one wiped while the other stays.
 let hasRendered = false;
 
+// Last clock_synced value the API reported (true/false/undefined). When the
+// backend explicitly says false — the Pi clock isn't NTP-synced yet, e.g. the
+// ~1-min post-boot window before timesyncd lands — `tick` polls at the short
+// retry cadence instead of the 15-min one, so the "clock not synced" warning
+// clears promptly after sync rather than at the next slow poll. undefined/true
+// (dev host, older cache) is treated as fine.
+let lastClockSynced;
+
 // Cold-boot degrade: every data region gets an honest placeholder so nothing is
 // a blank glass box (the weather hero/forecast used to stay empty here).
 function renderUnavailable() {
@@ -441,6 +449,7 @@ async function load() {
     renderForecast(data.weather.forecast);
     renderAgenda(data.calendar.events);
     renderStatus(data);
+    lastClockSynced = data.clock_synced;
     setClockWarning(data.clock_synced);
     hasRendered = true;
     return true;
@@ -459,7 +468,12 @@ async function load() {
 // so a slow fetch can't stack overlapping polls.
 async function tick() {
   const ok = await load();
-  setTimeout(tick, ok ? POLL_INTERVAL_MS : RETRY_INTERVAL_MS);
+  // Use the slow cadence only once we're settled: a successful load AND the Pi
+  // clock is synced. A failed load or an explicit clock_synced===false keeps us
+  // on the short retry cadence so both the cold-boot 503 window and the
+  // pre-NTP-sync window clear in ~30s steps, not up to 15 min.
+  const settled = ok && lastClockSynced !== false;
+  setTimeout(tick, settled ? POLL_INTERVAL_MS : RETRY_INTERVAL_MS);
 }
 
 // The local day we last rendered for; flips at midnight to trigger a reload so
