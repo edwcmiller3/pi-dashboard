@@ -9,12 +9,23 @@ Version-controlled home for the Pi's system-config files, so production setup is
 NVMe-RW was the lower-wear option but we stayed on SD for this build. The two
 biggest continuous writers are addressed directly: journald is kept in RAM
 (`journald.conf`, `Storage=volatile`) and Chromium's cache/profile are routed to
-tmpfs (flags in `chromium-kiosk.service`). Also disable swap to cut SD writes:
+tmpfs (flags in `chromium-kiosk.service`).
+
+**Swap — disable only the SD-backed swapfile, keep zram.** The wear concern is
+`dphys-swapfile`, a swap *file on the SD card*. Disable it if present:
 
 ```sh
-sudo systemctl disable --now dphys-swapfile.service   # 8 GB Pi 5, light kiosk -> no swap
+sudo systemctl disable --now dphys-swapfile.service   # 8 GB Pi 5, light kiosk -> no swapfile
 sudo dphys-swapfile uninstall 2>/dev/null || true
 ```
+
+If the first command reports **`Unit dphys-swapfile.service does not exist`**,
+that's fine — newer Pi OS images don't install it, so there's no SD-backed swap to
+turn off. The goal is already met; continue.
+
+Do **not** disable zram swap (`swapon --show` listing `/dev/zram0`). zram is
+*compressed swap in RAM* — it never writes to the SD card, so it costs zero wear
+and gives a useful OOM cushion under a memory spike. Leave it enabled.
 
 A read-write root (not read-only overlayfs) is what makes `unattended-upgrades`
 viable — on an overlayfs RO root, apt installs land in the tmpfs upper layer and
@@ -29,6 +40,7 @@ vanish on reboot, so that build would update by re-imaging instead.
 | `chromium-kiosk.service` | `~/.config/systemd/user/` | user | Chromium kiosk, pinned flag set, `Restart=always`. |
 | `chromium-reload.{service,timer}` | `~/.config/systemd/user/` | user | Nightly 04:00 browser reload (deploy pickup + memory hygiene). |
 | `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor` (Phase 7). |
+| `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only — zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
 | `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades + auto-reboot 03:00 (inside blackout). |
@@ -49,6 +61,8 @@ These are NOT in git, so a fresh box needs them before the steps below:
 
 - **`git` + `uv` installed** (Phase 0 installed git; install uv if absent):
   `command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **`wlrctl` installed** (for the `labwc/autostart` cursor-hide; not in git):
+  `sudo apt install -y wlrctl`
 - **The repo cloned to `~/pi-dashboard`** (the unit files hardcode this path):
   `git clone <repo-url> ~/pi-dashboard` (the "first pull" is really a clone).
 - **`.env` created** — it is git-ignored (holds the secret, PII-bearing
@@ -69,7 +83,7 @@ cp deploy/pi-dashboard.service deploy/kiosk.service \
    deploy/chromium-kiosk.service \
    deploy/chromium-reload.service deploy/chromium-reload.timer \
    ~/.config/systemd/user/
-cp deploy/labwc/rc.xml ~/.config/labwc/
+cp deploy/labwc/rc.xml deploy/labwc/autostart ~/.config/labwc/
 
 systemctl --user daemon-reload
 systemctl --user enable --now pi-dashboard.service kiosk.service \
