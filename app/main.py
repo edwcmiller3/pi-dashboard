@@ -1,8 +1,8 @@
 """FastAPI application entrypoint.
 
-Phase 3 — the thin vertical slice: a background refresh loop fetches live
-weather, normalizes it to the data contract, and caches the doc; `/api/data`
-serves that doc to the polling frontend. Calendar is a stub block until Phase 5.
+A background refresh loop fetches live weather + the merged calendar (Proton
+personal events + offline holidays/observances/DST), normalizes them to the data
+contract, and caches the doc; `/api/data` serves that doc to the polling frontend.
 
 The refresh loop is deliberately "unkillable": a failing tick is caught and
 logged so the loop survives (the cache keeps the last-good doc), the task is
@@ -19,12 +19,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import cache
+from app.sources.calendar import get_calendar
 from app.sources.weather import get_weather
 
 log = logging.getLogger("pi_dashboard.refresh")
@@ -32,22 +34,28 @@ log = logging.getLogger("pi_dashboard.refresh")
 _CACHE_KEY = "dashboard"
 # Backend fetch cadence. Phase 6 makes this TTL-driven (base tick <= shortest TTL).
 _REFRESH_INTERVAL_SECONDS = 900
+# The dashboard's display zone — stamps generated_at independent of any source.
+_DISPLAY_TZ = "America/New_York"
 
 
 async def _refresh_once() -> None:
-    """Build the dashboard doc from the live sources and cache it."""
+    """Build the dashboard doc from the live sources and cache it.
+
+    Weather is fetched first; it raises on failure so the tick aborts and the
+    last-good cache is kept. The calendar never raises for a Proton outage
+    (holidays still merge in, `ok=False`), so a calendar blip can't wipe a
+    good weather refresh.
+    """
     weather = await get_weather()
-    # generated_at = when THIS doc was assembled (not when any one source was
-    # fetched). Weather is currently the only timekeeping source, so we adopt its
-    # offset to stamp "now"; Phase 5 stamps this from a source-independent clock
-    # once the calendar lands and the two fetch times can diverge.
-    tz = datetime.fromisoformat(weather["fetched_at"]).tzinfo
+    calendar = await get_calendar()
     doc = {
-        "generated_at": datetime.now(tz).isoformat(timespec="seconds"),
+        # generated_at = when THIS doc was assembled — a source-independent clock
+        # in the display zone, now that weather and calendar fetch times diverge.
+        "generated_at": datetime.now(ZoneInfo(_DISPLAY_TZ)).isoformat(
+            timespec="seconds"
+        ),
         "weather": weather,
-        # Phase 5 wires the live Proton feed + holidays here; until then the
-        # calendar reads as stale (ok=False) with no events — honest, not blank.
-        "calendar": {"ok": False, "fetched_at": None, "events": []},
+        "calendar": calendar,
     }
     cache.write(_CACHE_KEY, doc)
 
