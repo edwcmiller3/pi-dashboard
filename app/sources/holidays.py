@@ -158,7 +158,9 @@ def get_holidays(
         for d, title in _unofficial(start, end) + _extras(start, end)
         if start <= d <= end
     ]
-    markers = [_item(d, title, "info") for d, title in _dst_markers(start, end, tz_name)]
+    markers = [
+        _item(d, title, "info") for d, title in _dst_markers(start, end, tz_name)
+    ]
     return sorted(
         federal + observances + markers,
         key=lambda i: (i["start"], i["kind"], i["title"]),

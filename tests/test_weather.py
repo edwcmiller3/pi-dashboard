@@ -199,8 +199,10 @@ def test_get_weather_wraps_with_ok_and_offset_stamp(monkeypatch: Any) -> None:
     result = asyncio.run(weather.get_weather())
     assert result["ok"] is True
     # fetched_at stamped in the API's local offset (-14400 -> -04:00), with offset.
-    assert result["fetched_at"].endswith("-04:00")
-    assert "T" in result["fetched_at"]
+    fetched_at = result["fetched_at"]
+    assert fetched_at is not None
+    assert fetched_at.endswith("-04:00")
+    assert "T" in fetched_at
     # the normalized block rides along under the same dict
     assert result["current"]["temp_f"] == 72
     assert len(result["forecast"]) == 4

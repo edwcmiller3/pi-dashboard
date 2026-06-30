@@ -82,6 +82,30 @@ export function dayRolledOver(prevDay, nowDay) {
   return prevDay !== null && nowDay !== prevDay;
 }
 
+// ── nightly blackout (wall-clock-driven) ─────────────────────────────────────
+
+// The 1a–6a blackout window. Spikes 0.4/0.5 found this panel has no DDC/CI and
+// no /sys/class/backlight, so there is NO hardware brightness/power channel —
+// and cutting the HDMI signal (wlopm) can't hold it dark either (the panel drops
+// hotplug-detect, the Pi re-detects, ~2s later it's back on). The only blackout
+// left is this full-screen CSS-black overlay: backlight + Pi stay on, the screen
+// just renders black. It is driven by the wall clock (time-of-day), NOT a
+// runtime timer, on purpose: the Phase-8 nightly 03:00 reboot lands INSIDE this
+// window, so a fresh page load mid-window must return to black — a timer
+// counting from boot would instead paint the bright dashboard.
+const BLACKOUT_START_HOUR = 1; // inclusive — 01:00 local
+const BLACKOUT_END_HOUR = 6; // exclusive — 06:00 local
+
+// Whether `date`'s local hour falls in the blackout window. Pure. Hour-grained
+// (the window edges are whole hours), so the overlay flips exactly at the top of
+// 01:00 and 06:00. Supports a window that wraps past midnight (start > end),
+// though the shipped 1a–6a window does not.
+export function inBlackout(date, startHour = BLACKOUT_START_HOUR, endHour = BLACKOUT_END_HOUR) {
+  if (startHour === endHour) return false;
+  const h = date.getHours();
+  return startHour < endHour ? h >= startHour && h < endHour : h >= startHour || h < endHour;
+}
+
 // ── pure agenda transforms ───────────────────────────────────────────────────
 
 // Flat, pre-sorted event list -> ordered [{date, items}] grouped by local day.
@@ -207,6 +231,14 @@ function renderClock() {
     month: "long",
     day: "numeric",
   });
+}
+
+// Show/hide the full-screen blackout overlay for the current wall-clock time.
+// Toggled every second alongside the clock, so it flips at the top of 01:00 /
+// 06:00 and is already correct on a fresh load (e.g. after the 03:00 reboot).
+function renderBlackout(now = new Date()) {
+  const overlay = document.getElementById("blackout");
+  if (overlay) overlay.hidden = !inBlackout(now);
 }
 
 // A weather <i class="wi wi-…"> glyph. The icon class is an OWN value (resolved
@@ -437,9 +469,11 @@ let currentDay = null;
 
 function init() {
   renderClock();
+  renderBlackout();
   currentDay = localDayKey();
   setInterval(() => {
     renderClock();
+    renderBlackout();
     const today = localDayKey();
     if (dayRolledOver(currentDay, today)) load();
     currentDay = today;

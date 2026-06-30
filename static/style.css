@@ -407,3 +407,21 @@ body {
   fill: none;
   stroke-width: 2;
 }
+
+/* Nightly blackout (1a–6a) — wall-clock-driven full-screen black overlay.
+   The panel has no DDC/CI and no /sys/class/backlight (spikes 0.4/0.5), and
+   cutting the HDMI signal can't hold it dark (0.4), so this is the only blackout
+   left: backlight + Pi stay on, the screen just renders black. Covers the whole
+   viewport (above the centered .screen) and absorbs touches so a night-time tap
+   does nothing — the window is wall-clock-driven, not idle/touch-driven.
+   app.js toggles [hidden]; display:none is set explicitly so a reset can't
+   leave a stale UA `hidden` style overridden. */
+.blackout {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+}
+.blackout[hidden] {
+  display: none;
+}

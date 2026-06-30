@@ -153,7 +153,9 @@ async def _refresh_source(
     a skipped-because-fresh source isn't a failure. On a cold-boot fetch failure
     with no last-good there's nothing to show, so the error propagates (the loop
     catches it; the route stays 503)."""
-    if prior is not None and not _is_due(prior, ttl, now, force, retry_floor=retry_floor):
+    if prior is not None and not _is_due(
+        prior, ttl, now, force, retry_floor=retry_floor
+    ):
         return prior, False  # still fresh — reuse as-is, nothing attempted
     try:
         block = await fetch()

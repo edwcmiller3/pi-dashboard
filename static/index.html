@@ -35,6 +35,15 @@
     </section>
 
   </div>
+
+  <!-- Nightly blackout (1a–6a) — wall-clock-driven full-screen black overlay.
+       The panel has no DDC/CI or /sys/class/backlight (spikes 0.4/0.5), so this
+       CSS overlay is the only blackout available: backlight + Pi stay on, the
+       screen just renders black. app.js toggles it from the local clock (not a
+       runtime timer) so the Phase-8 03:00 reboot returns to black, not the
+       bright dashboard. -->
+  <div class="blackout" id="blackout" hidden></div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

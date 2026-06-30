@@ -15,6 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.config import settings
+from app.contract import AgendaItem, CalendarBlock
 from app.sources import calendar
 
 TZ = ZoneInfo("America/New_York")
@@ -129,7 +130,7 @@ END:VCALENDAR
 """
 
 
-def _personal(ics: str = ICS) -> list[dict[str, Any]]:
+def _personal(ics: str = ICS) -> list[AgendaItem]:
     start, end = calendar._window(NOW)
     return calendar.normalize_events(ics, start, end, TZ)
 
@@ -228,7 +229,7 @@ def test_missing_summary_becomes_empty_title() -> None:
 
 
 def test_merge_sorts_all_day_before_same_day_timed() -> None:
-    personal = [
+    personal: list[AgendaItem] = [
         {
             "start": "2026-07-04T09:00:00-04:00",
             "all_day": False,
@@ -236,7 +237,7 @@ def test_merge_sorts_all_day_before_same_day_timed() -> None:
             "kind": "personal",
         },
     ]
-    holiday = [
+    holiday: list[AgendaItem] = [
         {
             "start": "2026-07-04",
             "all_day": True,
@@ -303,7 +304,7 @@ def test_get_calendar_proton_failure_keeps_last_good_personal(monkeypatch: Any) 
         raise RuntimeError("network down")
 
     monkeypatch.setattr(calendar, "_fetch_personal", boom)
-    last_good = {
+    last_good: CalendarBlock = {
         "ok": True,
         "fetched_at": "2026-07-01T08:00:00-04:00",
         "events": [
@@ -344,7 +345,7 @@ def test_get_calendar_last_good_personal_outside_window_is_dropped(
         "_fetch_personal",
         lambda url, s, e, tz: (_ for _ in ()).throw(RuntimeError("down")),
     )
-    last_good = {
+    last_good: CalendarBlock = {
         "ok": True,
         "fetched_at": None,
         "events": [

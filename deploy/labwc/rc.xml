@@ -1,10 +1,39 @@
 <?xml version="1.0"?>
-<!-- STUB — authored in Phase 7. Installs to ~/.config/labwc/rc.xml.
-     Planned settings (from Phase-0 spikes):
-       - <touch mouseEmulation="no" />   (0.2/0.7: correct tap/scroll, kills touch pointer)
-       - HideCursor action binding        (0.8: labwc 0.9.7 >= 0.8.4 supports it)
-       - NO <calibrationMatrix>           (0.2: touch already aligned)
-       - NO <autoEnableOutputs>no</...>   (0.4: it stops labwc driving the fixed panel)
+<!--
+  labwc compositor config for the Pi kiosk. Installs to ~/.config/labwc/rc.xml.
+  Settings are driven by the Phase-0 hardware spikes (see the plan):
+
+    - <touch mouseEmulation="no" />  (spikes 0.2/0.7)
+        Touch is reported as touch, not an emulated pointer. This is the primary
+        cursor fix: with mouse-emulation ON (the default), every tap spawns/moves
+        a pointer and tap-drag selects text instead of scrolling (0.7). OFF gives
+        correct tap/scroll on the 10-point panel (0.2) and stops touch from ever
+        materializing a cursor.
+
+    - HideCursor keybind  (spike 0.8: labwc 0.9.7 >= 0.8.4, so the action exists)
+        labwc has no idle-hide-cursor config, so cursor suppression is layered:
+        (1) mouseEmulation="no" above means touch never shows a pointer; (2) the
+        page sets CSS `cursor:none` for the in-page layer; (3) Phase 8 autostarts
+        Chromium fullscreen so the bare-labwc state (where 0.8 saw a stray
+        pointer between Chromium runs) never persists. This keybind is a manual
+        fallback to hide the cursor on demand if one ever appears.
+
+  Deliberately NOT set:
+    - NO <touch><calibrationMatrix> — 0.2 found touch already aligned at all
+      corners; no calibration needed.
+    - NO <autoEnableOutputs>no</autoEnableOutputs> — 0.4 found it stops labwc
+      driving the single fixed panel at all (text console stays up, wlopm lists
+      no output). The panel must stay driven; the nightly blackout is an app-side
+      CSS overlay (static/), not an output power state.
 -->
 <labwc_config>
+
+  <touch mouseEmulation="no" />
+
+  <keyboard>
+    <keybind key="W-c">
+      <action name="HideCursor" />
+    </keybind>
+  </keyboard>
+
 </labwc_config>

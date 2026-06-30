@@ -21,7 +21,12 @@ def test_federal_holiday_is_kind_holiday_actual_date() -> None:
     items = H.get_holidays(date(2026, 7, 1), date(2026, 7, 7))
     july4 = [i for i in items if i["title"] == "Independence Day"]
     assert july4 == [
-        {"start": "2026-07-04", "all_day": True, "title": "Independence Day", "kind": "holiday"}
+        {
+            "start": "2026-07-04",
+            "all_day": True,
+            "title": "Independence Day",
+            "kind": "holiday",
+        }
     ]
 
 
@@ -40,7 +45,10 @@ def test_unofficial_is_kind_observance() -> None:
     items = H.get_holidays(date(2026, 2, 1), date(2026, 2, 28))
     by_title = {i["title"]: i for i in items}
     assert by_title["Valentine's Day"] == {
-        "start": "2026-02-14", "all_day": True, "title": "Valentine's Day", "kind": "observance"
+        "start": "2026-02-14",
+        "all_day": True,
+        "title": "Valentine's Day",
+        "kind": "observance",
     }
     assert by_title["Groundhog Day"]["kind"] == "observance"
 
@@ -83,7 +91,10 @@ def test_fixed_date_extras() -> None:
     items = H.get_holidays(date(2026, 1, 1), date(2026, 12, 31))
     by_title = {i["title"]: i for i in items}
     assert by_title["April Fools' Day"] == {
-        "start": "2026-04-01", "all_day": True, "title": "April Fools' Day", "kind": "observance"
+        "start": "2026-04-01",
+        "all_day": True,
+        "title": "April Fools' Day",
+        "kind": "observance",
     }
     assert by_title["Earth Day"]["start"] == "2026-04-22"
     assert by_title["Cinco de Mayo"]["start"] == "2026-05-05"
@@ -97,7 +108,12 @@ def test_election_day_even_year_is_tuesday_after_first_monday() -> None:
     items = H.get_holidays(date(2026, 11, 1), date(2026, 11, 30))
     election = [i for i in items if i["title"] == "Election Day"]
     assert election == [
-        {"start": "2026-11-03", "all_day": True, "title": "Election Day", "kind": "observance"}
+        {
+            "start": "2026-11-03",
+            "all_day": True,
+            "title": "Election Day",
+            "kind": "observance",
+        }
     ]
 
 
@@ -112,7 +128,12 @@ def test_election_day_not_duplicated_in_presidential_year() -> None:
     items = H.get_holidays(date(2028, 1, 1), date(2028, 12, 31))
     election = [i for i in items if i["title"] == "Election Day"]
     assert election == [
-        {"start": "2028-11-07", "all_day": True, "title": "Election Day", "kind": "observance"}
+        {
+            "start": "2028-11-07",
+            "all_day": True,
+            "title": "Election Day",
+            "kind": "observance",
+        }
     ]
 
 
@@ -131,7 +152,12 @@ def test_mardi_gras_anchored_on_easter_outside_window() -> None:
     items = H.get_holidays(date(2026, 2, 1), date(2026, 2, 28))
     mardi = [i for i in items if i["title"] == "Mardi Gras"]
     assert mardi == [
-        {"start": "2026-02-17", "all_day": True, "title": "Mardi Gras", "kind": "observance"}
+        {
+            "start": "2026-02-17",
+            "all_day": True,
+            "title": "Mardi Gras",
+            "kind": "observance",
+        }
     ]
 
 

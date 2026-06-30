@@ -19,6 +19,7 @@ import pytest
 
 from app import cache, main
 from app.config import settings
+from app.contract import SourceBlock
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2026, 7, 1, 9, 0, tzinfo=TZ)
@@ -36,23 +37,26 @@ def test_is_due_when_no_prior_block() -> None:
 
 
 def test_is_due_when_forced_even_if_fresh() -> None:
-    fresh = {"ok": True, "fetched_at": _stamp(NOW)}
+    fresh: SourceBlock = {"ok": True, "fetched_at": _stamp(NOW)}
     assert main._is_due(fresh, ttl=900, now=NOW, force=True, retry_floor=30) is True
 
 
 def test_not_due_when_fresh_within_ttl() -> None:
-    fresh = {"ok": True, "fetched_at": _stamp(NOW - timedelta(seconds=300))}
+    fresh: SourceBlock = {
+        "ok": True,
+        "fetched_at": _stamp(NOW - timedelta(seconds=300)),
+    }
     assert main._is_due(fresh, ttl=900, now=NOW, force=False, retry_floor=30) is False
 
 
 def test_due_when_aged_beyond_ttl() -> None:
-    old = {"ok": True, "fetched_at": _stamp(NOW - timedelta(seconds=1200))}
+    old: SourceBlock = {"ok": True, "fetched_at": _stamp(NOW - timedelta(seconds=1200))}
     assert main._is_due(old, ttl=900, now=NOW, force=False, retry_floor=30) is True
 
 
 def test_due_when_fetched_at_missing_or_unparseable() -> None:
-    miss = {"ok": True, "fetched_at": None}
-    junk = {"ok": True, "fetched_at": "garbage"}
+    miss: SourceBlock = {"ok": True, "fetched_at": None}
+    junk: SourceBlock = {"ok": True, "fetched_at": "garbage"}
     assert main._is_due(miss, 900, NOW, False, retry_floor=30) is True
     assert main._is_due(junk, 900, NOW, False, retry_floor=30) is True
 
@@ -63,19 +67,27 @@ def test_due_when_fetched_at_missing_or_unparseable() -> None:
 def test_failed_source_not_due_within_retry_floor() -> None:
     # The no-hammer guard: a source that failed 10s ago must NOT be retried while
     # the loop is in fast backoff — only once retry_floor has elapsed.
-    failed = {"ok": False, "attempted_at": _stamp(NOW - timedelta(seconds=10))}
+    failed: SourceBlock = {
+        "ok": False,
+        "fetched_at": None,
+        "attempted_at": _stamp(NOW - timedelta(seconds=10)),
+    }
     assert main._is_due(failed, ttl=900, now=NOW, force=False, retry_floor=30) is False
 
 
 def test_failed_source_due_after_retry_floor() -> None:
-    failed = {"ok": False, "attempted_at": _stamp(NOW - timedelta(seconds=40))}
+    failed: SourceBlock = {
+        "ok": False,
+        "fetched_at": None,
+        "attempted_at": _stamp(NOW - timedelta(seconds=40)),
+    }
     assert main._is_due(failed, ttl=900, now=NOW, force=False, retry_floor=30) is True
 
 
 def test_failed_source_rate_limit_uses_last_attempt_not_last_success() -> None:
     # A block whose last SUCCESS is ancient but was just RE-attempted must stay
     # rate-limited: attempted_at (not the stale fetched_at) governs the retry.
-    failed = {
+    failed: SourceBlock = {
         "ok": False,
         "fetched_at": _stamp(NOW - timedelta(hours=5)),  # last success, ancient
         "attempted_at": _stamp(NOW - timedelta(seconds=5)),  # just tried, failed
@@ -85,7 +97,10 @@ def test_failed_source_rate_limit_uses_last_attempt_not_last_success() -> None:
 
 def test_failed_source_without_attempted_at_falls_back_to_fetched_at() -> None:
     # A failed block written before attempted_at existed rate-limits off fetched_at.
-    failed = {"ok": False, "fetched_at": _stamp(NOW - timedelta(seconds=5))}
+    failed: SourceBlock = {
+        "ok": False,
+        "fetched_at": _stamp(NOW - timedelta(seconds=5)),
+    }
     assert main._is_due(failed, ttl=900, now=NOW, force=False, retry_floor=30) is False
 
 
