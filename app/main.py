@@ -17,9 +17,9 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TypeVar, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import cache
 from app.config import settings
+from app.contract import DashboardDoc, SourceBlock
 from app.sources.calendar import get_calendar
 from app.sources.weather import get_weather
 
@@ -47,8 +48,10 @@ _BACKOFF_START_SECONDS = 30
 # this exists on a Pi without a hardware RTC.
 _TIMESYNC_MARKER = Path("/run/systemd/timesync/synchronized")
 
-# A coroutine that fetches one source's contract block (or raises).
-_Fetcher = Callable[[], Awaitable[dict[str, Any]]]
+# Each refresh source yields a contract block of its own shape (weather vs.
+# calendar). `_refresh_source` is generic over that block type so the per-source
+# last-good plumbing is shared yet stays strongly typed end to end.
+B = TypeVar("B", bound=SourceBlock)
 
 
 def _clock_synced() -> bool:
@@ -67,26 +70,43 @@ def _clock_synced() -> bool:
         return True
 
 
-def _age_seconds(block: dict[str, Any], now: datetime) -> float | None:
-    """Seconds since `block` was fetched, or None if it has no parseable stamp."""
-    fetched = block.get("fetched_at")
-    if not isinstance(fetched, str):
+def _iso_age(iso: str | None, now: datetime) -> float | None:
+    """Seconds between an ISO stamp and `now`, or None if absent/unparseable."""
+    if not isinstance(iso, str):
         return None
     try:
-        return (now - datetime.fromisoformat(fetched)).total_seconds()
+        return (now - datetime.fromisoformat(iso)).total_seconds()
     except ValueError:
         return None
 
 
-def _is_due(block: dict[str, Any] | None, ttl: int, now: datetime, force: bool) -> bool:
-    """Whether a source should be refetched this tick. Due when forced, when
-    there's no prior block, when the last fetch is flagged stale (retry it
-    regardless of age), or when the block has aged past its TTL."""
+def _is_due(
+    block: SourceBlock | None,
+    ttl: int,
+    now: datetime,
+    force: bool,
+    *,
+    retry_floor: int,
+) -> bool:
+    """Whether a source should be refetched this tick.
+
+    Fresh-and-ok: due once the block has aged past its TTL. Forced or no prior:
+    always due. Previously FAILED (ok=False): due once `retry_floor` seconds
+    have passed since the last ATTEMPT — crucially NOT every tick. That floor is
+    what stops a down source being hammered while the loop is in fast backoff:
+    weather passes a small floor (retry in step with the backoff), the calendar
+    passes its full TTL, so a Proton outage is retried gently even when a
+    simultaneous weather outage (e.g. the whole network dropped) has the loop
+    ticking every 30s."""
     if force or block is None:
         return True
     if not block.get("ok"):
-        return True
-    age = _age_seconds(block, now)
+        # `attempted_at` is stamped on every failed tick; fall back to the last
+        # success stamp for a block that failed before that field was written.
+        last = block.get("attempted_at") or block.get("fetched_at")
+        age = _iso_age(last, now)
+        return age is None or age >= retry_floor
+    age = _iso_age(block.get("fetched_at"), now)
     return age is None or age >= ttl
 
 
@@ -96,21 +116,44 @@ def _backoff_delay(failures: int, base: int) -> int:
     return min(base, _BACKOFF_START_SECONDS << (failures - 1))
 
 
+def _seconds_to_next_local_midnight(now: datetime) -> float:
+    """Seconds from `now` until the next local midnight (00:00 in `now`'s zone).
+    The loop clamps its sleep to this so a tick lands at the day boundary."""
+    midnight = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    return (midnight - now).total_seconds()
+
+
+def _date_rolled(prev_iso: str | None, now: datetime) -> bool:
+    """Whether `prev_iso` (a prior doc's `generated_at`) falls on a different
+    local calendar day than `now` — i.e. the agenda window must roll even if every
+    source is still within its TTL. Absent/unparseable -> False (cold boot or a
+    corrupt cache: every source is due anyway, so forcing adds nothing)."""
+    if not isinstance(prev_iso, str):
+        return False
+    try:
+        return datetime.fromisoformat(prev_iso).date() != now.date()
+    except ValueError:
+        return False
+
+
 async def _refresh_source(
-    fetch: _Fetcher,
-    prior: dict[str, Any] | None,
+    fetch: Callable[[], Awaitable[B]],
+    prior: B | None,
     ttl: int,
     now: datetime,
     *,
     force: bool,
+    retry_floor: int,
     name: str,
-) -> tuple[dict[str, Any], bool]:
+) -> tuple[B, bool]:
     """Refresh one source if due, returning (block, failed). `failed` is True
     only when a fetch was ATTEMPTED and fell back to last-good (drives backoff);
     a skipped-because-fresh source isn't a failure. On a cold-boot fetch failure
     with no last-good there's nothing to show, so the error propagates (the loop
     catches it; the route stays 503)."""
-    if prior is not None and not _is_due(prior, ttl, now, force):
+    if prior is not None and not _is_due(prior, ttl, now, force, retry_floor=retry_floor):
         return prior, False  # still fresh — reuse as-is, nothing attempted
     try:
         block = await fetch()
@@ -118,8 +161,17 @@ async def _refresh_source(
         log.exception("%s refresh failed", name)
         if prior is None:
             raise
-        return {**prior, "ok": False, "ttl": ttl}, True  # keep last-good, flag stale
-    return {**block, "ttl": ttl}, False  # fresh fetch — not a failure
+        # Keep last-good DATA, flag it stale, and stamp the attempt so `_is_due`
+        # rate-limits the next retry. cast: {**TypedDict} widens to a plain dict,
+        # but the keys are unchanged so the result is still a `B`.
+        stale = {
+            **prior,
+            "ok": False,
+            "ttl": ttl,
+            "attempted_at": now.isoformat(timespec="seconds"),
+        }
+        return cast(B, stale), True
+    return cast(B, {**block, "ttl": ttl}), False  # fresh fetch — not a failure
 
 
 async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> bool:
@@ -128,9 +180,28 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
     Each source is refreshed independently with per-source last-good fallback,
     so a weather blip can't wipe a good calendar refresh (or vice versa).
     Returns True for a healthy tick, False if any attempted source fell back to
-    last-good (the loop uses this to back off and retry sooner)."""
+    last-good (the loop uses this to back off and retry sooner).
+
+    NOTE: the calendar soft-fails IN-BAND — `get_calendar` never raises (holidays
+    must always show), so a Proton outage returns an `ok=False` block, not an
+    exception, and the tick still reports healthy. Weather alone drives the loop
+    backoff; the calendar's retry cadence on a Proton outage is governed entirely
+    by its `retry_floor` below, so Proton is never hammered (see `_is_due`).
+
+    The cache read/write are offloaded to a thread: they `fsync` (blocking), and
+    this runs on the event loop, so — like the source fetches — they must not
+    stall it."""
     now = now or datetime.now(ZoneInfo(_DISPLAY_TZ))
-    prior = cache.read(_CACHE_KEY) or {}
+    prior_doc = await asyncio.to_thread(cache.read, _CACHE_KEY)
+    prior = prior_doc if isinstance(prior_doc, dict) else {}
+
+    # A local-day rollover (midnight) makes the cached agenda window stale even
+    # when every source is within its TTL: today's column, and any holiday/event
+    # entering the [today, +5d) window, only roll when the sources actually
+    # refetch and recompute `now`. So force a full refresh when the cached doc was
+    # built on an earlier day. `_refresh_loop` wakes at midnight so this fires
+    # promptly rather than up to a full base interval late.
+    force = force or _date_rolled(prior.get("generated_at"), now)
 
     weather, w_failed = await _refresh_source(
         get_weather,
@@ -138,6 +209,7 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         settings.weather_ttl_seconds,
         now,
         force=force,
+        retry_floor=_BACKOFF_START_SECONDS,  # hard source: retry in step w/ backoff
         name="weather",
     )
     calendar, c_failed = await _refresh_source(
@@ -146,10 +218,11 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         settings.calendar_ttl_seconds,
         now,
         force=force,
+        retry_floor=settings.calendar_ttl_seconds,  # soft source: retry gently
         name="calendar",
     )
 
-    doc = {
+    doc: DashboardDoc = {
         # generated_at = when THIS doc was assembled — a source-independent clock
         # in the display zone, since weather/calendar fetch times diverge.
         "generated_at": now.isoformat(timespec="seconds"),
@@ -157,7 +230,7 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         "weather": weather,
         "calendar": calendar,
     }
-    cache.write(_CACHE_KEY, doc)
+    await asyncio.to_thread(cache.write, _CACHE_KEY, doc)
     return not (w_failed or c_failed)
 
 
@@ -169,22 +242,28 @@ _refresh_lock = asyncio.Lock()
 async def _refresh_loop() -> None:
     """The unkillable refresh cycle — a failing tick is logged, never fatal.
     Base cadence = the shortest source TTL; a failed tick backs off and retries
-    sooner so transient blips clear without waiting the full interval."""
+    sooner so transient blips clear without waiting the full interval. The sleep
+    is also clamped to the next local midnight so a tick lands at 00:00 and the
+    agenda window rolls on time (see `_refresh_once`), not a full interval late."""
     failures = 0
     while True:
+        now = datetime.now(ZoneInfo(_DISPLAY_TZ))
         base = min(settings.weather_ttl_seconds, settings.calendar_ttl_seconds)
         try:
             async with _refresh_lock:
-                healthy = await _refresh_once()
+                healthy = await _refresh_once(now=now)
         except Exception:
             log.exception("refresh tick failed; keeping last-good cache")
             healthy = False
         if healthy:
             failures = 0
-            delay: float = base
+            delay = float(base)
         else:
             failures += 1
-            delay = _backoff_delay(failures, base)
+            delay = float(_backoff_delay(failures, base))
+        # Wake just after the next local midnight if that's sooner than the normal
+        # delay, so the day-rollover refresh fires promptly at the day boundary.
+        delay = min(delay, _seconds_to_next_local_midnight(now) + 1.0)
         await asyncio.sleep(delay)
 
 

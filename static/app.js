@@ -68,6 +68,20 @@ export function isSameDay(a, b) {
   );
 }
 
+// Local calendar day as "YYYY-MM-DD" — the date half of an event's local `start`,
+// so it compares directly. Used to detect the midnight rollover.
+export function localDayKey(d = new Date()) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// Whether the local calendar day has changed since `prevDay` (a localDayKey, or
+// null on first run). At midnight this flips, driving a data reload so the agenda
+// re-groups — "Today" moves to the new day and a holiday/event entering the
+// window appears — instead of waiting for the next 15-min poll.
+export function dayRolledOver(prevDay, nowDay) {
+  return prevDay !== null && nowDay !== prevDay;
+}
+
 // ── pure agenda transforms ───────────────────────────────────────────────────
 
 // Flat, pre-sorted event list -> ordered [{date, items}] grouped by local day.
@@ -416,9 +430,20 @@ async function tick() {
   setTimeout(tick, ok ? POLL_INTERVAL_MS : RETRY_INTERVAL_MS);
 }
 
+// The local day we last rendered for; flips at midnight to trigger a reload so
+// the agenda rolls (today→tomorrow, new in-window holidays/events) without
+// waiting for the next poll. The clock itself already ticks live each second.
+let currentDay = null;
+
 function init() {
   renderClock();
-  setInterval(renderClock, 1000);
+  currentDay = localDayKey();
+  setInterval(() => {
+    renderClock();
+    const today = localDayKey();
+    if (dayRolledOver(currentDay, today)) load();
+    currentDay = today;
+  }, 1000);
   tick();
 }
 

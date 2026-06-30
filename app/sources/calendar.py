@@ -37,6 +37,7 @@ import recurring_ical_events
 import requests
 
 from app.config import settings
+from app.contract import AgendaItem, CalendarBlock
 from app.sources.holidays import get_holidays
 
 log = logging.getLogger("pi_dashboard.calendar")
@@ -72,7 +73,7 @@ def _occurrence(dtstart: date | datetime, tz: ZoneInfo) -> tuple[str, bool]:
     return dtstart.isoformat(), True
 
 
-def _agenda_item(occ: Any, tz: ZoneInfo) -> dict[str, Any]:
+def _agenda_item(occ: Any, tz: ZoneInfo) -> AgendaItem:
     """One expanded VEVENT occurrence -> a contract `personal` agenda-item.
     `occ` is `Any` — `recurring_ical_events` ships no types, so the library
     boundary is untyped; `_occurrence` re-establishes the date/datetime split."""
@@ -88,7 +89,7 @@ def _agenda_item(occ: Any, tz: ZoneInfo) -> dict[str, Any]:
 
 def normalize_events(
     ics_text: str, start: datetime, end: datetime, tz: ZoneInfo
-) -> list[dict[str, Any]]:
+) -> list[AgendaItem]:
     """Raw ICS text -> the window's personal agenda-items (pure). Recurrences
     are expanded over `[start, end)`; EXDATE-excluded occurrences are dropped by
     the library. Returned unsorted — `get_calendar` sorts the merged list.
@@ -110,7 +111,7 @@ def normalize_events(
 
 def _fetch_personal(
     url: str, start: datetime, end: datetime, tz: ZoneInfo
-) -> list[dict[str, Any]]:
+) -> list[AgendaItem]:
     """Blocking fetch + parse (runs in a worker thread). Both the network call
     and the recurrence expansion are CPU/IO work kept off the event loop."""
     resp = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
@@ -119,8 +120,8 @@ def _fetch_personal(
 
 
 def _last_good_personal(
-    last_good: dict[str, Any] | None, start: datetime, end: datetime
-) -> list[dict[str, Any]]:
+    last_good: CalendarBlock | None, start: datetime, end: datetime
+) -> list[AgendaItem]:
     """The personal events to fall back on when the Proton fetch fails — the
     `kind="personal"` items from the last-good doc, filtered to the CURRENT
     window. Holidays are excluded (they're recomputed fresh every tick, so
@@ -140,9 +141,9 @@ def _last_good_personal(
 def _merge(
     ok: bool,
     fetched_at: str | None,
-    personal: list[dict[str, Any]],
-    holiday: list[dict[str, Any]],
-) -> dict[str, Any]:
+    personal: list[AgendaItem],
+    holiday: list[AgendaItem],
+) -> CalendarBlock:
     """The contract's `calendar` block: personal + holiday items as one flat
     list sorted by (start, kind, title). Date-only all-day starts sort before
     same-day timed starts (shorter ISO string), so holidays/all-day lead a day;
@@ -156,8 +157,8 @@ def _merge(
 async def get_calendar(
     now: datetime | None = None,
     tz_name: str = _DISPLAY_TZ,
-    last_good: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    last_good: CalendarBlock | None = None,
+) -> CalendarBlock:
     """The merged `calendar` block for the agenda window.
 
     Holidays/observances/DST (offline, never-fail) always merge in. The Proton

@@ -180,6 +180,17 @@ def test_missing_top_level_block_raises_clear_valueerror() -> None:
         weather.normalize_weather({"daily": RAW["daily"]})
 
 
+def test_null_sunrise_raises_clear_valueerror() -> None:
+    # Open-Meteo returns null sunrise/sunset at polar latitudes (no rise/set on a
+    # polar day/night), and lat/lon is user-configurable. A null today[0] would be
+    # a cryptic TypeError out of `_with_offset`; guard it into a legible ValueError
+    # so the loop keeps last-good (all-or-nothing), same as the short-series guard.
+    daily = {**RAW["daily"], "sunrise": [None, *RAW["daily"]["sunrise"][1:]]}
+    raw = {**RAW, "daily": daily}
+    with pytest.raises(ValueError, match="sunrise"):
+        weather.normalize_weather(raw)
+
+
 # ── get_weather: async wrapper (network monkeypatched out) ───────────────────
 
 

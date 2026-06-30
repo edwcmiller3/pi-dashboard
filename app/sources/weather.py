@@ -22,6 +22,7 @@ from typing import Any
 import requests
 
 from app.config import settings
+from app.contract import CurrentWeather, ForecastDay, WeatherBlock, WeatherData
 from app.weather_codes import describe
 
 _API_URL = "https://api.open-meteo.com/v1/forecast"
@@ -78,7 +79,7 @@ def _pct(value: Any) -> int:
     return 0 if value is None else _round_half_up(value)
 
 
-def _forecast_day(daily: dict[str, Any], i: int) -> dict[str, Any]:
+def _forecast_day(daily: dict[str, Any], i: int) -> ForecastDay:
     """One look-ahead card from `daily` index `i`. Cards always use day glyphs."""
     cond = describe(int(daily["weather_code"][i]), is_day=True)
     return {
@@ -109,16 +110,26 @@ def _require(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
             f"Open-Meteo daily series too short: got {days}, "
             f"need {_REQUIRED_DAILY_DAYS}"
         )
+    # Open-Meteo returns null sunrise/sunset at polar latitudes (no rise/set on a
+    # polar day/night). lat/lon is user-configurable, so guard the today[0] reads
+    # `normalize_weather` does: a null here would otherwise be a cryptic TypeError
+    # out of `_with_offset`. Raise the same legible ValueError -> the loop keeps
+    # last-good (all-or-nothing, like the short-series guard above). A genuinely
+    # polar deployment would then show "weather unavailable" rather than crash.
+    for key in ("sunrise", "sunset"):
+        series = daily.get(key) or []
+        if not series or series[0] is None:
+            raise ValueError(f"Open-Meteo daily.{key}[0] missing/null (polar?)")
     return cur, daily
 
 
-def normalize_weather(raw: dict[str, Any]) -> dict[str, Any]:
-    """Raw Open-Meteo JSON -> the contract's `weather` block (pure)."""
+def normalize_weather(raw: dict[str, Any]) -> WeatherData:
+    """Raw Open-Meteo JSON -> the contract's `weather` payload (pure)."""
     cur, daily = _require(raw)
     tz = _tz(int(raw["utc_offset_seconds"]))
     is_day = bool(cur["is_day"])
     cond = describe(int(cur["weather_code"]), is_day)
-    current = {
+    current: CurrentWeather = {
         "temp_f": _round_half_up(cur["temperature_2m"]),
         "feels_like_f": _round_half_up(cur["apparent_temperature"]),
         "code": int(cur["weather_code"]),
@@ -164,7 +175,7 @@ def _fetch_raw() -> dict[str, Any]:
     return data
 
 
-async def get_weather() -> dict[str, Any]:
+async def get_weather() -> WeatherBlock:
     """Fetch + normalize, wrapped with `ok`/`fetched_at` for the contract.
 
     The blocking `requests` call is offloaded so the event loop never stalls.
@@ -172,8 +183,10 @@ async def get_weather() -> dict[str, Any]:
     last-good cached doc (per-source soft-fail / cache fallback is Phase 6).
     """
     raw = await asyncio.to_thread(_fetch_raw)
+    data = normalize_weather(raw)
     return {
         "ok": True,
         "fetched_at": _stamp(int(raw["utc_offset_seconds"])),
-        **normalize_weather(raw),
+        "current": data["current"],
+        "forecast": data["forecast"],
     }

@@ -21,10 +21,11 @@ user chose all 10):
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Any
 from zoneinfo import ZoneInfo
 
 import holidays
+
+from app.contract import AgendaItem, Kind
 
 # The dashboard's display zone — US/Eastern, consistent with the US holiday set
 # and the config lat/long default. A parameter so the DST scan stays testable.
@@ -137,14 +138,14 @@ def _unofficial(start: date, end: date) -> list[tuple[date, str]]:
     ]
 
 
-def _item(d: date, title: str, kind: str) -> dict[str, Any]:
+def _item(d: date, title: str, kind: Kind) -> AgendaItem:
     """A contract agenda-item. Holidays/markers are always all-day, date-only."""
     return {"start": d.isoformat(), "all_day": True, "title": title, "kind": kind}
 
 
 def get_holidays(
     start: date, end: date, tz_name: str = _DISPLAY_TZ
-) -> list[dict[str, Any]]:
+) -> list[AgendaItem]:
     """Federal holidays + lesser observances + DST markers within [start, end],
     as contract agenda-items sorted by date. Pure/offline — safe every tick."""
     federal = [

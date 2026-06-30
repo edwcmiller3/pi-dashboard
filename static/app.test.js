@@ -14,6 +14,8 @@ import {
   fmtLong,
   localDate,
   isSameDay,
+  localDayKey,
+  dayRolledOver,
   groupByDay,
   splitColumns,
   dayLabel,
@@ -90,6 +92,20 @@ test("isSameDay: same Y/M/D true regardless of time", () => {
 
 test("isSameDay: different day false", () => {
   assert.equal(isSameDay(new Date(2026, 5, 28), new Date(2026, 5, 29)), false);
+});
+
+// ── localDayKey / dayRolledOver (midnight rollover) ──────────────────────────
+
+test("localDayKey: zero-pads month/day to YYYY-MM-DD (local components)", () => {
+  // Jan 5 2026, late evening — must read the LOCAL date, zero-padded.
+  assert.equal(localDayKey(new Date(2026, 0, 5, 23, 59)), "2026-01-05");
+  assert.equal(localDayKey(new Date(2026, 11, 31, 0, 0)), "2026-12-31");
+});
+
+test("dayRolledOver: true only when the day changes and prev is known", () => {
+  assert.equal(dayRolledOver(null, "2026-07-01"), false); // first run -> no reload
+  assert.equal(dayRolledOver("2026-07-01", "2026-07-01"), false); // same day
+  assert.equal(dayRolledOver("2026-06-30", "2026-07-01"), true); // midnight roll
 });
 
 // ── groupByDay (preserves input order of first appearance) ───────────────────
