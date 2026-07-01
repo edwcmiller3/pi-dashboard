@@ -18,6 +18,8 @@ import {
   dayRolledOver,
   groupByDay,
   splitColumns,
+  withTodayGroup,
+  hasPersonalEvents,
   dayLabel,
   pickUpdated,
   inBlackout,
@@ -193,6 +195,53 @@ test("splitColumns: does not mutate the input array", () => {
   );
 });
 
+// ── withTodayGroup (guarantee today leads the agenda, for the quiet-day state) ─
+
+const item = (kind) => ({ kind, start: "x", all_day: false, title: kind });
+
+test("withTodayGroup: today already first -> returned unchanged", () => {
+  const groups = [g("2026-06-30", 2), g("2026-07-01", 1)];
+  assert.equal(withTodayGroup(groups, "2026-06-30"), groups); // same reference
+});
+
+test("withTodayGroup: today absent -> prepends an empty today group", () => {
+  const groups = [g("2026-07-01", 1)];
+  const out = withTodayGroup(groups, "2026-06-30");
+  assert.deepEqual(
+    out.map((x) => x.date),
+    ["2026-06-30", "2026-07-01"],
+  );
+  assert.deepEqual(out[0].items, []); // synthesized today has no events
+});
+
+test("withTodayGroup: no events at all -> a lone empty today group", () => {
+  const out = withTodayGroup([], "2026-06-30");
+  assert.deepEqual(out, [{ date: "2026-06-30", items: [] }]);
+});
+
+test("withTodayGroup: does not mutate the input array", () => {
+  const groups = [g("2026-07-01", 1)];
+  withTodayGroup(groups, "2026-06-30");
+  assert.equal(groups.length, 1);
+});
+
+// ── hasPersonalEvents (the quiet-day predicate) ───────────────────────────────
+
+test("hasPersonalEvents: true when a personal event is present", () => {
+  assert.equal(hasPersonalEvents([item("holiday"), item("personal")]), true);
+});
+
+test("hasPersonalEvents: false for only holiday/observance/info", () => {
+  assert.equal(
+    hasPersonalEvents([item("holiday"), item("observance"), item("info")]),
+    false,
+  );
+});
+
+test("hasPersonalEvents: false for an empty day", () => {
+  assert.equal(hasPersonalEvents([]), false);
+});
+
 // ── dayLabel ─────────────────────────────────────────────────────────────────
 
 test("dayLabel: today -> isToday + 'Today'", () => {
@@ -201,6 +250,14 @@ test("dayLabel: today -> isToday + 'Today'", () => {
     now.getDate(),
   ).padStart(2, "0")}`;
   const label = dayLabel(iso);
+  assert.equal(label.isToday, true);
+  assert.equal(label.dname, "Today");
+});
+
+test("dayLabel(localDayKey()) is today -> the synthesized quiet-day group labels as 'Today'", () => {
+  // The quiet-day path hinges on withTodayGroup's synthesized group (date =
+  // localDayKey()) resolving to isToday through dayLabel — guard that coupling.
+  const label = dayLabel(localDayKey());
   assert.equal(label.isToday, true);
   assert.equal(label.dname, "Today");
 });

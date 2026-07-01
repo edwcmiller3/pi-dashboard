@@ -343,6 +343,15 @@ body {
   margin: 0.1rem 0 0.4rem;
 }
 
+/* quiet-day line inside today's column when there are no personal events —
+   friendly and unobtrusive; a holiday pill (if any) sits above it. */
+.day-empty {
+  color: var(--faint);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  padding: 0.26rem 0;
+}
+
 /* shown when the initial fetch fails — glanceable, in-theme, unobtrusive */
 .agenda-empty {
   color: var(--faint);

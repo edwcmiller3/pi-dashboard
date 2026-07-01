@@ -129,6 +129,24 @@ export function splitColumns(groups) {
   return [groups.slice(0, 1), groups.slice(1)];
 }
 
+// Guarantee today's group leads the agenda so column 1 always represents today.
+// Events arrive pre-sorted and windowed from today forward, so today — if it has
+// any events (personal, holiday, or marker) — is already `groups[0]`. When today
+// has NO events, no group exists for it, so synthesize an empty one: this is what
+// lets the quiet-day "Nothing today" state render instead of column 1 silently
+// showing a future day. `todayKey` is a localDayKey ("YYYY-MM-DD"). Pure.
+export function withTodayGroup(groups, todayKey) {
+  if (groups.length > 0 && groups[0].date === todayKey) return groups;
+  return [{ date: todayKey, items: [] }, ...groups];
+}
+
+// Whether a day's items include a personal (Proton) event, as opposed to only
+// holidays/observances/DST markers. Drives the quiet-day state: "Nothing today"
+// means no personal commitments — a holiday pill may still sit above it. Pure.
+export function hasPersonalEvents(items) {
+  return items.some((i) => i.kind === "personal");
+}
+
 // "Updated" = the OLDEST fetched_at among sources that fetched OK — so the
 // stamp honestly means "every fresh source is at least this current," never
 // over-claiming by showing the most-recent one. Compared by instant (epoch) so
@@ -189,13 +207,20 @@ function eventNode(ev) {
   return row;
 }
 
-function dayRowNode(group) {
+function dayRowNode(group, calendarOk = true) {
   const { isToday, dname, ddate } = dayLabel(group.date);
   const row = el("div", "day-row" + (isToday ? " is-today" : ""));
   const label = el("div", "day-label");
   label.append(el("span", "dname", dname), el("span", "ddate", ddate));
   const events = el("div", "day-events");
   for (const ev of group.items) events.append(eventNode(ev));
+  // Quiet-day state: today with no personal events gets a friendly "Nothing
+  // today" (holidays/observances above still show as context). Only when the
+  // calendar fetched OK — on a stale/failed calendar we don't know today's
+  // events, so we don't claim emptiness (the stale status dot signals it).
+  if (isToday && calendarOk && !hasPersonalEvents(group.items)) {
+    events.append(el("div", "day-empty", "Nothing today"));
+  }
   row.append(label, events);
   return row;
 }
@@ -348,14 +373,17 @@ function fitColumnInPlace(col, budget) {
   }
 }
 
-function renderAgenda(events) {
-  const [col1, col2] = splitColumns(groupByDay(events));
+function renderAgenda(events, calendarOk = true) {
+  // Guarantee today leads so column 1 always shows today (and can render the
+  // quiet-day "Nothing today" when today has no events at all).
+  const groups = withTodayGroup(groupByDay(events), localDayKey());
+  const [col1, col2] = splitColumns(groups);
   const root = document.getElementById("agenda-body");
   root.replaceChildren();
   const cols = [];
   for (const col of [col1, col2]) {
     const colEl = el("div", "agenda-col");
-    for (const group of col) colEl.append(dayRowNode(group));
+    for (const group of col) colEl.append(dayRowNode(group, calendarOk));
     root.append(colEl);
     cols.push(colEl);
   }
@@ -492,7 +520,7 @@ async function load() {
     const data = await res.json();
     renderCurrent(data.weather);
     renderForecast(data.weather.forecast);
-    renderAgenda(data.calendar.events);
+    renderAgenda(data.calendar.events, data.calendar.ok);
     renderStatus(data);
     lastClockSynced = data.clock_synced;
     setClockWarning(data.clock_synced);
