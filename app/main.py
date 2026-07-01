@@ -17,7 +17,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TypeVar, cast
 from zoneinfo import ZoneInfo
@@ -120,11 +120,20 @@ def _backoff_delay(failures: int, base: int) -> int:
 
 def _seconds_to_next_local_midnight(now: datetime) -> float:
     """Seconds from `now` until the next local midnight (00:00 in `now`'s zone).
-    The loop clamps its sleep to this so a tick lands at the day boundary."""
+    The loop clamps its sleep to this so a tick lands at the day boundary.
+
+    The delta is taken in UTC on purpose: `midnight` and `now` share the same
+    `ZoneInfo`, and subtracting two aware datetimes with the *same* tzinfo ignores
+    the offset and returns the naive wall-clock difference (a documented CPython
+    behavior). Across a DST transition that would be off by the ±1h the day
+    gains/loses — sleeping too long/short and missing the 00:00 rollover — so
+    normalize both to UTC first, where the real elapsed time is exact."""
     midnight = (now + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    return (midnight - now).total_seconds()
+    return (
+        midnight.astimezone(timezone.utc) - now.astimezone(timezone.utc)
+    ).total_seconds()
 
 
 def _date_rolled(prev_iso: str | None, now: datetime) -> bool:

@@ -5,8 +5,13 @@ the vendored weather-icons font subset and the Phase-4 weather transform, so
 these tests also guard that no glyph outside the subset can sneak in.
 """
 
+from __future__ import annotations
+
 import re
+from itertools import product
 from pathlib import Path
+
+import pytest
 
 from app import weather_codes as wc
 
@@ -20,67 +25,29 @@ _VENDOR_CSS = (
     / "weather-icons"
     / "weather-icons.css"
 )
-VENDORED_CSS_CLASSES = set(
+VENDORED_CSS_CLASSES = frozenset(
     re.findall(r"\.(wi-[a-z0-9-]+)::before", _VENDOR_CSS.read_text())
 )
 
-# The exact glyph set we vendor (Detailed granularity, 2026-06-28). If a code
-# maps to anything outside this, the font subset would be missing a glyph.
-VENDORED = {
-    "wi-day-sunny",
-    "wi-night-clear",
-    "wi-day-sunny-overcast",
-    "wi-night-alt-cloudy-high",
-    "wi-day-cloudy",
-    "wi-night-alt-cloudy",
-    "wi-cloudy",
-    "wi-fog",
-    "wi-day-sprinkle",
-    "wi-night-alt-sprinkle",
-    "wi-rain-mix",
-    "wi-day-rain",
-    "wi-night-alt-rain",
-    "wi-day-showers",
-    "wi-night-alt-showers",
-    "wi-day-snow",
-    "wi-night-alt-snow",
-    "wi-day-sleet",
-    "wi-sleet",
-    "wi-thunderstorm",
-    "wi-na",  # fallback for unknown codes
-}
+# Hero stat-cell icons vendored for the current-weather card; they have no WMO
+# code mapping, so the weather-code glyph set is the CSS classes minus these.
+STAT_ICONS = frozenset(
+    {"wi-strong-wind", "wi-humidity", "wi-raindrop", "wi-sunrise", "wi-sunset"}
+)
+
+# The glyphs the code->icon mapping is allowed to emit: every vendored class that
+# isn't a hero stat icon. Derived from the CSS (not hand-listed) so adding a glyph
+# is a one-place edit and no hand-maintained copy can drift out of sync.
+ALLOWED_GLYPHS = VENDORED_CSS_CLASSES - STAT_ICONS
 
 # Every WMO interpretation code Open-Meteo documents.
 ALL_CODES = [
-    0,
-    1,
-    2,
-    3,
-    45,
-    48,
-    51,
-    53,
-    55,
-    56,
-    57,
-    61,
-    63,
-    65,
-    66,
-    67,
-    71,
-    73,
-    75,
-    77,
-    80,
-    81,
-    82,
-    85,
-    86,
-    95,
-    96,
-    99,
-]
+    0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75,
+    77, 80, 81, 82, 85, 86, 95, 96, 99,
+]  # fmt: skip
+
+# Codes outside the documented set — must still resolve (to the wi-na fallback).
+UNKNOWN_CODES = [123, -1, 9999]
 
 
 def test_clear_day_and_night() -> None:
@@ -95,13 +62,13 @@ def test_mainly_clear_is_distinct_from_clear() -> None:
     assert wc.describe(1)["text"] == "Mainly clear"
 
 
-def test_neutral_buckets_ignore_is_day() -> None:
+@pytest.mark.parametrize("code", [3, 45, 95])
+def test_neutral_buckets_ignore_is_day(code: int) -> None:
     # Overcast/fog/mix/storm look the same day or night -> same glyph.
-    for code in (3, 45, 95):
-        assert (
-            wc.describe(code, is_day=True)["icon"]
-            == wc.describe(code, is_day=False)["icon"]
-        )
+    assert (
+        wc.describe(code, is_day=True)["icon"]
+        == wc.describe(code, is_day=False)["icon"]
+    )
 
 
 def test_showers_distinct_from_steady_rain() -> None:
@@ -110,9 +77,9 @@ def test_showers_distinct_from_steady_rain() -> None:
     assert wc.describe(85, is_day=True)["icon"] == "wi-day-sleet"  # snow showers
 
 
-def test_thunderstorm_family_is_generic_storm() -> None:
-    for code in (95, 96, 99):
-        assert wc.describe(code)["icon"] == "wi-thunderstorm"
+@pytest.mark.parametrize("code", [95, 96, 99])
+def test_thunderstorm_family_is_generic_storm(code: int) -> None:
+    assert wc.describe(code)["icon"] == "wi-thunderstorm"
 
 
 def test_unknown_code_falls_back_to_na() -> None:
@@ -121,38 +88,28 @@ def test_unknown_code_falls_back_to_na() -> None:
     assert out["text"]  # non-empty label, doesn't crash
 
 
-def test_every_documented_code_is_mapped() -> None:
-    for code in ALL_CODES:
-        out = wc.describe(code)
-        assert out["icon"] in VENDORED
-        assert out["text"]
+@pytest.mark.parametrize("code", ALL_CODES)
+def test_every_documented_code_is_mapped(code: int) -> None:
+    out = wc.describe(code)
+    assert out["icon"] in ALLOWED_GLYPHS  # a real vendored glyph, no tofu
+    assert out["text"]  # non-empty label
 
 
-def test_no_code_maps_outside_the_vendored_subset() -> None:
-    for code in ALL_CODES + [123, -1, 9999]:
-        for is_day in (True, False):
-            assert wc.describe(code, is_day=is_day)["icon"] in VENDORED
+@pytest.mark.parametrize(
+    ("code", "is_day"), list(product(ALL_CODES + UNKNOWN_CODES, [True, False]))
+)
+def test_no_code_maps_outside_the_vendored_subset(code: int, is_day: bool) -> None:
+    # Every code (documented or not), day or night, resolves to a vendored glyph.
+    assert wc.describe(code, is_day=is_day)["icon"] in ALLOWED_GLYPHS
 
 
 def test_describe_defaults_to_day() -> None:
     assert wc.describe(0) == wc.describe(0, is_day=True)
 
 
-def test_vendored_font_covers_every_emittable_glyph() -> None:
-    # Every glyph the module can emit must have a class in the vendored subset
-    # CSS, or it would render as tofu on the kiosk.
-    missing = wc.glyphs() - VENDORED_CSS_CLASSES
-    assert not missing, f"glyphs not vendored in weather-icons.css: {sorted(missing)}"
-
-
-def test_hand_maintained_subset_matches_vendored_css() -> None:
-    # The hand-listed VENDORED set must stay in sync with what's actually
-    # shipped (minus the 5 hero stat icons, which have no WMO mapping).
-    stat_icons = {
-        "wi-strong-wind",
-        "wi-humidity",
-        "wi-raindrop",
-        "wi-sunrise",
-        "wi-sunset",
-    }
-    assert VENDORED == VENDORED_CSS_CLASSES - stat_icons
+def test_emittable_glyphs_exactly_match_the_vendored_weather_subset() -> None:
+    # Two-way guard, self-maintaining (no hand-listed copy to drift):
+    #   * every glyph the module can emit is vendored -> no tofu on the kiosk;
+    #   * every vendored non-stat glyph is actually emittable -> no dead weight
+    #     shipped in the font subset.
+    assert wc.glyphs() == ALLOWED_GLYPHS

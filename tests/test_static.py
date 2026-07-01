@@ -21,6 +21,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
+# NOTE: every request below uses a bare `TestClient(app).get(...)` — never the
+# `with TestClient(app) as client:` form. That is load-bearing: the `with` form
+# runs the app lifespan, which starts the unkillable background refresh loop and
+# would fire real Open-Meteo/Proton network calls during these header-only tests.
+# Keep these bare so the static-asset checks stay hermetic.
+
 
 @pytest.mark.parametrize("path", ["/", "/index.html", "/app.js", "/style.css"])
 def test_static_assets_send_no_cache(path: str) -> None:

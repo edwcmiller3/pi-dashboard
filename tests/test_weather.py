@@ -4,6 +4,12 @@ The heart of this is `normalize_weather`, the pure transform from raw Open-Meteo
 JSON to the contract's `weather` block (written test-first). `get_weather` is the
 thin async wrapper around the offloaded `requests` fetch; it's exercised with the
 network call monkeypatched out so the suite stays offline.
+
+`RAW` stays `dict[str, Any]`: it models the *raw external* Open-Meteo response,
+the one genuinely-untyped boundary (the contract docstring blesses `Any` there),
+and `normalize_weather` takes `dict[str, Any]`. Variants are built through the
+`with_current`/`with_daily` helpers so the pervasive `{**RAW, "current": {...}}`
+spreading lives in one place.
 """
 
 from __future__ import annotations
@@ -57,6 +63,38 @@ RAW: dict[str, Any] = {
 }
 
 
+def with_current(**overrides: Any) -> dict[str, Any]:
+    """A copy of RAW with `current` fields overridden — collapses the repeated
+    `{**RAW, "current": {**RAW["current"], ...}}` fixture-building."""
+    return {**RAW, "current": {**RAW["current"], **overrides}}
+
+
+def with_daily(**overrides: Any) -> dict[str, Any]:
+    """A copy of RAW with `daily` series overridden (same idea as with_current)."""
+    return {**RAW, "daily": {**RAW["daily"], **overrides}}
+
+
+# ── _round_half_up: displayed numbers round halves UP, not banker's ───────────
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (72.3, 72),  # rounds down
+        (72.4, 72),
+        (72.5, 73),  # .5 UP — banker's (round-half-to-even) would give 72
+        (74.5, 75),  # .5 UP — banker's would give 74
+        (71.5, 72),  # .5 UP where the even neighbor is also up (both agree)
+        (6.5, 7),
+        (0.5, 1),
+        (-0.5, 0),  # halfway toward zero still rounds up (toward +inf)
+        (61.2, 61),
+    ],
+)
+def test_round_half_up(value: float, expected: int) -> None:
+    assert weather._round_half_up(value) == expected
+
+
 # ── normalize_weather: current ──────────────────────────────────────────────
 
 
@@ -70,17 +108,6 @@ def test_current_numbers_rounded_to_int() -> None:
     assert cur["low_f"] == 61  # daily.min[0] 61.2 -> 61
 
 
-def test_numbers_round_half_up_not_bankers() -> None:
-    # .5 rounds UP (73), not Python's default round-half-to-even (which gives 72).
-    cur = {**RAW["current"], "temperature_2m": 72.5, "wind_speed_10m": 6.5}
-    daily = {**RAW["daily"], "temperature_2m_max": [80.5, 78.1, 70.3, 76.0, 74.2]}
-    raw = {**RAW, "current": cur, "daily": daily}
-    norm = weather.normalize_weather(raw)
-    assert norm["current"]["temp_f"] == 73
-    assert norm["current"]["wind_mph"] == 7
-    assert norm["current"]["high_f"] == 81
-
-
 def test_current_icon_text_resolved_day() -> None:
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["code"] == 0
@@ -90,8 +117,7 @@ def test_current_icon_text_resolved_day() -> None:
 
 
 def test_current_icon_uses_night_variant_when_not_day() -> None:
-    raw = {**RAW, "current": {**RAW["current"], "is_day": 0}}
-    cur = weather.normalize_weather(raw)["current"]
+    cur = weather.normalize_weather(with_current(is_day=0))["current"]
     assert cur["icon"] == "wi-night-clear"
     assert cur["is_day"] is False
 
@@ -137,8 +163,7 @@ def test_forecast_fields_resolved() -> None:
 
 def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:
     # Even fetched at night, the look-ahead cards show day glyphs.
-    raw = {**RAW, "current": {**RAW["current"], "is_day": 0}}
-    fc = weather.normalize_weather(raw)["forecast"]
+    fc = weather.normalize_weather(with_current(is_day=0))["forecast"]
     assert fc[1]["icon"] == "wi-day-rain"  # code 63 daytime
 
 
@@ -147,16 +172,15 @@ def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:
 
 def test_null_precip_probability_becomes_zero() -> None:
     # Open-Meteo can return null for precipitation_probability_max.
-    daily = {**RAW["daily"], "precipitation_probability_max": [None, None, 80, 5, 10]}
-    raw = {**RAW, "daily": daily}
-    norm = weather.normalize_weather(raw)
+    norm = weather.normalize_weather(
+        with_daily(precipitation_probability_max=[None, None, 80, 5, 10])
+    )
     assert norm["current"]["precip_prob_pct"] == 0
     assert norm["forecast"][0]["precip_prob_pct"] == 0
 
 
 def test_unknown_code_falls_back_to_wi_na() -> None:
-    raw = {**RAW, "current": {**RAW["current"], "weather_code": 1234}}
-    cur = weather.normalize_weather(raw)["current"]
+    cur = weather.normalize_weather(with_current(weather_code=1234))["current"]
     assert cur["icon"] == "wi-na"
     assert cur["text"] == "Unknown"
 
@@ -166,35 +190,42 @@ def test_short_daily_response_raises_clear_valueerror() -> None:
     # IndexError from the daily[1:5] slice / daily[0] index. Guard it into a
     # descriptive ValueError so the refresh loop logs an intelligible cause and
     # keeps the last-good doc (all-or-nothing keep-last-good is deliberate — the
-    # frontend never renders a half-built weather block).
-    short = {k: v[:2] for k, v in RAW["daily"].items()}  # only 2 days
-    raw = {**RAW, "daily": short}
-    with pytest.raises(ValueError, match="daily"):
+    # frontend never renders a half-built weather block). Truncate ONLY `time`
+    # (the field the guard measures) so the assertion pins that specific guard.
+    raw = with_daily(time=RAW["daily"]["time"][:2])  # 2 days, other series full
+    with pytest.raises(ValueError, match="too short"):
         weather.normalize_weather(raw)
 
 
-def test_missing_top_level_block_raises_clear_valueerror() -> None:
-    # A response missing `current`/`daily` entirely -> a legible ValueError, not
-    # a bare KeyError.
+def test_missing_current_block_raises_clear_valueerror() -> None:
+    # A response missing `current` -> a legible ValueError, not a bare KeyError.
     with pytest.raises(ValueError, match="current"):
         weather.normalize_weather({"daily": RAW["daily"]})
 
 
-def test_null_sunrise_raises_clear_valueerror() -> None:
+def test_missing_daily_block_raises_clear_valueerror() -> None:
+    # The other branch of the top-level guard: `daily` absent -> legible error.
+    with pytest.raises(ValueError, match="daily"):
+        weather.normalize_weather({"current": RAW["current"]})
+
+
+@pytest.mark.parametrize("key", ["sunrise", "sunset"])
+def test_null_polar_sunrise_or_sunset_raises_clear_valueerror(key: str) -> None:
     # Open-Meteo returns null sunrise/sunset at polar latitudes (no rise/set on a
     # polar day/night), and lat/lon is user-configurable. A null today[0] would be
     # a cryptic TypeError out of `_with_offset`; guard it into a legible ValueError
     # so the loop keeps last-good (all-or-nothing), same as the short-series guard.
-    daily = {**RAW["daily"], "sunrise": [None, *RAW["daily"]["sunrise"][1:]]}
-    raw = {**RAW, "daily": daily}
-    with pytest.raises(ValueError, match="sunrise"):
+    raw = with_daily(**{key: [None, *RAW["daily"][key][1:]]})
+    with pytest.raises(ValueError, match=key):
         weather.normalize_weather(raw)
 
 
 # ── get_weather: async wrapper (network monkeypatched out) ───────────────────
 
 
-def test_get_weather_wraps_with_ok_and_offset_stamp(monkeypatch: Any) -> None:
+def test_get_weather_wraps_with_ok_and_offset_stamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
     result = asyncio.run(weather.get_weather())
     assert result["ok"] is True
@@ -203,6 +234,7 @@ def test_get_weather_wraps_with_ok_and_offset_stamp(monkeypatch: Any) -> None:
     assert fetched_at is not None
     assert fetched_at.endswith("-04:00")
     assert "T" in fetched_at
-    # the normalized block rides along under the same dict
-    assert result["current"]["temp_f"] == 72
+    # the normalized block rides along under the same dict (rounding itself is
+    # covered by test_round_half_up / test_current_numbers_rounded_to_int).
+    assert result["current"]["icon"] == "wi-day-sunny"
     assert len(result["forecast"]) == 4

@@ -10,17 +10,27 @@ out, asserting the Proton-only `ok` semantics and the holidays-always-merge rule
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import NoReturn
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.config import settings
-from app.contract import AgendaItem, CalendarBlock
+from app.contract import AgendaItem, CalendarBlock, Kind
 from app.sources import calendar
 
 TZ = ZoneInfo("America/New_York")
 # Deterministic reference: Wed 2026-07-01 09:00 EDT. Window = [07-01, 07-06).
 NOW = datetime(2026, 7, 1, 9, 0, tzinfo=TZ)
+
+# The monkeypatch stubs below mirror the real `calendar._fetch_personal`
+# signature exactly — `(str, datetime, datetime, ZoneInfo) -> list[AgendaItem]`,
+# raising ones `-> NoReturn` — rather than `*args: Any`, so a stub that drifts
+# from the seam fails the type-check instead of silently dropping checking there.
 
 # Synthetic Proton-shaped feed: an all-day event, a timed event, a DAILY
 # recurrence with one EXDATE-excluded occurrence, and one event OUTSIDE the
@@ -136,6 +146,34 @@ def _personal(ics: str = ICS) -> list[AgendaItem]:
     return calendar.normalize_events(ics, start, end, TZ)
 
 
+def _patch_fetch_returns(
+    monkeypatch: pytest.MonkeyPatch, items: list[AgendaItem]
+) -> None:
+    """Replace `_fetch_personal` with a typed stub returning `items`."""
+
+    def stub(
+        url: str, start: datetime, end: datetime, tz: ZoneInfo
+    ) -> list[AgendaItem]:
+        return items
+
+    monkeypatch.setattr(calendar, "_fetch_personal", stub)
+
+
+def _patch_fetch_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    make_error: Callable[[str], Exception] | None = None,
+) -> None:
+    """Replace `_fetch_personal` with a typed stub that raises — the single
+    failure-injector for every Proton-outage test (was 3 copied `boom` defs plus
+    a throw-in-a-generator lambda). `make_error` can build the exception from the
+    URL (used by the secret-leak test to embed the credential in the message)."""
+
+    def boom(url: str, start: datetime, end: datetime, tz: ZoneInfo) -> NoReturn:
+        raise make_error(url) if make_error else RuntimeError("network down")
+
+    monkeypatch.setattr(calendar, "_fetch_personal", boom)
+
+
 # ── _window ──────────────────────────────────────────────────────────────────
 
 
@@ -174,9 +212,11 @@ def test_timed_event_carries_end_as_offset_instant() -> None:
 def test_timed_event_without_dtend_has_end_equal_to_start() -> None:
     # A timed VEVENT with no DTEND is zero-duration: the lib synthesizes
     # DTEND == DTSTART, so the contract's `end` equals `start` (empty interval).
-    walk = next(e for e in _personal() if e["start"] == "2026-07-01T12:00:00-04:00")
-    assert walk["title"] == "Lunch walk"
-    assert walk["end"] == walk["start"]
+    # Selected by TITLE (the stable identifier) and asserted for every "Lunch
+    # walk" occurrence, so a recurrence regression surfaces as a clear failure.
+    walks = [e for e in _personal() if e["title"] == "Lunch walk"]
+    assert walks  # sanity: the recurrence produced occurrences
+    assert all(e["end"] == e["start"] for e in walks)
 
 
 def test_all_day_single_day_end_is_exclusive_next_day() -> None:
@@ -262,13 +302,27 @@ def test_multiday_event_starting_before_window_is_filtered() -> None:
     assert all(e["start"][:10] >= "2026-07-01" for e in items)
 
 
-def test_total_personal_event_count() -> None:
-    # 1 all-day + 1 timed + 4 recurrence occurrences = 6.
-    assert len(_personal()) == 6
+def test_personal_events_are_the_expected_occurrences() -> None:
+    # The full set of normalized occurrences, by (title, start) — a mismatch
+    # names WHICH event changed instead of a bare "6 != 7". 1 all-day + 1 timed
+    # + 4 recurrence occurrences (07-03 EXDATE'd, 07-06 past the window end).
+    got = sorted((e["title"], e["start"]) for e in _personal())
+    assert got == sorted(
+        [
+            ("Cabin trip", "2026-07-04"),
+            ("Team standup", "2026-07-01T08:30:00-04:00"),
+            ("Lunch walk", "2026-07-01T12:00:00-04:00"),
+            ("Lunch walk", "2026-07-02T12:00:00-04:00"),
+            ("Lunch walk", "2026-07-04T12:00:00-04:00"),
+            ("Lunch walk", "2026-07-05T12:00:00-04:00"),
+        ]
+    )
 
 
 def test_missing_summary_becomes_empty_title() -> None:
     ics = ICS.replace("SUMMARY:Team standup\n", "")
+    # SUMMARY is the field under test here, so selecting by the (now-unique) start
+    # is intentional — the title is exactly what we're asserting on.
     standup = next(
         e
         for e in calendar.normalize_events(ics, *calendar._window(NOW), TZ)
@@ -304,26 +358,75 @@ def test_merge_sorts_all_day_before_same_day_timed() -> None:
     assert block["fetched_at"] == "2026-07-01T09:00:00-04:00"
 
 
+def _pi(start: str, title: str, kind: Kind) -> AgendaItem:
+    return {"start": start, "all_day": True, "title": title, "kind": kind}
+
+
+@pytest.mark.parametrize(
+    ("items", "expected_titles"),
+    [
+        # Same start, different kind -> kind tiebreak. Sorted alphabetically:
+        # holiday < info < observance < personal. Input deliberately scrambled.
+        (
+            [
+                _pi("2026-07-04", "P", "personal"),
+                _pi("2026-07-04", "O", "observance"),
+                _pi("2026-07-04", "H", "holiday"),
+                _pi("2026-07-04", "I", "info"),
+            ],
+            ["H", "I", "O", "P"],
+        ),
+        # Same start AND same kind -> title tiebreak (the innermost key).
+        (
+            [
+                _pi("2026-07-04", "Zebra", "personal"),
+                _pi("2026-07-04", "Apple", "personal"),
+                _pi("2026-07-04", "Mango", "personal"),
+            ],
+            ["Apple", "Mango", "Zebra"],
+        ),
+    ],
+)
+def test_merge_tiebreaks_on_kind_then_title(
+    items: list[AgendaItem], expected_titles: list[str]
+) -> None:
+    # Exercises the (start, kind, title) sort key's SECOND and THIRD dimensions,
+    # which the all-day-before-timed test above (a `start`-length difference)
+    # never touches.
+    block = calendar._merge(True, None, items, [])
+    assert [e["title"] for e in block["events"]] == expected_titles
+
+
 # ── get_calendar: fetch/merge wrapper (network monkeypatched out) ──────────────
 
 
-def test_get_calendar_ok_merges_personal_and_holidays(monkeypatch: Any) -> None:
+def test_get_calendar_ok_merges_personal_and_holidays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
-    monkeypatch.setattr(
-        calendar, "_fetch_personal", lambda url, start, end, tz: _personal()
-    )
+    _patch_fetch_returns(monkeypatch, _personal())
     block = asyncio.run(calendar.get_calendar(NOW))
     assert block["ok"] is True
-    assert block["fetched_at"] is not None and block["fetched_at"].endswith("-04:00")
+    # fetched_at is a real wall-clock stamp; assert it carries SOME ISO offset
+    # (season-agnostic: EDT -04:00 in summer, EST -05:00 in winter), not a
+    # hardcoded EDT that would fail when the suite runs on the other side of DST.
+    fetched_at = block["fetched_at"]
+    assert fetched_at is not None
+    assert re.search(r"[+-]\d{2}:\d{2}$", fetched_at)
     titles = {e["title"] for e in block["events"]}
     assert "Team standup" in titles  # personal merged
     assert "Independence Day" in titles  # offline federal holiday merged (07-04)
-    # flat, sorted, no day grouping (frontend groups)
-    starts = [e["start"] for e in block["events"]]
-    assert starts == sorted(starts, key=lambda s: (s,))
+    # a personal item carries `end` (the two-sided NotRequired contract: personal
+    # events DO carry it; holidays omit it — see the omit test below)
+    standup = next(e for e in block["events"] if e["title"] == "Team standup")
+    assert "end" in standup
+    # flat, sorted in the contract's canonical (start, kind, title) order — not a
+    # no-op lexical re-sort, so a kind/title-first regression would be caught.
+    keys = [(e["start"], e["kind"], e["title"]) for e in block["events"]]
+    assert keys == sorted(keys)
 
 
-def test_get_calendar_holiday_items_omit_end(monkeypatch: Any) -> None:
+def test_get_calendar_holiday_items_omit_end(monkeypatch: pytest.MonkeyPatch) -> None:
     # `end` is NotRequired: the offline holiday/observance items are single-day
     # and carry no `end` (consumers treat a missing `end` as single-day).
     monkeypatch.setattr(settings, "proton_ics_url", "")
@@ -332,13 +435,11 @@ def test_get_calendar_holiday_items_omit_end(monkeypatch: Any) -> None:
     assert "end" not in holiday
 
 
-def test_get_calendar_proton_failure_still_shows_holidays(monkeypatch: Any) -> None:
+def test_get_calendar_proton_failure_still_shows_holidays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
-
-    def boom(url: str, start: Any, end: Any, tz: Any) -> Any:
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(calendar, "_fetch_personal", boom)
+    _patch_fetch_raises(monkeypatch)
     block = asyncio.run(calendar.get_calendar(NOW))
     assert block["ok"] is False  # ok tracks the Proton fetch only
     assert block["fetched_at"] is None
@@ -347,7 +448,7 @@ def test_get_calendar_proton_failure_still_shows_holidays(monkeypatch: Any) -> N
     assert all(e["kind"] != "personal" for e in block["events"])
 
 
-def test_get_calendar_no_url_is_holidays_only(monkeypatch: Any) -> None:
+def test_get_calendar_no_url_is_holidays_only(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "proton_ics_url", "")
     block = asyncio.run(calendar.get_calendar(NOW))
     assert block["ok"] is False
@@ -355,16 +456,14 @@ def test_get_calendar_no_url_is_holidays_only(monkeypatch: Any) -> None:
     assert any(e["title"] == "Independence Day" for e in block["events"])
 
 
-def test_get_calendar_proton_failure_keeps_last_good_personal(monkeypatch: Any) -> None:
+def test_get_calendar_proton_failure_keeps_last_good_personal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Phase 6 per-source last-good: a transient Proton blip must NOT wipe the
     # user's personal events from the agenda. With a last-good doc in hand, the
     # in-window personal events are kept (ok=False) and holidays still merge.
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
-
-    def boom(url: str, start: Any, end: Any, tz: Any) -> Any:
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(calendar, "_fetch_personal", boom)
+    _patch_fetch_raises(monkeypatch)
     last_good: CalendarBlock = {
         "ok": True,
         "fetched_at": "2026-07-01T08:00:00-04:00",
@@ -395,17 +494,13 @@ def test_get_calendar_proton_failure_keeps_last_good_personal(monkeypatch: Any) 
 
 
 def test_get_calendar_last_good_personal_outside_window_is_dropped(
-    monkeypatch: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # As the window slides during a prolonged outage, last-good personal events
     # that fall out of [today, today+5) must drop (else they bucket into a day
     # the agenda never renders) — matching the live-fetch window filter.
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
-    monkeypatch.setattr(
-        calendar,
-        "_fetch_personal",
-        lambda url, s, e, tz: (_ for _ in ()).throw(RuntimeError("down")),
-    )
+    _patch_fetch_raises(monkeypatch)
     last_good: CalendarBlock = {
         "ok": True,
         "fetched_at": None,
@@ -422,24 +517,22 @@ def test_get_calendar_last_good_personal_outside_window_is_dropped(
     assert all(e["title"] != "Old meeting" for e in block["events"])
 
 
-def test_get_calendar_failure_does_not_leak_url(monkeypatch: Any, caplog: Any) -> None:
+def test_get_calendar_failure_does_not_leak_url(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     secret = "https://calendar.proton.me/SECRET-TOKEN-xyz?PassphraseKey=DECRYPTKEY"
     monkeypatch.setattr(settings, "proton_ics_url", secret)
-
-    def boom(url: str, start: Any, end: Any, tz: Any) -> Any:
-        raise requests_like_error(url)
-
-    monkeypatch.setattr(calendar, "_fetch_personal", boom)
-    import logging
-
+    # Mimic a requests exception whose message embeds the full URL + key.
+    _patch_fetch_raises(
+        monkeypatch,
+        lambda url: RuntimeError(f"HTTPSConnectionPool: failed to GET {url}"),
+    )
     with caplog.at_level(logging.WARNING):
         asyncio.run(calendar.get_calendar(NOW))
+    # A warning MUST have fired (else the not-in assertions below pass vacuously —
+    # a silently-swallowed error would be a false green).
+    assert caplog.records
     # the secret URL (and its key) must never reach the logs
     assert "SECRET-TOKEN" not in caplog.text
     assert "PassphraseKey" not in caplog.text
     assert "DECRYPTKEY" not in caplog.text
-
-
-def requests_like_error(url: str) -> Exception:
-    # Mimic a requests exception whose message embeds the full URL+key.
-    return RuntimeError(f"HTTPSConnectionPool: failed to GET {url}")

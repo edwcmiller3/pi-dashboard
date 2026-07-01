@@ -155,7 +155,12 @@ export function hasPersonalEvents(items) {
 export function pickUpdated(sources) {
   const stamps = sources
     .filter((s) => s && s.ok && s.fetched_at)
-    .map((s) => s.fetched_at);
+    .map((s) => s.fetched_at)
+    // Drop unparseable stamps up front: Date.parse(bad) is NaN, and every `<`
+    // comparison with NaN is false, so a garbage stamp encountered first would
+    // "win" the min and never be beaten — over-claiming freshness. Filtering
+    // makes the pick correct regardless of input order.
+    .filter((iso) => !Number.isNaN(Date.parse(iso)));
   return stamps.reduce(
     (best, iso) => (best === null || Date.parse(iso) < Date.parse(best) ? iso : best),
     null,
