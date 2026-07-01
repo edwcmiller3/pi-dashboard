@@ -1,7 +1,11 @@
-/* Pi Dashboard — v4 design (bento over ambient glow, no-blur "safe" build).
+/* Pi Dashboard — v4 design (bento over ambient glow).
    Ported from ~/Documents/pi_tmp/pi-dashboard-mockup-v4.html (2026-06-28).
-   Deliberately NO backdrop-filter (GPU-risky on the Pi 5 per spike 0.7);
-   cards are a semi-transparent dark fill so the ambient glow tints through.
+   The BASE build is the no-blur "safe" build: .glass cards are a semi-transparent
+   dark fill so the ambient glow tints through, with NO backdrop-filter. Real
+   frosted glass ships as a Phase-9 progressive enhancement gated on BOTH the
+   `.glass-blur` opt-in class and an `@supports` feature query (see the block
+   after `.glass`) — GPU-risky on a software compositor per spike 0.7, so the
+   safe build stays the floor and the panel's repaint smoothness is the judge.
    Layout surface sized in rem against the 1280x800 effective viewport
    (root 16px -> 80rem x 50rem); hairline borders kept at 1px on purpose. */
 
@@ -14,6 +18,14 @@
   --gold: #ffd166;
   --ok: #4ec9a6;
   --stale: #e0796b;
+  /* Ambient corner glows — muted DEFAULTS for the safe (no-blur) build, where
+     there's nothing to diffuse them so full intensity would read as harsh color
+     blobs. The frosted-glass opt-in overrides these with richer alphas (blur
+     diffuses them into soft washes). See the @supports block after `.glass`. */
+  --glow-cyan: rgba(92, 200, 255, 0.18);
+  --glow-amber: rgba(255, 180, 84, 0.12);
+  --glow-violet: rgba(140, 110, 255, 0.13);
+  --glow-teal: rgba(78, 201, 166, 0.1);
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
 }
@@ -36,17 +48,19 @@ body {
   cursor: none;
 }
 
-/* ambient canvas — glows dialed back vs a blurred version (no blur to diffuse them) */
+/* ambient canvas — glow intensity comes from the --glow-* vars (muted by default
+   for the safe build; richer under the frosted-glass opt-in, which has blur to
+   diffuse them). */
 .screen {
   width: 80rem;
   height: 50rem;
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(60% 55% at 8% -8%, rgba(92, 200, 255, 0.18) 0%, transparent 60%),
-    radial-gradient(55% 50% at 70% -10%, rgba(255, 180, 84, 0.12) 0%, transparent 60%),
-    radial-gradient(70% 60% at 105% 108%, rgba(140, 110, 255, 0.13) 0%, transparent 60%),
-    radial-gradient(60% 50% at -5% 110%, rgba(78, 201, 166, 0.1) 0%, transparent 60%),
+    radial-gradient(60% 55% at 8% -8%, var(--glow-cyan) 0%, transparent 60%),
+    radial-gradient(55% 50% at 70% -10%, var(--glow-amber) 0%, transparent 60%),
+    radial-gradient(70% 60% at 105% 108%, var(--glow-violet) 0%, transparent 60%),
+    radial-gradient(60% 50% at -5% 110%, var(--glow-teal) 0%, transparent 60%),
     #070a0f;
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -62,6 +76,45 @@ body {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset,
     0 16px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* FROSTED-GLASS progressive enhancement (Phase-9 backlog, user request 2026-06-29).
+   Doubly gated so the safe build above is always the fallback:
+     1. `@supports` — only applies where the browser advertises backdrop-filter
+        (prefixed or not; Chromium on the Pi honors the unprefixed form, the
+        `-webkit-` alias is defensive for the feature query and the declaration).
+     2. `.glass-blur` on `.screen` (index.html) — the opt-in. Remove that one
+        class to revert to the safe build with zero other edits; this is the
+        "one-flag-revertible if it janks on the panel" escape hatch.
+   The card fill alphas are LOWERED here (vs the safe build's 0.70/0.78) so the
+   blurred glow actually reads as frosted glass; they're still dark enough over
+   the #070a0f canvas to keep --text legible. Blur radius kept modest on purpose
+   — backdrop-filter is the single most expensive paint op on a software
+   compositor, so a big radius is exactly what would jank the clock tick / data
+   swap. Final radius + alphas are dialed on the panel, not in DevTools.
+   Also restores the RICHER ambient glows (muted in :root for the safe build) —
+   blur now diffuses them into soft washes rather than harsh blobs, which is what
+   sells the "glass" read; and brightens the card edge so it catches light like
+   real glass. All of it is inside this same gate, so the safe build keeps its
+   muted glows + hairline edge. Glow intensity doesn't change the blur cost
+   (backdrop-filter is dominated by radius x area, not alpha), so it rides the
+   same on-panel smoothness check as the blur itself. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .screen.glass-blur {
+    --glow-cyan: rgba(92, 200, 255, 0.3);
+    --glow-amber: rgba(255, 180, 84, 0.22);
+    --glow-violet: rgba(140, 110, 255, 0.24);
+    --glow-teal: rgba(78, 201, 166, 0.2);
+  }
+  .screen.glass-blur .glass {
+    background: linear-gradient(180deg, rgba(22, 30, 41, 0.5) 0%, rgba(14, 20, 28, 0.58) 100%);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.1) inset,
+      0 16px 36px rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    backdrop-filter: blur(12px) saturate(1.3);
+  }
 }
 
 /* ───────────── top: clock + current hero ───────────── */

@@ -9,10 +9,14 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- v4 layout (bento over ambient glow, no-blur safe build). Designed for the
-       1280x800 effective viewport (scale 1.5). app.js fills every region from
-       data.json; only the shell + the "Upcoming" heading are static. -->
-  <div class="screen">
+  <!-- v4 layout (bento over ambient glow). Designed for the 1280x800 effective
+       viewport (scale 1.5). app.js fills every region from data.json; only the
+       shell + the "Upcoming" heading are static.
+       `glass-blur` is the Phase-9 frosted-glass OPT-IN: it turns .glass cards
+       into real backdrop-filter frosted glass, but ONLY where the compositor can
+       accelerate it (the rules are also behind @supports in style.css). Remove
+       this one class to fall back to the no-blur "safe" build. -->
+  <div class="screen glass-blur">
 
     <div class="top">
       <section class="glass clock-card">
