@@ -13,7 +13,7 @@ import asyncio
 import logging
 import re
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from typing import NoReturn
 from zoneinfo import ZoneInfo
 
@@ -228,9 +228,11 @@ def test_all_day_single_day_end_is_exclusive_next_day() -> None:
     assert cabin["end"] == "2026-07-05"  # exclusive; covers the dates [07-04, 07-05)
 
 
-def test_multiday_all_day_end_is_exclusive_upper_bound() -> None:
-    # A multi-day all-day event STARTING in-window keeps ICS's exclusive DTEND,
-    # so the covered dates are [start, end) — 07-02, 07-03, 07-04 here (not 07-05).
+def test_multiday_all_day_expands_to_one_item_per_covered_day() -> None:
+    # Multi-day rendering (Phase-9): a multi-day all-day event is exploded into
+    # one single-day all-day item per day of its half-open span [start, end), so
+    # it shows on EVERY day it covers (07-02, 07-03, 07-04 — not 07-05). Each
+    # emitted day is itself half-open ([day, day+1)), the single-day `end` rule.
     ics = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -243,14 +245,61 @@ SUMMARY:Conference
 END:VEVENT
 END:VCALENDAR
 """
-    conf = next(
+    conf = [
         e
         for e in calendar.normalize_events(ics, *calendar._window(NOW), TZ)
         if e["title"] == "Conference"
-    )
-    assert conf["all_day"] is True
-    assert conf["start"] == "2026-07-02"
-    assert conf["end"] == "2026-07-05"  # exclusive; covers 07-02, 07-03, 07-04
+    ]
+    assert all(e["all_day"] is True and e["kind"] == "personal" for e in conf)
+    assert [(e["start"], e["end"]) for e in conf] == [
+        ("2026-07-02", "2026-07-03"),
+        ("2026-07-03", "2026-07-04"),
+        ("2026-07-04", "2026-07-05"),
+    ]
+
+
+# ── _covered_days: the pure multi-day clamp/expand core ───────────────────────
+
+# Window dates matching NOW's `[07-01, 07-06)` (window_hi is exclusive).
+_WLO = date(2026, 7, 1)
+_WHI = date(2026, 7, 6)
+
+
+def test_covered_days_single_day_span_is_one_day() -> None:
+    # A single-day all-day event ([07-04, 07-05)) covers exactly its one day.
+    assert calendar._covered_days(date(2026, 7, 4), date(2026, 7, 5), _WLO, _WHI) == [
+        date(2026, 7, 4)
+    ]
+
+
+def test_covered_days_multiday_fully_in_window_excludes_end() -> None:
+    # [07-02, 07-05) -> 07-02, 07-03, 07-04 (the exclusive end day drops out).
+    assert calendar._covered_days(date(2026, 7, 2), date(2026, 7, 5), _WLO, _WHI) == [
+        date(2026, 7, 2),
+        date(2026, 7, 3),
+        date(2026, 7, 4),
+    ]
+
+
+def test_covered_days_clamps_inprogress_start_to_window_lo() -> None:
+    # Began 06-28 (pre-window), ends 07-03 -> clamped to Today (07-01) forward.
+    assert calendar._covered_days(date(2026, 6, 28), date(2026, 7, 3), _WLO, _WHI) == [
+        date(2026, 7, 1),
+        date(2026, 7, 2),
+    ]
+
+
+def test_covered_days_clamps_span_running_past_window_hi() -> None:
+    # 07-04 .. 07-10 -> clamped to the last in-window day (window_hi exclusive).
+    assert calendar._covered_days(date(2026, 7, 4), date(2026, 7, 10), _WLO, _WHI) == [
+        date(2026, 7, 4),
+        date(2026, 7, 5),
+    ]
+
+
+def test_covered_days_entirely_outside_window_is_empty() -> None:
+    # No overlap with the window -> no days (max(lo) > min(hi) -> empty range).
+    assert calendar._covered_days(date(2026, 6, 20), date(2026, 6, 25), _WLO, _WHI) == []
 
 
 # ── normalize_events: recurrence + EXDATE + windowing ─────────────────────────
@@ -291,15 +340,23 @@ def test_event_outside_window_is_excluded() -> None:
     assert all(e["title"] != "Way out there" for e in _personal())
 
 
-def test_multiday_event_starting_before_window_is_filtered() -> None:
-    # `between` returns events OVERLAPPING the window, incl. a trip that began
-    # before it — its out-of-window start would bucket into a day the agenda
-    # never renders, so it's filtered (matching the holidays date filter).
+def test_inprogress_multiday_all_day_is_clamped_into_window() -> None:
+    # An all-day span that BEGAN before the window (a trip in progress) used to
+    # vanish (its pre-window start bucketed under an unrendered past day). Multi-
+    # day rendering now clamps it to the first in-window day (Today) and repeats
+    # it across each covered in-window day, so "you're on a trip today" shows.
+    # Vacation is [06-28, 07-03); intersected with [07-01, 07-06) -> 07-01, 07-02.
     items = calendar.normalize_events(MULTIDAY_ICS, *calendar._window(NOW), TZ)
+    vacation = sorted(e["start"] for e in items if e["title"] == "Vacation")
+    assert vacation == ["2026-07-01", "2026-07-02"]  # clamped to Today forward
+    assert all(
+        e["end"] == "2026-07-02" if e["start"] == "2026-07-01" else True
+        for e in items
+        if e["title"] == "Vacation"
+    )  # each emitted day stays half-open [day, day+1)
     titles = {e["title"] for e in items}
-    assert "Vacation" not in titles  # started 06-28, before the 07-01 window
-    assert "Mid-week lunch" in titles  # 07-02, in window — filter isn't over-broad
-    assert all(e["start"][:10] >= "2026-07-01" for e in items)
+    assert "Mid-week lunch" in titles  # single-day 07-02, in window — still shown
+    assert all(e["start"][:10] >= "2026-07-01" for e in items)  # nothing pre-window
 
 
 def test_personal_events_are_the_expected_occurrences() -> None:

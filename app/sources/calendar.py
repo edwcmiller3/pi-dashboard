@@ -7,7 +7,10 @@ Two layers, kept apart so the transform is pure and unit-testable (mirrors
     recurrences with `recurring-ical-events` over tz-aware `[start, end)` bounds
     (naive bounds raise — lib #26), honors EXDATE-on-master (confirmed 0.D1),
     and normalizes the DATE-vs-DATETIME split: all-day -> date-only `start`
-    (`all_day=True`); timed -> ISO-with-offset `start` (`all_day=False`).
+    (`all_day=True`); timed -> ISO-with-offset `start` (`all_day=False`). A
+    multi-day all-day span is exploded into one single-day item per day it covers
+    within the window (an in-progress span clamps to Today) so it renders on each
+    day; timed multi-day spans are still start-day-only (deferred).
   * `get_calendar(now)` — impure: fetch the ICS (offloaded off the event loop),
     normalize, and MERGE with `holidays.get_holidays(window)` into one flat,
     sorted, windowed `events` list wrapped with `ok`/`fetched_at`.
@@ -104,6 +107,56 @@ def _agenda_item(occ: Any, tz: ZoneInfo) -> AgendaItem:
     }
 
 
+def _covered_days(
+    start: date, end: date, window_lo: date, window_hi: date
+) -> list[date]:
+    """The days a half-open all-day span `[start, end)` occupies within the
+    half-open window `[window_lo, window_hi)` (pure — all `date`). Clamps BOTH
+    ends to the window: an in-progress span that began before the window is
+    clamped up to `window_lo` (Today), so it renders from Today forward instead
+    of vanishing under a past day the agenda never draws; a span running past the
+    window is clamped down to `window_hi`. No overlap -> `[]` (the range is
+    negative)."""
+    lo = max(start, window_lo)
+    hi = min(end, window_hi)
+    return [lo + timedelta(days=i) for i in range((hi - lo).days)]
+
+
+def _day_item(item: AgendaItem, day: date) -> AgendaItem:
+    """One covered day of an all-day span -> a single-day all-day item spanning
+    `[day, day+1)` (the same half-open `end` rule a single-day all-day event
+    already gets). Carries the source item's `title`/`kind`; only the dates
+    change, so the frontend's group-by-`start` naturally files it under `day`."""
+    return {
+        "start": day.isoformat(),
+        "end": (day + timedelta(days=1)).isoformat(),
+        "all_day": True,
+        "title": item["title"],
+        "kind": item["kind"],
+    }
+
+
+def _emit(item: AgendaItem, window_lo: date, window_hi: date) -> list[AgendaItem]:
+    """One normalized occurrence -> the agenda item(s) it contributes.
+
+    * All-day -> one single-day all-day item per day it covers within the window
+      (a multi-day span repeats across each day — the Phase-9 MVP). `_covered_days`
+      clamps an in-progress span to Today, so it renders from Today forward.
+    * Timed -> the item itself when its start lands in the window, else dropped.
+      A timed span that began before the window is still dropped: timed multi-day
+      rendering is deferred (see the Phase-9 backlog), and emitting its real
+      pre-window start would bucket it under a day the agenda never renders."""
+    if item["all_day"]:
+        days = _covered_days(
+            date.fromisoformat(item["start"]),
+            date.fromisoformat(item["end"]),
+            window_lo,
+            window_hi,
+        )
+        return [_day_item(item, day) for day in days]
+    return [item] if date.fromisoformat(item["start"][:10]) >= window_lo else []
+
+
 def normalize_events(
     ics_text: str, start: datetime, end: datetime, tz: ZoneInfo
 ) -> list[AgendaItem]:
@@ -112,19 +165,22 @@ def normalize_events(
     the library. Returned unsorted — `get_calendar` sorts the merged list.
 
     `between` returns every event OVERLAPPING the window, including a multi-day
-    event that *began before* it — whose start is then out-of-window and would
-    bucket into a day the agenda never renders. So filter to occurrences whose
-    start lands in the window (matching the holidays source's date filter). Each
-    item now carries `end` (the `[start, end)` upper bound), but the filter still
-    drops pre-window starts — actually *rendering* an in-progress multi-day span
-    across the days it covers is a separate Phase-9 polish concern."""
+    event that *began before* it. Each occurrence is routed through `_emit`,
+    which turns an all-day span into one item per covered in-window day (clamping
+    an in-progress span up to Today) and passes a timed event through iff its
+    start is in-window (timed multi-day spans stay dropped — deferred). All-day
+    multi-day *rendering* is what supersedes the earlier drop-not-clamp rule."""
     cal = icalendar.Calendar.from_ical(ics_text)
-    window_start = start.date().isoformat()  # date-prefix compare (ISO strings)
-    items = (
+    window_lo, window_hi = start.date(), end.date()
+    occurrences = (
         _agenda_item(occ, tz)
         for occ in recurring_ical_events.of(cal).between(start, end)
     )
-    return [item for item in items if item["start"][:10] >= window_start]
+    return [
+        emitted
+        for occ in occurrences
+        for emitted in _emit(occ, window_lo, window_hi)
+    ]
 
 
 def _read_capped(url: str) -> str:
