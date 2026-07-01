@@ -22,7 +22,7 @@ from typing import Any, Final
 from app.config import settings
 from app.contract import CurrentWeather, ForecastDay, WeatherBlock, WeatherData
 from app.http import build_session
-from app.weather_codes import describe
+from app.weather_codes import describe, is_wet
 
 _API_URL: Final = "https://api.open-meteo.com/v1/forecast"
 
@@ -84,15 +84,17 @@ def _pct(value: Any) -> int:
 
 def _forecast_day(daily: dict[str, Any], i: int) -> ForecastDay:
     """One look-ahead card from `daily` index `i`. Cards always use day glyphs."""
-    cond = describe(int(daily["weather_code"][i]), is_day=True)
+    code = int(daily["weather_code"][i])
+    cond = describe(code, is_day=True)
     return {
         "date": daily["time"][i],
-        "code": int(daily["weather_code"][i]),
+        "code": code,
         "text": cond["text"],
         "icon": cond["icon"],
         "high_f": _round_half_up(daily["temperature_2m_max"][i]),
         "low_f": _round_half_up(daily["temperature_2m_min"][i]),
         "precip_prob_pct": _pct(daily["precipitation_probability_max"][i]),
+        "precip_expected": is_wet(code),
     }
 
 

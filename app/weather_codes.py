@@ -102,6 +102,22 @@ def describe(code: int, is_day: bool = True) -> Condition:
     return {"icon": day if is_day else night, "text": label}
 
 
+# Codes that do NOT precipitate: clear (0), mainly clear (1), partly cloudy (2),
+# overcast (3), fog (45), rime fog (48). Every other documented code is a
+# drizzle/rain/snow/showers/thunderstorm family and DOES precipitate. Kept as the
+# small dry set (not a large wet set) so a precip code added to `_WMO` later is
+# wet by default — the mapping stays the single source of truth.
+_DRY: Final[frozenset[int]] = frozenset({0, 1, 2, 3, 45, 48})
+
+
+def is_wet(code: int) -> bool:
+    """Whether a WMO code precipitates (rain OR snow) — gates the forecast card's
+    precip-chance line. An unmapped code is treated as dry: we can't assert it
+    precipitates, so we don't show a precip line for it.
+    """
+    return code in _WMO and code not in _DRY
+
+
 def glyphs() -> frozenset[WiIcon]:
     """Every weather-icons class this module can emit (incl. the fallback).
 

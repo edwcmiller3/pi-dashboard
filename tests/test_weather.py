@@ -159,6 +159,15 @@ def test_forecast_fields_resolved() -> None:
     assert first["high_f"] == 78
     assert first["low_f"] == 63
     assert first["precip_prob_pct"] == 20
+    assert first["precip_expected"] is False  # code 2 (partly cloudy) is dry
+
+
+def test_forecast_precip_expected_tracks_the_weather_code() -> None:
+    # The precip line is gated on is_wet(code), not the % — a dry code hides it
+    # even at a nonzero %, a wet code shows it. daily[2] (forecast[1]) is code 63.
+    fc = weather.normalize_weather(RAW)["forecast"]
+    assert fc[1]["code"] == 63 and fc[1]["precip_expected"] is True  # rain
+    assert all(f["precip_expected"] is False for f in (fc[0], fc[2], fc[3]))
 
 
 def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:

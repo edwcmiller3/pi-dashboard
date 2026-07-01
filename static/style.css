@@ -73,7 +73,9 @@ body {
   display: grid;
   grid-template-columns: 0.95fr 2.05fr;
   gap: 1.1rem;
-  min-height: 11rem;
+  /* the hero cedes height to the taller forecast card (2026-07-01) — the two
+     floors sum the same as before, so the agenda's 1fr row is unchanged. */
+  min-height: 9.5rem;
 }
 .clock-card {
   padding: 1.5rem 1.7rem;
@@ -187,17 +189,18 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.1rem;
-  /* see .top — the other weather row lifted off the agenda's elastic 1fr. */
-  min-height: 9.5rem;
+  /* taller than the hero now — holds day · icon+temps · precip · condition text
+     (2026-07-01). The hero (.top) gave up the matching height; agenda unchanged. */
+  min-height: 11rem;
 }
 .fcard {
-  padding: 0.95rem 1rem;
+  padding: 0.9rem 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* center vertically so the row's added height reads as breathing room around
-     day/icon/temp rather than a gap below them. */
-  justify-content: center;
+  /* day pinned to the top, condition text to the bottom (mirroring it), the
+     icon+temps band centered between — the three zones the layout is built on. */
+  justify-content: space-between;
   gap: 0.5rem;
 }
 .fcard .fday {
@@ -205,17 +208,53 @@ body {
   font-size: 1.05rem;
   letter-spacing: 0.04em;
 }
-.fcard .wi {
-  font-size: 2.3rem;
+/* middle band: bigger icon on the left, temps + precip on the right, grouped
+   and centered as a unit (not edge-justified). */
+.fcard .fmid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+.fcard .fcard-icon {
+  font-size: 2.9rem;
   color: var(--cool);
   line-height: 1;
 }
+.fcard .fright {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
 .fcard .ftemp {
-  font-size: 1.2rem;
+  font-size: 1.35rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .fcard .ftemp .lo {
   color: var(--muted);
+  font-weight: 400;
+}
+/* precip-chance line beneath the temps — only rendered on wet codes (is_wet). */
+.fcard .fprecip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--cool);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.fcard .fprecip .wi {
+  font-size: 1rem;
+}
+/* de-emphasized to match the day label (muted, same size) — the icon carries
+   the condition; the text is a glance-confirm, not the focal point. */
+.fcard .fdesc {
+  color: var(--muted);
+  font-size: 1.05rem;
+  text-align: center;
+  letter-spacing: 0.04em;
 }
 /* Forecast row is future-only (today lives in the hero), so there is no "today"
    card to highlight — the .fcard.today treatment was removed (2026-06-28). */

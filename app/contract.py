@@ -97,6 +97,12 @@ class ForecastDay(TypedDict):
     high_f: int
     low_f: int
     precip_prob_pct: int
+    # Whether this day precipitates (`weather_codes.is_wet(code)`) — the frontend
+    # shows the precip-chance line only when true, so dry days stay clean and the
+    # raw WMO code never has to be interpreted client-side. `NotRequired` for the
+    # same reason as `AgendaItem.end`: a last-good block cached before this field
+    # existed won't carry it; consumers must treat a missing value as dry.
+    precip_expected: NotRequired[bool]
 
 
 class WeatherData(TypedDict):

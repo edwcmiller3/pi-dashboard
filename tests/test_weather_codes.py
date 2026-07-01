@@ -107,6 +107,39 @@ def test_describe_defaults_to_day() -> None:
     assert wc.describe(0) == wc.describe(0, is_day=True)
 
 
+# ── is_wet: does this code precipitate? (gates the forecast precip line) ──────
+
+# Non-precip codes: clear (0), mainly clear (1), partly cloudy (2), overcast (3),
+# fog (45), rime fog (48). Everything else Open-Meteo documents falls in a
+# drizzle/rain/snow/showers/thunderstorm family and does precipitate.
+DRY_CODES = [0, 1, 2, 3, 45, 48]
+WET_CODES = [c for c in ALL_CODES if c not in DRY_CODES]
+
+
+@pytest.mark.parametrize("code", DRY_CODES)
+def test_is_wet_false_for_clear_cloud_and_fog(code: int) -> None:
+    assert wc.is_wet(code) is False
+
+
+@pytest.mark.parametrize("code", WET_CODES)
+def test_is_wet_true_for_every_precip_family(code: int) -> None:
+    # drizzle/rain/snow/showers/thunderstorm all precipitate (rain OR snow) — the
+    # user's gate is "any precip", not "rain only" (2026-07-01).
+    assert wc.is_wet(code) is True
+
+
+@pytest.mark.parametrize("code", UNKNOWN_CODES)
+def test_is_wet_false_for_unknown_codes(code: int) -> None:
+    # An unmapped code can't be asserted to precipitate -> default dry (no line).
+    assert wc.is_wet(code) is False
+
+
+def test_is_wet_partitions_the_documented_codes() -> None:
+    # Every documented code is either wet or dry, never both / neither — so the
+    # predicate can't silently drop a code as the mapping grows.
+    assert {c for c in ALL_CODES if wc.is_wet(c)} == set(WET_CODES)
+
+
 def test_emittable_glyphs_exactly_match_the_vendored_weather_subset() -> None:
     # Two-way guard, self-maintaining (no hand-listed copy to drift):
     #   * every glyph the module can emit is vendored -> no tofu on the kiosk;

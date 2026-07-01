@@ -52,6 +52,8 @@
  * @property {number} high_f
  * @property {number} low_f
  * @property {number} precip_prob_pct
+ * @property {boolean} [precip_expected] backend is_wet(code) gate; absent (a
+ *   pre-field cached block) reads as dry, so the precip line stays hidden
  */
 
 /**
@@ -463,9 +465,27 @@ function renderForecast(forecast) {
   for (const f of forecast.slice(0, 4)) {
     const dname = localDate(f.date).toLocaleDateString(undefined, { weekday: "long" });
     const card = el("section", "glass fcard");
+
     const temp = el("span", "ftemp");
     temp.append(`${f.high_f}°`, el("span", "lo", ` / ${f.low_f}°`));
-    card.append(el("span", "fday", dname), wiIcon(f.icon), temp);
+
+    // Right of the icon: temps, with the precip-chance line beneath — shown only
+    // on codes that precipitate (backend is_wet gate); an absent flag reads dry.
+    const right = el("div", "fright");
+    right.append(temp);
+    if (f.precip_expected) {
+      const precip = el("div", "fprecip");
+      precip.append(wiIcon("wi-raindrop"), el("span", null, `${f.precip_prob_pct}%`));
+      right.append(precip);
+    }
+
+    // Middle band: bigger icon on the left, temps/precip on the right, grouped
+    // and centered as a unit (not edge-justified).
+    const mid = el("div", "fmid");
+    mid.append(wiIcon(f.icon, "fcard-icon"), right);
+
+    // day (top) · icon+temps (middle) · condition text (bottom, mirrors the day).
+    card.append(el("span", "fday", dname), mid, el("span", "fdesc", f.text));
     root.append(card);
   }
 }
