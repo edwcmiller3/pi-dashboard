@@ -31,29 +31,32 @@ A read-write root (not read-only overlayfs) is what makes `unattended-upgrades`
 viable — on an overlayfs RO root, apt installs land in the tmpfs upper layer and
 vanish on reboot, so that build would update by re-imaging instead.
 
-## Network — Wi-Fi on a hidden SSID
+## Network — Wi-Fi reliability
+
+Pi OS (Bookworm/Trixie) manages Wi-Fi with NetworkManager. Two distinct failure
+modes bit this build — a boot-time join race and a mid-run drop. Both were
+config, not hardware; it's worth ruling those out before blaming the Pi's radio.
+Nothing app-side is involved either way — the backend's refresh loop self-heals
+the moment the link is up.
+
+### Joining a hidden SSID (boot-time)
 
 **A hidden (non-broadcasting) SSID needs `802-11-wireless.hidden yes` on the
-NetworkManager profile — without it the Pi joins only intermittently.** Pi OS
-(Bookworm/Trixie) manages Wi-Fi with NetworkManager, and a hidden AP suppresses
+profile — without it the Pi joins only intermittently.** A hidden AP suppresses
 its SSID in beacons, so the client can only find it by sending a *directed probe
-request* — which NM sends only when the profile is flagged hidden. Unflagged, NM
+request*, which NM sends only when the profile is flagged hidden. Unflagged, NM
 falls back to passive beacon scans and association becomes a boot-time race it
 loses on some reboots: the box comes up with no network (host unreachable, weather
-and calendar unsynced, "Updated —"). Setting the flag makes the join
-deterministic. Nothing app-side is involved — the backend's refresh loop
-self-heals the moment the link is up; this is purely getting the link up.
+and calendar unsynced, "Updated —"). The flag makes the join deterministic.
 
-This lives in the root-owned NM keyfile (`/etc/NetworkManager/system-connections/
-*.nmconnection`, `0600`), **not** in git — it holds the Wi-Fi PSK. That means a
-re-image wipes it, so it's documented here rather than shipped as a file. Run once
-on the Pi (Imager often doesn't set the hidden flag even when "hidden" is ticked):
+Run once on the Pi (Imager often doesn't set the hidden flag even when "hidden"
+is ticked):
 
 ```sh
 nmcli -f NAME,TYPE,DEVICE connection show     # find the Wi-Fi profile name
 CN="preconfigured"                            # <- substitute the real name
 
-sudo nmcli connection modify "$CN" 802-11-wireless.hidden yes           # load-bearing: probe for the hidden SSID
+sudo nmcli connection modify "$CN" 802-11-wireless.hidden yes           # probe for the hidden SSID
 sudo nmcli connection modify "$CN" connection.autoconnect yes \
                                    connection.autoconnect-retries 0     # 0 = retry forever (default gives up after 4)
 sudo nmcli connection modify "$CN" 802-11-wireless.powersave 2          # disable radio power-save (always-on wall panel)
@@ -61,14 +64,80 @@ sudo nmcli connection modify "$CN" 802-11-wireless.powersave 2          # disabl
 sudo nmcli connection down "$CN" && sudo nmcli connection up "$CN"      # apply now; then reboot to confirm a clean boot-join
 ```
 
-**Channel caveat (only if the join is *still* flaky after the above).** A hidden
-SSID can't be found on a **passive-scan** channel — the client may not probe there
-until it hears a beacon, which a hidden AP withholds. In the US regdomain the
-5 GHz **DFS** channels (52–144) are passive; 2.4 GHz (1–11) and 5 GHz UNII-1
-(36–48) / UNII-3 (149–165) are active-scan and fine. If the AP sits on a DFS
-channel, move it to an active-scan one — or just un-hide the SSID (a hidden name
-adds negligible security, since clients leak it in probes, while breaking exactly
-this case). Check the band/channel with `nmcli -f SSID,CHAN,FREQ device wifi list`.
+Consider **un-hiding the SSID** instead: a hidden name adds negligible security
+(clients leak it in probes anyway) and forces trackable active scanning, which
+interacts badly with the mid-run drops below.
+
+**Where the change persists (and a netplan gotcha).** `nmcli connection modify`
+writes through to whatever store backs the profile and persists across reboot —
+but *which* store varies by image:
+
+- Classic NM keyfile: `/etc/NetworkManager/system-connections/*.nmconnection`.
+- netplan-backed images (profile named `netplan-*`): netplan YAML at
+  `/etc/netplan/90-NM-*.yaml`, rendered to `/run/NetworkManager/system-connections/`
+  at boot — the `/run` copy is regenerated each boot, so don't hand-edit it; edit
+  via `nmcli` (which writes back to the YAML) or the YAML itself.
+
+Check yours with `nmcli -g connection.filename connection show "$CN"` (or
+`sudo netplan get`). Either store holds the Wi-Fi PSK, so both are root-only
+(`0600`) and stay **out of git** — a re-image wipes them, which is why this is
+documented here rather than shipped as a file.
+
+### Dropping *while running* (not just at boot)
+
+If an already-established link drops mid-session, **diagnose before buying
+hardware — a mid-run drop is almost never weak signal.** First gather the basics:
+
+```sh
+iw dev wlan0 link                              # signal: > -67 dBm good, < -75 weak
+iw dev wlan0 get power_save                    # must read "off"
+nmcli -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list   # channel; is the SSID on 2.4 AND 5 GHz / multiple BSSIDs?
+```
+
+Then capture *why* it dropped — this is the load-bearing step:
+
+```sh
+sudo iw event -t                               # live: prints deauth/disassoc with reason + source
+journalctl -b | grep -iE "CTRL-EVENT-DISCONNECTED|reason=|deauth"
+```
+
+The reason line splits the two root causes:
+
+- **`disconnected (by AP) reason: N`** — the *access point* is kicking you. On a
+  multi-AP / mesh network with one SSID spanning several nodes (or 2.4 + 5 GHz),
+  this is typically **band/AP steering**: the AP repeatedly deauths a *stationary*
+  device to "optimize" which node/band it's on, and occasionally the
+  re-association stalls for minutes — the visible outage. Fixes, best first:
+  (1) disable band steering / "Smart Connect" / 802.11k/v/r roaming assist on the
+  router, or give each band/node its own SSID; (2) if you can't touch the AP,
+  **pin the client to the strongest node's BSSID** so it snaps back to the same
+  radio instead of bouncing:
+  ```sh
+  nmcli -f SSID,BSSID,CHAN,SIGNAL dev wifi list          # pick the strongest BSSID for your SSID
+  sudo nmcli connection modify "$CN" 802-11-wireless.bssid AA:BB:CC:DD:EE:FF
+  sudo nmcli connection down "$CN" && sudo nmcli connection up "$CN"
+  ```
+  A wall panel never roams, so pinning costs nothing — the one trade-off is that
+  if that node dies the Pi won't fail over. Verify persistence as above, then
+  **reboot to confirm the pin survived** (boot is exactly where this stack fails).
+- **client-initiated (`locally_generated=1`), or a radar event** — the Pi left on
+  its own. Usual causes: power-save re-enabling (re-check `iw ... get power_save`),
+  aggressive background-scan roaming, or DFS (below).
+
+**DFS / passive-scan channel caveat.** A hidden SSID can't be found on a
+**passive-scan** channel, and on 5 GHz **DFS** channels (52–144, US regdomain) the
+AP must vacate the channel for 60+ s on any radar detection — dropping every
+client mid-session. If the AP sits on DFS, move it to an active-scan channel:
+2.4 GHz (1–11) or 5 GHz UNII-1 (36–48) / UNII-3 (149–165). Check with
+`nmcli -f SSID,CHAN,FREQ device wifi list`.
+
+**When hardware *is* warranted.** Only if `iw dev wlan0 link` shows genuinely weak
+signal (below ~-72 dBm) at the mount. Then, best first: wired Ethernet (the Pi 5
+has gigabit built in) → powerline/MoCA → a wireless bridge (a small router in
+client mode with real antennas, feeding the Pi over Ethernet) → a USB Wi-Fi
+adapter with an external antenna (pick an in-kernel chipset, e.g. MediaTek
+`mt76`, so it survives unattended kernel upgrades). A Wi-Fi HAT is rarely worth
+it. At a healthy signal no adapter helps — the problem is association, not radio.
 
 ## Files
 
