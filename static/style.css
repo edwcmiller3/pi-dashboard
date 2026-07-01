@@ -65,10 +65,15 @@ body {
 }
 
 /* ───────────── top: clock + current hero ───────────── */
+/* Vertical rebalance (Phase-9 backlog): the agenda card is the grid's elastic
+   `1fr` row, so a `min-height` floor on the two weather rows gives the hero +
+   forecast a bit more height and the agenda shrinks to match. Sizing-only, kept
+   modest on purpose; final proportions are validated on the panel. */
 .top {
   display: grid;
   grid-template-columns: 0.95fr 2.05fr;
   gap: 1.1rem;
+  min-height: 11rem;
 }
 .clock-card {
   padding: 1.5rem 1.7rem;
@@ -182,12 +187,17 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.1rem;
+  /* see .top — the other weather row lifted off the agenda's elastic 1fr. */
+  min-height: 9.5rem;
 }
 .fcard {
   padding: 0.95rem 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* center vertically so the row's added height reads as breathing room around
+     day/icon/temp rather than a gap below them. */
+  justify-content: center;
   gap: 0.5rem;
 }
 .fcard .fday {
