@@ -15,16 +15,45 @@ weather-icons `wi-wmo4680-*` set, which encodes different WMO 4680 codes.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TypedDict
+from typing import Final, Literal, TypedDict
+
+# The closed set of weather-icons classes this module can emit. Making it a
+# Literal (not a bare `str`) means the contract's `icon` fields carry a real,
+# checkable vocabulary end to end, and a new glyph MUST be added here — which is
+# exactly the prompt to also vendor it into the font subset (see `glyphs`). Keep
+# in sync with `_WMO` + `_UNKNOWN`; mypy flags any drift.
+WiIcon = Literal[
+    "wi-day-sunny",
+    "wi-night-clear",
+    "wi-day-sunny-overcast",
+    "wi-night-alt-cloudy-high",
+    "wi-day-cloudy",
+    "wi-night-alt-cloudy",
+    "wi-cloudy",
+    "wi-fog",
+    "wi-day-sprinkle",
+    "wi-night-alt-sprinkle",
+    "wi-rain-mix",
+    "wi-day-rain",
+    "wi-night-alt-rain",
+    "wi-day-snow",
+    "wi-night-alt-snow",
+    "wi-day-showers",
+    "wi-night-alt-showers",
+    "wi-day-sleet",
+    "wi-sleet",
+    "wi-thunderstorm",
+    "wi-na",
+]
 
 
 class Condition(TypedDict):
-    icon: str  # a weather-icons class, e.g. "wi-day-rain"
+    icon: WiIcon  # a weather-icons class, e.g. "wi-day-rain"
     text: str  # short human label, e.g. "Light rain"
 
 
 # code -> (day glyph, night glyph, label). Neutral buckets repeat the glyph.
-_WMO: dict[int, tuple[str, str, str]] = {
+_WMO: Final[dict[int, tuple[WiIcon, WiIcon, str]]] = {
     0: ("wi-day-sunny", "wi-night-clear", "Clear"),
     1: ("wi-day-sunny-overcast", "wi-night-alt-cloudy-high", "Mainly clear"),
     2: ("wi-day-cloudy", "wi-night-alt-cloudy", "Partly cloudy"),
@@ -58,9 +87,9 @@ _WMO: dict[int, tuple[str, str, str]] = {
 }
 
 # Read-only view -> the table can't be mutated at runtime.
-WMO = MappingProxyType(_WMO)
+WMO: Final = MappingProxyType(_WMO)
 
-_UNKNOWN: tuple[str, str, str] = ("wi-na", "wi-na", "Unknown")
+_UNKNOWN: Final[tuple[WiIcon, WiIcon, str]] = ("wi-na", "wi-na", "Unknown")
 
 
 def describe(code: int, is_day: bool = True) -> Condition:
@@ -73,7 +102,7 @@ def describe(code: int, is_day: bool = True) -> Condition:
     return {"icon": day if is_day else night, "text": label}
 
 
-def glyphs() -> frozenset[str]:
+def glyphs() -> frozenset[WiIcon]:
     """Every weather-icons class this module can emit (incl. the fallback).
 
     Drives the font subset: exactly these glyphs are vendored.

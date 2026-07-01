@@ -17,20 +17,23 @@ from __future__ import annotations
 import asyncio
 import math
 from datetime import datetime, timedelta, timezone
-from typing import Any
-
-import requests
+from typing import Any, Final
 
 from app.config import settings
 from app.contract import CurrentWeather, ForecastDay, WeatherBlock, WeatherData
+from app.http import build_session
 from app.weather_codes import describe
 
-_API_URL = "https://api.open-meteo.com/v1/forecast"
+_API_URL: Final = "https://api.open-meteo.com/v1/forecast"
+
+# Pooled session reused across refresh ticks (see app.http). Module-level: the
+# refresh loop serializes fetches, so only one worker thread uses it at a time.
+_SESSION: Final = build_session()
 
 # current.precipitation/precipitation_unit are requested for parity with the
 # confirmed param set; the contract surfaces precip *probability* (from daily),
 # not the current precip *amount*, so that field is fetched but not mapped.
-_PARAMS: dict[str, Any] = {
+_PARAMS: Final[dict[str, str | int | float]] = {
     "current": (
         "temperature_2m,apparent_temperature,relative_humidity_2m,"
         "weather_code,is_day,wind_speed_10m,precipitation"
@@ -46,11 +49,11 @@ _PARAMS: dict[str, Any] = {
     "forecast_days": 5,
 }
 
-_REQUEST_TIMEOUT_SECONDS = 10
+_REQUEST_TIMEOUT_SECONDS: Final = 10
 
 # forecast_days=5 -> today (hero) + 4 future (cards). The normalize step indexes
 # daily[0] and slices daily[1:5], so a shorter series can't build a full block.
-_REQUIRED_DAILY_DAYS = 5
+_REQUIRED_DAILY_DAYS: Final = 5
 
 
 def _tz(utc_offset_seconds: int) -> timezone:
@@ -161,7 +164,7 @@ def _stamp(utc_offset_seconds: int) -> str:
 
 def _fetch_raw() -> dict[str, Any]:
     """The blocking Open-Meteo call (runs in a worker thread)."""
-    resp = requests.get(
+    resp = _SESSION.get(
         _API_URL,
         params={
             **_PARAMS,

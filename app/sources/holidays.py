@@ -21,6 +21,7 @@ user chose all 10):
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+from typing import Final
 from zoneinfo import ZoneInfo
 
 import holidays
@@ -29,7 +30,7 @@ from app.contract import AgendaItem, Kind
 
 # The dashboard's display zone — US/Eastern, consistent with the US holiday set
 # and the config lat/long default. A parameter so the DST scan stays testable.
-_DISPLAY_TZ = "America/New_York"
+_DISPLAY_TZ: Final = "America/New_York"
 
 
 def _years(start: date, end: date) -> range:
@@ -79,7 +80,7 @@ def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]
 
 # Cultural observances the `holidays` lib doesn't carry, as (month, day, title)
 # rules — fixed-date, so no per-year dates ever get hardcoded.
-_FIXED_EXTRAS = (
+_FIXED_EXTRAS: Final = (
     (3, 14, "Pi Day"),
     (4, 1, "April Fools' Day"),
     (4, 22, "Earth Day"),

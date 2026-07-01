@@ -9,6 +9,98 @@
 // offset, not the Pi clock"). The big clock is the deliberate exception — it
 // ticks live from the browser (clock-sync honesty is a Phase-6 concern).
 
+// ── contract types (mirror app/contract.py) ─────────────────────────────────
+// JSDoc typedefs so an editor and `tsc --checkJs` verify the contract the
+// backend produces is consumed correctly here — the Python side builds a precise
+// DashboardDoc, and this recovers most of that safety on the consumer with no
+// build step (these are comments). Keep in sync with app/contract.py.
+
+/** @typedef {"personal" | "holiday" | "observance" | "info"} Kind */
+
+/**
+ * @typedef {object} AgendaItem
+ * @property {string} start ISO datetime-with-offset (timed) or "YYYY-MM-DD" (all-day)
+ * @property {string} [end] exclusive upper bound; absent on single-day/instant items
+ * @property {boolean} all_day
+ * @property {string} title untrusted PII — render via textContent only
+ * @property {Kind} kind
+ */
+
+/**
+ * @typedef {object} CurrentWeather
+ * @property {number} temp_f
+ * @property {number} feels_like_f
+ * @property {number} code
+ * @property {string} text human label
+ * @property {string} icon a weather-icons class ("wi-*")
+ * @property {boolean} is_day
+ * @property {number} humidity_pct
+ * @property {number} wind_mph
+ * @property {number} precip_prob_pct
+ * @property {number} high_f
+ * @property {number} low_f
+ * @property {string} sunrise ISO datetime-with-offset
+ * @property {string} sunset ISO datetime-with-offset
+ */
+
+/**
+ * @typedef {object} ForecastDay
+ * @property {string} date
+ * @property {number} code
+ * @property {string} text
+ * @property {string} icon a weather-icons class ("wi-*")
+ * @property {number} high_f
+ * @property {number} low_f
+ * @property {number} precip_prob_pct
+ */
+
+/**
+ * @typedef {object} WeatherBlock
+ * @property {boolean} ok
+ * @property {string | null} fetched_at
+ * @property {number} [ttl]
+ * @property {string} [attempted_at]
+ * @property {CurrentWeather} current
+ * @property {ForecastDay[]} forecast
+ */
+
+/**
+ * @typedef {object} CalendarBlock
+ * @property {boolean} ok
+ * @property {string | null} fetched_at
+ * @property {number} [ttl]
+ * @property {string} [attempted_at]
+ * @property {AgendaItem[]} events
+ */
+
+/**
+ * @typedef {object} DashboardDoc
+ * @property {string} generated_at
+ * @property {boolean} clock_synced
+ * @property {WeatherBlock} weather
+ * @property {CalendarBlock} calendar
+ */
+
+/**
+ * A parsed local wall-clock time (no zone).
+ * @typedef {object} LocalTime
+ * @property {number} hh
+ * @property {number} mm
+ */
+
+/**
+ * @typedef {object} LocalParts
+ * @property {string} date "YYYY-MM-DD"
+ * @property {LocalTime | null} time null for a date-only string
+ */
+
+/**
+ * A day's events, grouped for the agenda columns.
+ * @typedef {object} DayGroup
+ * @property {string} date "YYYY-MM-DD"
+ * @property {AgendaItem[]} items
+ */
+
 const DATA_URL = "/api/data";
 
 // How often the page re-fetches the API. Phase 6 makes refresh TTL-aware; for
@@ -25,6 +117,10 @@ const RETRY_INTERVAL_MS = 30 * 1000;
 // Split an ISO string into its date and (optional) local wall-clock time,
 // WITHOUT re-zoning. "2026-06-28T08:30:00-04:00" -> {date, time:{hh,mm}};
 // a date-only "2026-07-04" -> {date, time:null}.
+/**
+ * @param {string} iso
+ * @returns {LocalParts}
+ */
 export function localParts(iso) {
   const t = iso.indexOf("T");
   if (t === -1) return { date: iso, time: null };
@@ -34,32 +130,41 @@ export function localParts(iso) {
   };
 }
 
+/**
+ * @param {number} hh 0–23
+ * @returns {{ h: number, ampm: "AM" | "PM" }}
+ */
 export function to12(hh) {
   const ampm = hh >= 12 ? "PM" : "AM";
   const h = hh % 12 || 12;
   return { h, ampm };
 }
 
+/** @param {number} n @returns {string} */
 const pad2 = (n) => String(n).padStart(2, "0");
 
 // "8:30a" / "12:00p" — compact, for events and sunrise/sunset.
+/** @param {LocalTime} time @returns {string} */
 export function fmtCompact({ hh, mm }) {
   const { h, ampm } = to12(hh);
   return `${h}:${pad2(mm)}${ampm[0].toLowerCase()}`;
 }
 
 // "9:40 AM" — for the status "Updated" stamp.
+/** @param {LocalTime} time @returns {string} */
 export function fmtLong({ hh, mm }) {
   const { h, ampm } = to12(hh);
   return `${h}:${pad2(mm)} ${ampm}`;
 }
 
 // Parse a date-only "YYYY-MM-DD" as a LOCAL calendar date (no UTC shift).
+/** @param {string} dateStr @returns {Date} */
 export function localDate(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
+/** @param {Date} a @param {Date} b @returns {boolean} */
 export function isSameDay(a, b) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -70,6 +175,7 @@ export function isSameDay(a, b) {
 
 // Local calendar day as "YYYY-MM-DD" — the date half of an event's local `start`,
 // so it compares directly. Used to detect the midnight rollover.
+/** @param {Date} [d] @returns {string} */
 export function localDayKey(d = new Date()) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
@@ -78,6 +184,7 @@ export function localDayKey(d = new Date()) {
 // null on first run). At midnight this flips, driving a data reload so the agenda
 // re-groups — "Today" moves to the new day and a holiday/event entering the
 // window appears — instead of waiting for the next 15-min poll.
+/** @param {string | null} prevDay @param {string} nowDay @returns {boolean} */
 export function dayRolledOver(prevDay, nowDay) {
   return prevDay !== null && nowDay !== prevDay;
 }
@@ -100,6 +207,12 @@ const BLACKOUT_END_HOUR = 6; // exclusive — 06:00 local
 // (the window edges are whole hours), so the overlay flips exactly at the top of
 // 01:00 and 06:00. Supports a window that wraps past midnight (start > end),
 // though the shipped 1a–6a window does not.
+/**
+ * @param {Date} date
+ * @param {number} [startHour]
+ * @param {number} [endHour]
+ * @returns {boolean}
+ */
 export function inBlackout(date, startHour = BLACKOUT_START_HOUR, endHour = BLACKOUT_END_HOUR) {
   if (startHour === endHour) return false;
   const h = date.getHours();
@@ -109,6 +222,7 @@ export function inBlackout(date, startHour = BLACKOUT_START_HOUR, endHour = BLAC
 // ── pure agenda transforms ───────────────────────────────────────────────────
 
 // Flat, pre-sorted event list -> ordered [{date, items}] grouped by local day.
+/** @param {AgendaItem[]} events @returns {DayGroup[]} */
 export function groupByDay(events) {
   const map = new Map();
   for (const ev of events) {
@@ -124,6 +238,7 @@ export function groupByDay(events) {
 // itself; all upcoming days stack in column 2, chronological order preserved.
 // This is a deliberate hierarchy (today is the focus), NOT height-balancing.
 // Edge: < 2 groups -> everything in col 1, col 2 empty.
+/** @param {DayGroup[]} groups @returns {[DayGroup[], DayGroup[]]} */
 export function splitColumns(groups) {
   if (groups.length < 2) return [groups, []];
   return [groups.slice(0, 1), groups.slice(1)];
@@ -135,6 +250,7 @@ export function splitColumns(groups) {
 // has NO events, no group exists for it, so synthesize an empty one: this is what
 // lets the quiet-day "Nothing today" state render instead of column 1 silently
 // showing a future day. `todayKey` is a localDayKey ("YYYY-MM-DD"). Pure.
+/** @param {DayGroup[]} groups @param {string} todayKey @returns {DayGroup[]} */
 export function withTodayGroup(groups, todayKey) {
   if (groups.length > 0 && groups[0].date === todayKey) return groups;
   return [{ date: todayKey, items: [] }, ...groups];
@@ -143,6 +259,7 @@ export function withTodayGroup(groups, todayKey) {
 // Whether a day's items include a personal (Proton) event, as opposed to only
 // holidays/observances/DST markers. Drives the quiet-day state: "Nothing today"
 // means no personal commitments — a holiday pill may still sit above it. Pure.
+/** @param {AgendaItem[]} items @returns {boolean} */
 export function hasPersonalEvents(items) {
   return items.some((i) => i.kind === "personal");
 }
@@ -152,6 +269,10 @@ export function hasPersonalEvents(items) {
 // over-claiming by showing the most-recent one. Compared by instant (epoch) so
 // mixed UTC offsets order correctly. Returns the chosen ISO string, or null
 // when nothing fetched OK.
+/**
+ * @param {(WeatherBlock | CalendarBlock | null | undefined)[]} sources
+ * @returns {string | null}
+ */
 export function pickUpdated(sources) {
   const stamps = sources
     .filter((s) => s && s.ok && s.fetched_at)
@@ -167,6 +288,10 @@ export function pickUpdated(sources) {
   );
 }
 
+/**
+ * @param {string} dateStr "YYYY-MM-DD"
+ * @returns {{ isToday: boolean, dname: string, ddate: string }}
+ */
 export function dayLabel(dateStr) {
   const dt = localDate(dateStr);
   const isToday = isSameDay(dt, new Date());
@@ -185,6 +310,12 @@ const REFRESH_SVG =
 
 // ── DOM builders ─────────────────────────────────────────────────────────────
 
+/**
+ * @param {string} tag
+ * @param {string | null} [className]
+ * @param {string} [text]
+ * @returns {HTMLElement}
+ */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -192,6 +323,7 @@ function el(tag, className, text) {
   return node;
 }
 
+/** @param {AgendaItem} ev @returns {HTMLElement} */
 function eventNode(ev) {
   // Federal holiday / lesser observance -> identical pill above the day's
   // events (no tiered visual weight — official and unofficial render the same;
@@ -212,6 +344,7 @@ function eventNode(ev) {
   return row;
 }
 
+/** @param {DayGroup} group @param {boolean} [calendarOk] @returns {HTMLElement} */
 function dayRowNode(group, calendarOk = true) {
   const { isToday, dname, ddate } = dayLabel(group.date);
   const row = el("div", "day-row" + (isToday ? " is-today" : ""));
@@ -236,6 +369,7 @@ function dayRowNode(group, calendarOk = true) {
 // if the Pi clock isn't NTP-synced yet (no RTC, pre-network boot) it's wrong.
 // Warn only when the backend explicitly reports clock_synced === false; an
 // absent/true value (older cache, dev host) hides it.
+/** @param {boolean | undefined} synced @returns {void} */
 function setClockWarning(synced) {
   const warn = document.getElementById("clock-warn");
   if (warn) warn.hidden = synced !== false;
@@ -259,6 +393,7 @@ function renderClock() {
 // Show/hide the full-screen blackout overlay for the current wall-clock time.
 // Toggled every second alongside the clock, so it flips at the top of 01:00 /
 // 06:00 and is already correct on a fresh load (e.g. after the 03:00 reboot).
+/** @param {Date} [now] @returns {void} */
 function renderBlackout(now = new Date()) {
   const overlay = document.getElementById("blackout");
   if (overlay) overlay.hidden = !inBlackout(now);
@@ -267,12 +402,19 @@ function renderBlackout(now = new Date()) {
 // A weather <i class="wi wi-…"> glyph. The icon class is an OWN value (resolved
 // by our backend's WMO->wi-* table), so it is safe in an attribute; human text
 // (conditions, future alert/location strings) must NOT be built this way.
+/** @param {string} iconClass @param {string} [extra] @returns {HTMLElement} */
 function wiIcon(iconClass, extra) {
   return el("i", "wi " + iconClass + (extra ? " " + extra : ""));
 }
 
 // A "stat" cell: an icon (optional) + uppercase key label + value. The label
 // and value are set via textContent — never interpolated as HTML.
+/**
+ * @param {string | null} iconClass
+ * @param {string} label
+ * @param {string} value
+ * @returns {HTMLElement}
+ */
 function statCell(iconClass, label, value) {
   const cell = el("div", "stat");
   const k = el("span", "k");
@@ -282,6 +424,7 @@ function statCell(iconClass, label, value) {
   return cell;
 }
 
+/** @param {WeatherBlock} weather @returns {void} */
 function renderCurrent(weather) {
   const c = weather.current;
   const card = document.getElementById("current-card");
@@ -311,6 +454,7 @@ function renderCurrent(weather) {
   card.append(wiIcon(c.icon, "cur-icon"), main, el("div", "cur-div"), stats);
 }
 
+/** @param {ForecastDay[]} forecast @returns {void} */
 function renderForecast(forecast) {
   const root = document.getElementById("forecast");
   root.replaceChildren();
@@ -328,8 +472,10 @@ function renderForecast(forecast) {
 
 // Measured render height of a node (includes padding/wrapping — the real px,
 // not an item-count estimate, so the fit below can GUARANTEE no clipping).
+/** @param {Element} node @returns {number} */
 const rowH = (node) => node.getBoundingClientRect().height;
 
+/** @param {string} text @returns {HTMLElement} */
 const moreLine = (text) => el("div", "agenda-more", text);
 
 // Trim a day-row's events in place until the whole row fits `budget` px,
@@ -337,6 +483,7 @@ const moreLine = (text) => el("div", "agenda-more", text);
 // must never drop outright (today; the first upcoming day), so a single very
 // busy day is shortened rather than removed — which is what keeps col 2 from
 // ever ending up empty.
+/** @param {Element} dayRow @param {number} budget @returns {void} */
 function fitDayInPlace(dayRow, budget) {
   if (rowH(dayRow) <= budget) return;
   const events = dayRow.querySelector(".day-events");
@@ -355,6 +502,7 @@ function fitDayInPlace(dayRow, budget) {
 // Fit a column of day-rows into `budget` px without clipping. The first day is
 // protected (its events are trimmed, never the whole day); later days that
 // don't fit are dropped and summarized with a "+N more days" footer.
+/** @param {Element} col @param {number} budget @returns {void} */
 function fitColumnInPlace(col, budget) {
   const first = col.firstElementChild;
   if (!first) return;
@@ -378,6 +526,7 @@ function fitColumnInPlace(col, budget) {
   }
 }
 
+/** @param {AgendaItem[]} events @param {boolean} [calendarOk] @returns {void} */
 function renderAgenda(events, calendarOk = true) {
   // Guarantee today leads so column 1 always shows today (and can render the
   // quiet-day "Nothing today" when today has no events at all).
@@ -401,6 +550,7 @@ function renderAgenda(events, calendarOk = true) {
 
 // Build the "<dot> Label" source indicator. Label is an own value, but built
 // with el()/textContent + setAttribute for consistency with the safe pattern.
+/** @param {string} label @param {boolean} ok @returns {HTMLElement} */
 function srcNode(label, ok) {
   const src = el("span", "src");
   const dot = el("span", "dot" + (ok ? "" : " stale"));
@@ -411,7 +561,9 @@ function srcNode(label, ok) {
 
 // `opts.stale` forces an all-stale, "Updated —" row (used when the fetch fails
 // so the kiosk degrades visibly rather than showing a blank panel).
+/** @param {DashboardDoc | null} data @param {{ stale?: boolean }} [opts] @returns {void} */
 function renderStatus(data, opts = {}) {
+  /** @type {[string, WeatherBlock | CalendarBlock | null][]} */
   const sources = [
     ["Weather", data && data.weather],
     ["Calendar", data && data.calendar],
@@ -449,6 +601,7 @@ let refreshing = false;
 
 // Toggle the spin class on whatever .refresh node is currently mounted (the node
 // identity changes across repaints, so re-query rather than capturing it).
+/** @param {boolean} on @returns {void} */
 function setRefreshSpinning(on) {
   const r = document.querySelector("#status .refresh");
   if (r) r.classList.toggle("is-spinning", on);
@@ -522,6 +675,9 @@ async function load() {
   try {
     const res = await fetch(DATA_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // The untyped JSON boundary — assert the contract so the render pipeline
+    // downstream is checked against DashboardDoc (mirrors the backend's typing).
+    /** @type {DashboardDoc} */
     const data = await res.json();
     renderCurrent(data.weather);
     renderForecast(data.weather.forecast);

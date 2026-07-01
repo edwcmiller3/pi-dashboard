@@ -11,14 +11,24 @@ needs no revalidation. The win over the old `dict[str, Any]` is that every
 `mypy --strict` (a typo or a producer/consumer drift fails the type-check
 instead of surfacing at runtime) — without changing the runtime representation.
 
-The *raw* external JSON (the Open-Meteo response, the deserialized cache doc)
-stays `Any`: that's the genuine untyped boundary. Everything our own code
-*constructs* downstream of a normalize step is typed here.
+The *raw* external JSON is the genuine untyped boundary: the Open-Meteo response
+stays `Any` (validated structurally in `weather._require`), and the deserialized
+cache doc arrives as `Any`. Its two source blocks are narrowed back into typed
+`WeatherBlock`/`CalendarBlock` at the read boundary via `as_weather_block`/
+`as_calendar_block`, so the refresh loop's last-good handling gets real block
+types, not `Any` that merely looks typed. The doc *envelope* is read loosely on
+purpose — a doc cached under an earlier schema may predate a top-level field
+(e.g. `generated_at`), which `_refresh_once` must tolerate. Everything our own
+code *constructs* downstream of a normalize step is typed here.
 """
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict
+from typing import Final, Literal, NotRequired, TypedDict
+
+from pydantic import TypeAdapter, ValidationError
+
+from app.weather_codes import WiIcon
 
 # An agenda item's provenance. "personal" = a Proton event; the rest are the
 # offline holidays source (federal holiday / lesser observance / DST marker).
@@ -68,7 +78,7 @@ class CurrentWeather(TypedDict):
     feels_like_f: int
     code: int
     text: str
-    icon: str
+    icon: WiIcon
     is_day: bool
     humidity_pct: int
     wind_mph: int
@@ -83,7 +93,7 @@ class ForecastDay(TypedDict):
     date: str
     code: int
     text: str
-    icon: str
+    icon: WiIcon
     high_f: int
     low_f: int
     precip_prob_pct: int
@@ -113,3 +123,30 @@ class DashboardDoc(TypedDict):
     clock_synced: bool
     weather: WeatherBlock
     calendar: CalendarBlock
+
+
+_WEATHER_ADAPTER: Final = TypeAdapter(WeatherBlock)
+_CALENDAR_ADAPTER: Final = TypeAdapter(CalendarBlock)
+
+
+def as_weather_block(raw: object) -> WeatherBlock | None:
+    """Narrow an untyped cache value into a typed `WeatherBlock`, or None if it
+    doesn't match — absent (cold boot), corrupt, or missing a REQUIRED field.
+    This is the boundary where the untyped cache payload is validated INTO the
+    typed world, so `_refresh_once`'s last-good handling gets a real block, not
+    `Any`. A TypedDict validates to a plain `dict`, so the runtime representation
+    is unchanged; `NotRequired` fields (`ttl`/`attempted_at`) may be absent, so a
+    block cached under an earlier schema still validates."""
+    try:
+        return _WEATHER_ADAPTER.validate_python(raw)
+    except ValidationError:
+        return None
+
+
+def as_calendar_block(raw: object) -> CalendarBlock | None:
+    """Narrow an untyped cache value into a typed `CalendarBlock`, or None if it
+    doesn't match (see `as_weather_block`)."""
+    try:
+        return _CALENDAR_ADAPTER.validate_python(raw)
+    except ValidationError:
+        return None

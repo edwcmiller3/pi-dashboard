@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Final, TypeVar, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
@@ -30,20 +30,25 @@ from starlette.types import Scope
 
 from app import cache
 from app.config import settings
-from app.contract import DashboardDoc, SourceBlock
+from app.contract import (
+    DashboardDoc,
+    SourceBlock,
+    as_calendar_block,
+    as_weather_block,
+)
 from app.sources.calendar import get_calendar
 from app.sources.weather import get_weather
 
 log = logging.getLogger("pi_dashboard.refresh")
 
-_CACHE_KEY = "dashboard"
+_CACHE_KEY: Final = "dashboard"
 # The dashboard's display zone — stamps generated_at independent of any source.
-_DISPLAY_TZ = "America/New_York"
+_DISPLAY_TZ: Final = "America/New_York"
 
 # After a failed tick, retry sooner than the full base cadence so a transient
 # blip recovers in seconds; the delay doubles each consecutive failure and is
 # capped at the base tick so a sustained outage settles to the normal cadence.
-_BACKOFF_START_SECONDS = 30
+_BACKOFF_START_SECONDS: Final = 30
 
 # systemd-timesyncd creates this once the clock is NTP-synced. Module-level so
 # tests can repoint it; the dashboard's live wall-clock is only trustworthy once
@@ -175,8 +180,11 @@ async def _refresh_source(
         if prior is None:
             raise
         # Keep last-good DATA, flag it stale, and stamp the attempt so `_is_due`
-        # rate-limits the next retry. cast: {**TypedDict} widens to a plain dict,
-        # but the keys are unchanged so the result is still a `B`.
+        # rate-limits the next retry. `{**prior, ...}` widens to a plain dict, so
+        # the cast is unavoidable — mypy can't see the result is still a `B`. It's
+        # sound here: `prior` is a `B` (validated at the cache boundary by
+        # as_weather_block/as_calendar_block), and we only override `ok`/add
+        # NotRequired keys, so every required key of `B` survives.
         stale = {
             **prior,
             "ok": False,
@@ -205,8 +213,15 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
     this runs on the event loop, so — like the source fetches — they must not
     stall it."""
     now = now or datetime.now(ZoneInfo(_DISPLAY_TZ))
-    prior_doc = await asyncio.to_thread(cache.read, _CACHE_KEY)
-    prior = prior_doc if isinstance(prior_doc, dict) else {}
+    raw = await asyncio.to_thread(cache.read, _CACHE_KEY)
+    # The cache doc is the untyped boundary and may predate a top-level field, so
+    # read the envelope loosely but narrow the two source blocks INTO the typed
+    # world here — last-good then flows downstream as real WeatherBlock/
+    # CalendarBlock, not `Any`. An absent/invalid block narrows to None → that
+    # source is due, which is the correct cold-start behavior anyway.
+    prior = raw if isinstance(raw, dict) else {}
+    prior_weather = as_weather_block(prior.get("weather"))
+    prior_calendar = as_calendar_block(prior.get("calendar"))
 
     # A local-day rollover (midnight) makes the cached agenda window stale even
     # when every source is within its TTL: today's column, and any holiday/event
@@ -218,7 +233,7 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
 
     weather, w_failed = await _refresh_source(
         get_weather,
-        prior.get("weather"),
+        prior_weather,
         settings.weather_ttl_seconds,
         now,
         force=force,
@@ -226,8 +241,8 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         name="weather",
     )
     calendar, c_failed = await _refresh_source(
-        lambda: get_calendar(now=now, last_good=prior.get("calendar")),
-        prior.get("calendar"),
+        lambda: get_calendar(now=now, last_good=prior_calendar),
+        prior_calendar,
         settings.calendar_ttl_seconds,
         now,
         force=force,
@@ -288,6 +303,14 @@ def _loop_exited(task: asyncio.Future[None]) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if not settings.proton_ics_url:
+        # Logs the ABSENCE only, never the secret. Without this a misconfigured
+        # (or unset) URL is invisible on a headless Pi: holidays show, personal
+        # events silently never appear, and nothing points at the cause.
+        log.warning(
+            "PROTON_ICS_URL is not set — personal calendar events are disabled "
+            "(holidays/observances still show). Set it in .env to enable."
+        )
     task = asyncio.create_task(_refresh_loop())
     app.state.refresh_task = task  # strong ref so the loop isn't GC'd mid-flight
     task.add_done_callback(_loop_exited)
@@ -316,6 +339,14 @@ def api_data() -> JSONResponse:
     doc = cache.read(_CACHE_KEY)
     if doc is None:
         return JSONResponse({"detail": "warming up"}, status_code=503)
+    if isinstance(doc, dict) and (
+        as_weather_block(doc.get("weather")) is None
+        or as_calendar_block(doc.get("calendar")) is None
+    ):
+        # A source block that fails the contract means producer/consumer drift or
+        # a corrupt write. Log it — NEVER the doc itself, which carries calendar
+        # PII — and still serve it so the dashboard degrades rather than blanking.
+        log.warning("cached dashboard block failed contract validation; serving as-is")
     # clock_synced reflects the clock *now*, not when the doc was assembled.
     # Overlay the live value (a cheap marker-file check) so the "clock not synced"
     # warning clears within one frontend poll of NTP sync (~1 min after a boot or

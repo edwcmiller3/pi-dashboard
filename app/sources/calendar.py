@@ -29,29 +29,40 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Final
 from zoneinfo import ZoneInfo
 
 import icalendar
 import recurring_ical_events
-import requests
 
 from app.config import settings
 from app.contract import AgendaItem, CalendarBlock
+from app.http import build_session
 from app.sources.holidays import get_holidays
 
 log = logging.getLogger("pi_dashboard.calendar")
 
+# Pooled session reused across refresh ticks (see app.http). Module-level: the
+# refresh loop serializes fetches, so only one worker thread uses it at a time.
+_SESSION: Final = build_session()
+
 # The dashboard's display zone — matches the holidays source and the config
 # lat/long default. A parameter throughout so the window/tz stays testable.
-_DISPLAY_TZ = "America/New_York"
+_DISPLAY_TZ: Final = "America/New_York"
 
 # Agenda window: today + 4 future days, aligned with the 4-future-day forecast
 # row. A short window (0.D1) — NOT a 180-day span that would expand a daily
 # event into hundreds of rows.
-_AGENDA_DAYS = 5
+_AGENDA_DAYS: Final = 5
 
-_REQUEST_TIMEOUT_SECONDS = 10
+_REQUEST_TIMEOUT_SECONDS: Final = 10
+
+# Hard cap on the ICS body we'll buffer + parse. The 10s timeout bounds the
+# network read, but `from_ical` parse time scales with input size, so an
+# unbounded body could pin a worker thread. 5 MiB is generous for a personal
+# Proton calendar (tens of thousands of events) while ruling out a pathological
+# feed. Exceeding it soft-fails like any fetch error: last-good + holidays hold.
+_MAX_ICS_BYTES: Final = 5 * 1024 * 1024
 
 
 def _window(now: datetime, days: int = _AGENDA_DAYS) -> tuple[datetime, datetime]:
@@ -116,14 +127,37 @@ def normalize_events(
     return [item for item in items if item["start"][:10] >= window_start]
 
 
+def _read_capped(url: str) -> str:
+    """Fetch the ICS text, refusing a body larger than `_MAX_ICS_BYTES`. Streamed
+    so an oversized (or lying-Content-Length) feed is cut off mid-read rather than
+    fully buffered. Raises ValueError on overflow — with only sizes in the message,
+    never the secret URL. ICS is UTF-8 per spec; decode errors are replaced rather
+    than raised so one bad byte can't drop the whole calendar."""
+    with _SESSION.get(url, timeout=_REQUEST_TIMEOUT_SECONDS, stream=True) as resp:
+        resp.raise_for_status()
+        declared = resp.headers.get("Content-Length")
+        if (
+            declared is not None
+            and declared.isdigit()
+            and int(declared) > _MAX_ICS_BYTES
+        ):
+            raise ValueError(
+                f"ICS Content-Length {declared} exceeds cap {_MAX_ICS_BYTES}"
+            )
+        body = bytearray()
+        for chunk in resp.iter_content(chunk_size=64 * 1024):
+            body.extend(chunk)
+            if len(body) > _MAX_ICS_BYTES:
+                raise ValueError(f"ICS body exceeded cap {_MAX_ICS_BYTES} bytes")
+        return body.decode(resp.encoding or "utf-8", errors="replace")
+
+
 def _fetch_personal(
     url: str, start: datetime, end: datetime, tz: ZoneInfo
 ) -> list[AgendaItem]:
     """Blocking fetch + parse (runs in a worker thread). Both the network call
     and the recurrence expansion are CPU/IO work kept off the event loop."""
-    resp = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
-    resp.raise_for_status()
-    return normalize_events(resp.text, start, end, tz)
+    return normalize_events(_read_capped(url), start, end, tz)
 
 
 def _last_good_personal(

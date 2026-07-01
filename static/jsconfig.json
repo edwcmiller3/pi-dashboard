@@ -1,0 +1,13 @@
+{
+  "//": "Type-checks app.js against the JSDoc contract typedefs (no build step, no emit). Run: npx -y typescript tsc -p static/jsconfig.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "strict": false
+  },
+  "include": ["app.js"]
+}
