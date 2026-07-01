@@ -325,7 +325,6 @@ body {
 .holiday {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
   align-self: flex-start;
   color: var(--gold);
   font-size: 1.02rem;
@@ -335,11 +334,6 @@ body {
   border-radius: 999px;
   padding: 0.22rem 0.7rem;
   margin: 0.1rem 0 0.45rem;
-}
-.holiday svg {
-  width: 0.95rem;
-  height: 0.95rem;
-  fill: var(--gold);
 }
 .marker {
   align-self: flex-start;

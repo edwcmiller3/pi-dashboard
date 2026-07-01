@@ -154,11 +154,7 @@ export function dayLabel(dateStr) {
   };
 }
 
-// ── inline SVGs (refresh + holiday star), matching the v4 mockup ─────────────
-
-const STAR_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-  '<path d="M12 2l2.6 6.3L21 9l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.3 3 9l6.4-.7L12 2z"/></svg>';
+// ── inline SVG (refresh), matching the v4 mockup ─────────────────────────────
 
 const REFRESH_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">' +
@@ -178,10 +174,7 @@ function eventNode(ev) {
   // events (no tiered visual weight — official and unofficial render the same;
   // `kind` stays distinct in the data as provenance only).
   if (ev.kind === "holiday" || ev.kind === "observance") {
-    const pill = el("span", "holiday");
-    pill.innerHTML = STAR_SVG; // trusted own SVG constant only — never interpolate calendar/user strings here.
-    pill.append(" " + ev.title); // title as a text node — never HTML
-    return pill;
+    return el("span", "holiday", ev.title); // title as text (textContent) — never HTML
   }
   // DST / informational marker -> plain muted line.
   if (ev.kind === "info") {
