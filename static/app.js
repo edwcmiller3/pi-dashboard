@@ -266,6 +266,38 @@ export function hasPersonalEvents(items) {
   return items.some((i) => i.kind === "personal");
 }
 
+// A Date in the browser's LOCAL zone built from an ISO string's encoded
+// wall-clock parts (date + optional time), WITHOUT re-zoning — the same "render
+// the local part, don't reinterpret the offset" policy the event times use. So
+// "2026-07-01T14:00:00-04:00" -> local 14:00 on 2026-07-01; a date-only string
+// -> local midnight. Used to compare event times against "now". Pure.
+/** @param {string} iso @returns {Date} */
+export function localInstant(iso) {
+  const { date, time } = localParts(iso);
+  const d = localDate(date);
+  if (time) d.setHours(time.hh, time.mm, 0, 0);
+  return d;
+}
+
+// The index of the day's event to emphasize as "next up", or -1 for none.
+// Considers TIMED personal events only — all-day / holiday / marker items are
+// day context, never "next". The target is the earliest such event that isn't
+// already past: an in-progress one (start ≤ now < end) if any exists, else the
+// soonest upcoming (now < start). Items arrive pre-sorted by start, so the first
+// not-past one IS the earliest. "Past" keys off the event's END (the half-open
+// [start, end) contract; end absent -> an instant at start), so a long meeting
+// stays highlighted until it truly ends, not just until the next event starts.
+// Pure.
+/** @param {AgendaItem[]} items @param {Date} now @returns {number} */
+export function nextUp(items, now) {
+  for (let i = 0; i < items.length; i++) {
+    const ev = items[i];
+    if (ev.kind !== "personal" || ev.all_day) continue;
+    if (now < localInstant(ev.end ?? ev.start)) return i;
+  }
+  return -1;
+}
+
 // "Updated" = the OLDEST fetched_at among sources that fetched OK — so the
 // stamp honestly means "every fresh source is at least this current," never
 // over-claiming by showing the most-recent one. Compared by instant (epoch) so
@@ -325,8 +357,11 @@ function el(tag, className, text) {
   return node;
 }
 
-/** @param {AgendaItem} ev @returns {HTMLElement} */
-function eventNode(ev) {
+// `isNext` marks the "next up" event with a subtle highlight. Applies only to a
+// personal timed row — the only kind `nextUp` ever selects — so the
+// holiday/marker branches ignore it.
+/** @param {AgendaItem} ev @param {boolean} [isNext] @returns {HTMLElement} */
+function eventNode(ev, isNext = false) {
   // Federal holiday / lesser observance -> identical pill above the day's
   // events (no tiered visual weight — official and unofficial render the same;
   // `kind` stays distinct in the data as provenance only).
@@ -337,23 +372,28 @@ function eventNode(ev) {
   if (ev.kind === "info") {
     return el("span", "marker", ev.title);
   }
-  // Personal event -> time + title row.
+  // Personal event -> time + title row; the next-up one gets a subtle highlight
+  // so the event to look at reads at a glance (no chip — the tint is enough).
   const { time } = localParts(ev.start);
-  const row = el("div", "event");
+  const row = el("div", "event" + (isNext ? " is-next" : ""));
   const when =
     ev.all_day || !time ? el("span", "etime allday", "All day") : el("span", "etime", fmtCompact(time));
-  row.append(when, el("span", "etitle", ev.title));
+  row.append(when, el("span", "etitle", ev.title)); // title as text (textContent) — never HTML
   return row;
 }
 
-/** @param {DayGroup} group @param {boolean} [calendarOk] @returns {HTMLElement} */
-function dayRowNode(group, calendarOk = true) {
+/** @param {DayGroup} group @param {boolean} [calendarOk] @param {boolean} [clockSynced] @returns {HTMLElement} */
+function dayRowNode(group, calendarOk = true, clockSynced = true) {
   const { isToday, dname, ddate } = dayLabel(group.date);
   const row = el("div", "day-row" + (isToday ? " is-today" : ""));
   const label = el("div", "day-label");
   label.append(el("span", "dname", dname), el("span", "ddate", ddate));
   const events = el("div", "day-events");
-  for (const ev of group.items) events.append(eventNode(ev));
+  // "Next up" emphasis: TODAY only, and only when the clock is trustworthy — the
+  // highlight keys off "now", so an unsynced Pi clock (no RTC, pre-NTP boot)
+  // would mis-pick it (the Phase-6 clock-honesty gate). undefined/true = fine.
+  const nextIdx = isToday && clockSynced !== false ? nextUp(group.items, new Date()) : -1;
+  group.items.forEach((ev, i) => events.append(eventNode(ev, i === nextIdx)));
   // Quiet-day state: today with no personal events gets a friendly "Nothing
   // today" (holidays/observances above still show as context). Only when the
   // calendar fetched OK — on a stale/failed calendar we don't know today's
@@ -546,8 +586,8 @@ function fitColumnInPlace(col, budget) {
   }
 }
 
-/** @param {AgendaItem[]} events @param {boolean} [calendarOk] @returns {void} */
-function renderAgenda(events, calendarOk = true) {
+/** @param {AgendaItem[]} events @param {boolean} [calendarOk] @param {boolean} [clockSynced] @returns {void} */
+function renderAgenda(events, calendarOk = true, clockSynced = true) {
   // Guarantee today leads so column 1 always shows today (and can render the
   // quiet-day "Nothing today" when today has no events at all).
   const groups = withTodayGroup(groupByDay(events), localDayKey());
@@ -557,7 +597,7 @@ function renderAgenda(events, calendarOk = true) {
   const cols = [];
   for (const col of [col1, col2]) {
     const colEl = el("div", "agenda-col");
-    for (const group of col) colEl.append(dayRowNode(group, calendarOk));
+    for (const group of col) colEl.append(dayRowNode(group, calendarOk, clockSynced));
     root.append(colEl);
     cols.push(colEl);
   }
@@ -701,7 +741,7 @@ async function load() {
     const data = await res.json();
     renderCurrent(data.weather);
     renderForecast(data.weather.forecast);
-    renderAgenda(data.calendar.events, data.calendar.ok);
+    renderAgenda(data.calendar.events, data.calendar.ok, data.clock_synced);
     renderStatus(data);
     lastClockSynced = data.clock_synced;
     setClockWarning(data.clock_synced);

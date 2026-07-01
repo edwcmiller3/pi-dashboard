@@ -421,6 +421,22 @@ body {
   font-size: 1.2rem;
 }
 
+/* "Next up" emphasis (app.js nextUp): the current/next timed event today reads
+   at eye level. Subtle rounded cool tint (matching today's --cool identity);
+   symmetric negative margins cancel the padding so the time column stays aligned
+   with the rows above/below — the tint bleeds into the gutter, no content shift. */
+.event.is-next {
+  background: rgba(92, 200, 255, 0.08);
+  border-radius: 8px;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  margin-left: -0.6rem;
+  margin-right: -0.6rem;
+}
+.event.is-next .etitle {
+  font-weight: 600;
+}
+
 /* Day markers above a day's events. holiday = federal AND observance =
    lesser/unofficial — both render identically (gold pill). info = DST etc.
    (plain muted line). */

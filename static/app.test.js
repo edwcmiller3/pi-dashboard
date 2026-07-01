@@ -31,6 +31,8 @@ import {
   splitColumns,
   withTodayGroup,
   hasPersonalEvents,
+  localInstant,
+  nextUp,
   dayLabel,
   pickUpdated,
   inBlackout,
@@ -286,6 +288,93 @@ test("hasPersonalEvents: false for only holiday/observance/info", () => {
 
 test("hasPersonalEvents: false for an empty day", () => {
   assert.equal(hasPersonalEvents([]), false);
+});
+
+// ── localInstant (local wall-clock from an ISO string, no re-zoning) ──────────
+
+test("localInstant: datetime -> a local Date at the encoded wall-clock (offset ignored)", () => {
+  // The -04:00 offset is NOT reinterpreted — the local components are read as-is.
+  const d = localInstant("2026-07-01T14:30:00-04:00");
+  assert.equal(d.getFullYear(), 2026);
+  assert.equal(d.getMonth(), 6); // July (0-based)
+  assert.equal(d.getDate(), 1);
+  assert.equal(d.getHours(), 14);
+  assert.equal(d.getMinutes(), 30);
+});
+
+test("localInstant: date-only -> local midnight", () => {
+  const d = localInstant("2026-07-04");
+  assert.equal(d.getHours(), 0);
+  assert.equal(d.getMinutes(), 0);
+  assert.equal(d.getDate(), 4);
+});
+
+// ── nextUp ("next up" emphasis: index of earliest not-past timed personal ev) ──
+
+// 14:00 local on 2026-07-01 — the reference "now" for the cases below.
+const NOW = new Date(2026, 6, 1, 14, 0);
+// A timed personal event on NOW's day; hh:mm are local wall-clock (offset is
+// cosmetic — localInstant reads the literal parts).
+/** @param {number} sh @param {number} eh @returns {AgendaEvent & {end: string}} */
+const timed = (sh, eh) => ({
+  start: `2026-07-01T${String(sh).padStart(2, "0")}:00:00-04:00`,
+  end: `2026-07-01T${String(eh).padStart(2, "0")}:00:00-04:00`,
+  all_day: false,
+  title: "e",
+  kind: "personal",
+});
+
+test("nextUp: empty day -> -1 (no emphasis)", () => {
+  assert.equal(nextUp([], NOW), -1);
+});
+
+test("nextUp: only all-day / holiday items -> -1 (timed personal only)", () => {
+  const items = [
+    { start: "2026-07-01", end: "2026-07-02", all_day: true, title: "Trip", kind: "personal" },
+    { start: "2026-07-01", all_day: true, title: "Holiday", kind: "holiday" },
+  ];
+  assert.equal(nextUp(items, NOW), -1);
+});
+
+test("nextUp: all events already past -> -1", () => {
+  // both end before 14:00.
+  assert.equal(nextUp([timed(9, 10), timed(11, 12)], NOW), -1);
+});
+
+test("nextUp: a soonest upcoming event -> its index", () => {
+  // past 9–10, then upcoming 15–16.
+  assert.equal(nextUp([timed(9, 10), timed(15, 16)], NOW), 1);
+});
+
+test("nextUp: an in-progress event is picked over a later upcoming", () => {
+  // 13–15 straddles 14:00 (in progress); 15–16 is upcoming. First not-past = 0.
+  assert.equal(nextUp([timed(13, 15), timed(15, 16)], NOW), 0);
+});
+
+test("nextUp: in-progress wins even when a past event precedes it", () => {
+  // sorted: past 9–10, in-progress 13–15, upcoming 16–17 -> the in-progress one.
+  assert.equal(nextUp([timed(9, 10), timed(13, 15), timed(16, 17)], NOW), 1);
+});
+
+test("nextUp: a long in-progress meeting stays picked though a later event exists", () => {
+  // 9–17 is still running at 14:00 (keys off END, the half-open [start,end)); the
+  // 15–16 event does NOT steal emphasis — you're still in the long meeting.
+  assert.equal(nextUp([timed(9, 17), timed(15, 16)], NOW), 0);
+});
+
+test("nextUp: all-day personal items are skipped in favor of the next timed one", () => {
+  const items = [
+    { start: "2026-07-01", end: "2026-07-02", all_day: true, title: "Trip", kind: "personal" },
+    timed(15, 16),
+  ];
+  assert.equal(nextUp(items, NOW), 1);
+});
+
+test("nextUp: an event with no end is an instant — upcoming before it, past after", () => {
+  const upcoming = { start: "2026-07-01T15:00:00-04:00", all_day: false, title: "e", kind: "personal" };
+  const past = { start: "2026-07-01T13:00:00-04:00", all_day: false, title: "e", kind: "personal" };
+  assert.equal(nextUp([upcoming], NOW), 0);
+  assert.equal(nextUp([past], NOW), -1);
 });
 
 // ── dayLabel (time frozen so "Today" can't flake across midnight) ─────────────
