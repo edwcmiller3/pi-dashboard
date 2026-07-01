@@ -44,7 +44,10 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run mypy             # strict type-check gate (app + tests)
+npx -y -p typescript tsc -p static/jsconfig.json   # type-check app.js against the JSDoc contract
 ```
+
+(JS unit tests run with `node --test` from `static/`, as above.)
 
 ## Secrets & data handling
 

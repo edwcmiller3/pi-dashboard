@@ -3,13 +3,13 @@
 Version-controlled home for the Pi's system-config files, so production setup is
 `git pull` + a documented install step rather than hand-editing files on the box.
 
-## Storage / root model (decided 2026-06-30)
+## Storage / root model
 
-**SD card, normal read-write root** — accepted SD-wear risk, mitigated below.
-NVMe-RW was the lower-wear option but we stayed on SD for this build. The two
-biggest continuous writers are addressed directly: journald is kept in RAM
-(`journald.conf`, `Storage=volatile`) and Chromium's cache/profile are routed to
-tmpfs (flags in `chromium-kiosk.service`).
+**SD card, normal read-write root** — SD-wear risk accepted and mitigated below.
+(An NVMe read-write root is lower-wear if your Pi has one; this config targets an
+SD build.) The two biggest continuous writers are addressed directly: journald is
+kept in RAM (`journald.conf`, `Storage=volatile`) and Chromium's cache/profile are
+routed to tmpfs (flags in `chromium-kiosk.service`).
 
 **Swap — disable only the SD-backed swapfile, keep zram.** The wear concern is
 `dphys-swapfile`, a swap *file on the SD card*. Disable it if present:
@@ -39,17 +39,19 @@ vanish on reboot, so that build would update by re-imaging instead.
 | `kiosk.service` | `~/.config/systemd/user/` | user | labwc compositor (the Wayland session). |
 | `chromium-kiosk.service` | `~/.config/systemd/user/` | user | Chromium kiosk, pinned flag set, `Restart=always`. |
 | `chromium-reload.{service,timer}` | `~/.config/systemd/user/` | user | Nightly 04:00 browser reload (deploy pickup + memory hygiene). |
-| `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor` (Phase 7). |
+| `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor`. |
 | `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only — zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
-| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades + auto-reboot 03:00 (inside blackout). |
+| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades + auto-reboot 03:00 (inside the nightly blackout). |
 | `20auto-upgrades` | `/etc/apt/apt.conf.d/` | system | Enables the apt periodic timers that run the above. |
 
-**`blackout.{service,timer}` — dropped (Phase 7).** Spikes 0.4 + 0.5 ❌ ruled out
-every hardware blackout. The nightly 1a–6a blackout is an **app-side wall-clock
-CSS overlay** (`static/`, `app.js` `inBlackout`), wall-clock-driven so the 03:00
-reboot comes back to black, not the bright dashboard.
+**Nightly blackout is app-side, not hardware.** Cutting the panel's backlight or
+HDMI signal isn't viable on this class of touchscreen — no DDC/CI or
+`/sys/class/backlight` channel, and dropping the HDMI signal just triggers
+re-detection a couple seconds later. So the nightly 1a–6a blackout is an app-side
+wall-clock CSS overlay (`static/`, `app.js` `inBlackout`) — wall-clock-driven, so a
+reboot *inside* the window comes back to black rather than the bright dashboard.
 
 ## Install
 
@@ -59,7 +61,7 @@ Assumes the repo is at `~/pi-dashboard` and `uv` is at `~/.local/bin/uv`.
 
 These are NOT in git, so a fresh box needs them before the steps below:
 
-- **`git` + `uv` installed** (Phase 0 installed git; install uv if absent):
+- **`git` + `uv` installed:**
   `command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **`wlrctl` installed** (for the `labwc/autostart` cursor-hide; not in git):
   `sudo apt install -y wlrctl`
@@ -70,8 +72,8 @@ These are NOT in git, so a fresh box needs them before the steps below:
   runs (weather on defaults + holidays), but shows **no personal calendar events**:
   ```sh
   cp ~/pi-dashboard/.env.example ~/pi-dashboard/.env
-  # then edit .env: set PROTON_ICS_URL to a CURRENT Proton "Full view" link
-  # (the 0.D1 test links were to be revoked) and WEATHER_LAT/WEATHER_LON.
+  # then edit .env: set PROTON_ICS_URL to a Proton Calendar "Full view" link
+  # and WEATHER_LAT/WEATHER_LON to your location.
   ```
 
 ### 1. App + backend service
@@ -94,7 +96,7 @@ sudo loginctl enable-linger "$USER"     # start at boot without an interactive l
 ### 2. System files (root)
 
 ```sh
-# Autologin + quiet boot — substitute the real kiosk user:
+# Autologin + quiet boot — substitutes the current login user into the drop-in:
 sudo install -Dm644 deploy/getty-autologin.conf \
   /etc/systemd/system/getty@tty1.service.d/autologin.conf
 sudo sed -i "s/KIOSK_USER/$USER/" /etc/systemd/system/getty@tty1.service.d/autologin.conf
@@ -127,12 +129,9 @@ And in `/boot/firmware/config.txt`, suppress the rainbow splash:
 disable_splash=1
 ```
 
-(`force_hotplug` flags are NOT needed — spike 0.0 got signal flag-free; 0.4 found
-signal-off blackout non-viable, so `vc4.force_hotplug` was never required.)
-
 Also empty the Pi OS IP banner drop-in — `agetty --noissue` (in
 `getty-autologin.conf`) suppresses `/etc/issue` but NOT the `issue.d` drop-in that
-prints "My IP address is ..." on Trixie:
+prints "My IP address is ..." on recent Pi OS (Trixie):
 
 ```sh
 sudo truncate -s 0 /etc/issue.d/IP.issue   # silences the boot-time IP banner
@@ -143,11 +142,11 @@ kept across `apt`/unattended upgrades, and a reinstall restores it cleanly.)
 
 ### 4. Chromium wrapper noise (optional)
 
-Pi OS `/usr/bin/chromium` injects `/etc/chromium.d/*` flags, incl. a stale
-`--js-flags=--no-decommit-pooled-pages` that V8 logs as "unrecognized flag"
-(cosmetic, confirmed harmless in the 0.10 soak). To silence it, clear or edit the
-offending file under `/etc/chromium.d/` — left as-is by default so the distro's
-other defaults aren't masked.
+Pi OS `/usr/bin/chromium` injects `/etc/chromium.d/*` flags, which can include a
+stale `--js-flags=--no-decommit-pooled-pages` that V8 logs as "unrecognized flag"
+(cosmetic, harmless). To silence it, clear or edit the offending file under
+`/etc/chromium.d/` — left as-is by default so the distro's other defaults aren't
+masked.
 
 ## Updating after a deploy (`git pull`)
 
@@ -170,27 +169,22 @@ cd ~/pi-dashboard && git pull
 up frontend changes and the 03:00 unattended-upgrades reboot (when one fires) picks
 up everything. The commands above are just for *instant* pickup after a same-day pull.
 
-Most Phase-9 polish is frontend-only (roll-off, forecast-card detail) or reuses the
-existing `POST /refresh` (the manual-refresh button), so "`git pull` + browser
-reload" is usually the whole update — no install re-run, no backend restart.
+## Verifying the install (on the panel)
 
-## On-Pi acceptance checklist (carried into Phase 8 — run on the panel)
+These need the physical Pi + panel and can't be validated from a dev machine:
 
-These need the physical Pi + panel and can't be validated from the dev Mac:
-
-- [ ] **Deferred Phase-2 UI legibility check** (decision 2026-06-28): with the real
-  dashboard on the panel at scale 1.5, eyeball the v4 layout at standing distance.
-  If sizing is off it's a `rem`/type-scale tweak in `static/style.css`, not a
-  redesign (v4 is locked).
-- [ ] **Full blackout-cycle overnight soak** now that the overlay exists: confirm
-  the screen is black across 1a–6a, the 03:00 reboot returns to black (not the
-  bright dashboard), and the dashboard is back at 06:00.
-- [ ] **Quiet boot**: reboot and confirm no console text / IP banner flashes
-  before the kiosk paints; no stray cursor in the bare-labwc gap.
-- [ ] **Respawn**: `systemctl --user kill chromium-kiosk.service` → it comes back
-  fullscreen on its own (Restart=always).
-- [ ] **Deploy pickup**: `git pull` a visible change, trigger the reload
-  (`systemctl --user start chromium-reload.service`), confirm the new bundle
+- **Boot to dashboard:** reboot and confirm the kiosk comes up fullscreen on the
+  live dashboard with no console text / IP banner flashing before it paints, and no
+  stray cursor in the bare-compositor gap.
+- **Legibility:** eyeball the layout at standing distance. If sizing is off it's a
+  type-scale tweak in `static/style.css`, not a redesign.
+- **Nightly blackout:** confirm the screen is black across 1a–6a, that a reboot
+  *inside* the window returns to black (not the bright dashboard), and that the
+  dashboard is back at 06:00.
+- **Crash recovery:** `systemctl --user kill chromium-kiosk.service` → Chromium
+  comes back fullscreen on its own (`Restart=always`).
+- **Deploy pickup:** `git pull` a visible change, trigger the reload
+  (`systemctl --user start chromium-reload.service`), and confirm the new bundle
   renders (no-cache static headers + reload — no manual hard refresh needed).
-- [ ] **Power under load** (0.3/0.9 follow-up): `vcgencmd get_throttled` stays
-  `0x0` with the kiosk running; re-check after the soak.
+- **Thermals under load:** `vcgencmd get_throttled` stays `0x0` with the kiosk
+  running.
