@@ -31,6 +31,45 @@ A read-write root (not read-only overlayfs) is what makes `unattended-upgrades`
 viable — on an overlayfs RO root, apt installs land in the tmpfs upper layer and
 vanish on reboot, so that build would update by re-imaging instead.
 
+## Network — Wi-Fi on a hidden SSID
+
+**A hidden (non-broadcasting) SSID needs `802-11-wireless.hidden yes` on the
+NetworkManager profile — without it the Pi joins only intermittently.** Pi OS
+(Bookworm/Trixie) manages Wi-Fi with NetworkManager, and a hidden AP suppresses
+its SSID in beacons, so the client can only find it by sending a *directed probe
+request* — which NM sends only when the profile is flagged hidden. Unflagged, NM
+falls back to passive beacon scans and association becomes a boot-time race it
+loses on some reboots: the box comes up with no network (host unreachable, weather
+and calendar unsynced, "Updated —"). Setting the flag makes the join
+deterministic. Nothing app-side is involved — the backend's refresh loop
+self-heals the moment the link is up; this is purely getting the link up.
+
+This lives in the root-owned NM keyfile (`/etc/NetworkManager/system-connections/
+*.nmconnection`, `0600`), **not** in git — it holds the Wi-Fi PSK. That means a
+re-image wipes it, so it's documented here rather than shipped as a file. Run once
+on the Pi (Imager often doesn't set the hidden flag even when "hidden" is ticked):
+
+```sh
+nmcli -f NAME,TYPE,DEVICE connection show     # find the Wi-Fi profile name
+CN="preconfigured"                            # <- substitute the real name
+
+sudo nmcli connection modify "$CN" 802-11-wireless.hidden yes           # load-bearing: probe for the hidden SSID
+sudo nmcli connection modify "$CN" connection.autoconnect yes \
+                                   connection.autoconnect-retries 0     # 0 = retry forever (default gives up after 4)
+sudo nmcli connection modify "$CN" 802-11-wireless.powersave 2          # disable radio power-save (always-on wall panel)
+
+sudo nmcli connection down "$CN" && sudo nmcli connection up "$CN"      # apply now; then reboot to confirm a clean boot-join
+```
+
+**Channel caveat (only if the join is *still* flaky after the above).** A hidden
+SSID can't be found on a **passive-scan** channel — the client may not probe there
+until it hears a beacon, which a hidden AP withholds. In the US regdomain the
+5 GHz **DFS** channels (52–144) are passive; 2.4 GHz (1–11) and 5 GHz UNII-1
+(36–48) / UNII-3 (149–165) are active-scan and fine. If the AP sits on a DFS
+channel, move it to an active-scan one — or just un-hide the SSID (a hidden name
+adds negligible security, since clients leak it in probes, while breaking exactly
+this case). Check the band/channel with `nmcli -f SSID,CHAN,FREQ device wifi list`.
+
 ## Files
 
 | File | Installs to | Scope | Purpose |
