@@ -61,27 +61,33 @@ def _window(now: datetime, days: int = _AGENDA_DAYS) -> tuple[datetime, datetime
     return start, start + timedelta(days=days)
 
 
-def _occurrence(dtstart: date | datetime, tz: ZoneInfo) -> tuple[str, bool]:
-    """Normalize one expanded occurrence's DTSTART to (contract `start`,
-    `all_day`). `datetime` subclasses `date`, so test datetime first: timed ->
-    ISO-with-offset (the feed is tz-aware in the display zone per 0.D1; a naive
-    datetime is localized as a defensive fallback); all-day DATE -> date-only."""
-    if isinstance(dtstart, datetime):
-        if dtstart.tzinfo is None:
-            dtstart = dtstart.replace(tzinfo=tz)
-        return dtstart.isoformat(), False
-    return dtstart.isoformat(), True
+def _iso(dt: date | datetime, tz: ZoneInfo) -> str:
+    """Normalize an occurrence's DTSTART/DTEND to a contract ISO string.
+    `datetime` subclasses `date`, so test datetime first: timed -> ISO-with-offset
+    (the feed is tz-aware in the display zone per 0.D1; a naive datetime is
+    localized as a defensive fallback); all-day DATE -> date-only `YYYY-MM-DD`."""
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
+        return dt.isoformat()
+    return dt.isoformat()
 
 
 def _agenda_item(occ: Any, tz: ZoneInfo) -> AgendaItem:
     """One expanded VEVENT occurrence -> a contract `personal` agenda-item.
     `occ` is `Any` — `recurring_ical_events` ships no types, so the library
-    boundary is untyped; `_occurrence` re-establishes the date/datetime split."""
-    iso, all_day = _occurrence(occ["DTSTART"].dt, tz)
+    boundary is untyped; `_iso` re-establishes the date/datetime split.
+
+    `start`/`end` are the half-open interval `[start, end)`. The library always
+    synthesizes DTEND from DTSTART + duration (default: 1 day all-day, 0 timed),
+    so it's read directly like DTSTART; ICS DTEND is exclusive, which is carried
+    through verbatim (all-day single day -> `end == start + 1 day`)."""
+    dtstart = occ["DTSTART"].dt
     # SUMMARY is untrusted PII; kept as a plain str, rendered via textContent.
     return {
-        "start": iso,
-        "all_day": all_day,
+        "start": _iso(dtstart, tz),
+        "end": _iso(occ["DTEND"].dt, tz),
+        "all_day": not isinstance(dtstart, datetime),
         "title": str(occ.get("SUMMARY") or ""),
         "kind": "personal",
     }
@@ -97,9 +103,10 @@ def normalize_events(
     `between` returns every event OVERLAPPING the window, including a multi-day
     event that *began before* it — whose start is then out-of-window and would
     bucket into a day the agenda never renders. So filter to occurrences whose
-    start lands in the window (matching the holidays source's date filter). The
-    contract carries no end/duration, so an in-progress multi-day span can't be
-    shown today regardless — surfacing those is a Phase-9 polish concern."""
+    start lands in the window (matching the holidays source's date filter). Each
+    item now carries `end` (the `[start, end)` upper bound), but the filter still
+    drops pre-window starts — actually *rendering* an in-progress multi-day span
+    across the days it covers is a separate Phase-9 polish concern."""
     cal = icalendar.Calendar.from_ical(ics_text)
     window_start = start.date().isoformat()  # date-prefix compare (ISO strings)
     items = (

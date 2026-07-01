@@ -55,6 +55,7 @@ END:VEVENT
 BEGIN:VEVENT
 UID:timed@test
 DTSTART;TZID=America/New_York:20260701T083000
+DTEND;TZID=America/New_York:20260701T090000
 SUMMARY:Team standup
 END:VEVENT
 BEGIN:VEVENT
@@ -159,6 +160,57 @@ def test_timed_event_is_iso_with_offset() -> None:
     standup = next(e for e in _personal() if e["title"] == "Team standup")
     assert standup["start"] == "2026-07-01T08:30:00-04:00"  # EDT offset attached
     assert standup["all_day"] is False
+
+
+# ── normalize_events: end (half-open interval [start, end)) ───────────────────
+
+
+def test_timed_event_carries_end_as_offset_instant() -> None:
+    # `end` is the exclusive end instant, same ISO-with-offset form as `start`.
+    standup = next(e for e in _personal() if e["title"] == "Team standup")
+    assert standup["end"] == "2026-07-01T09:00:00-04:00"  # 08:30 + 30 min, EDT
+
+
+def test_timed_event_without_dtend_has_end_equal_to_start() -> None:
+    # A timed VEVENT with no DTEND is zero-duration: the lib synthesizes
+    # DTEND == DTSTART, so the contract's `end` equals `start` (empty interval).
+    walk = next(e for e in _personal() if e["start"] == "2026-07-01T12:00:00-04:00")
+    assert walk["title"] == "Lunch walk"
+    assert walk["end"] == walk["start"]
+
+
+def test_all_day_single_day_end_is_exclusive_next_day() -> None:
+    # ICS DTEND is exclusive; a single-day all-day event (07-04, no DTEND) gets a
+    # synthesized DTEND of 07-05, so the contract `end` is the day AFTER the one
+    # day it covers — date-only, symmetric with the date-only `start`.
+    cabin = next(e for e in _personal() if e["title"] == "Cabin trip")
+    assert cabin["start"] == "2026-07-04"
+    assert cabin["end"] == "2026-07-05"  # exclusive; covers the dates [07-04, 07-05)
+
+
+def test_multiday_all_day_end_is_exclusive_upper_bound() -> None:
+    # A multi-day all-day event STARTING in-window keeps ICS's exclusive DTEND,
+    # so the covered dates are [start, end) — 07-02, 07-03, 07-04 here (not 07-05).
+    ics = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Proton//Calendar//EN
+BEGIN:VEVENT
+UID:conf@test
+DTSTART;VALUE=DATE:20260702
+DTEND;VALUE=DATE:20260705
+SUMMARY:Conference
+END:VEVENT
+END:VCALENDAR
+"""
+    conf = next(
+        e
+        for e in calendar.normalize_events(ics, *calendar._window(NOW), TZ)
+        if e["title"] == "Conference"
+    )
+    assert conf["all_day"] is True
+    assert conf["start"] == "2026-07-02"
+    assert conf["end"] == "2026-07-05"  # exclusive; covers 07-02, 07-03, 07-04
 
 
 # ── normalize_events: recurrence + EXDATE + windowing ─────────────────────────
@@ -269,6 +321,15 @@ def test_get_calendar_ok_merges_personal_and_holidays(monkeypatch: Any) -> None:
     # flat, sorted, no day grouping (frontend groups)
     starts = [e["start"] for e in block["events"]]
     assert starts == sorted(starts, key=lambda s: (s,))
+
+
+def test_get_calendar_holiday_items_omit_end(monkeypatch: Any) -> None:
+    # `end` is NotRequired: the offline holiday/observance items are single-day
+    # and carry no `end` (consumers treat a missing `end` as single-day).
+    monkeypatch.setattr(settings, "proton_ics_url", "")
+    block = asyncio.run(calendar.get_calendar(NOW))
+    holiday = next(e for e in block["events"] if e["title"] == "Independence Day")
+    assert "end" not in holiday
 
 
 def test_get_calendar_proton_failure_still_shows_holidays(monkeypatch: Any) -> None:

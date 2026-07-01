@@ -26,10 +26,24 @@ Kind = Literal["personal", "holiday", "observance", "info"]
 
 
 class AgendaItem(TypedDict):
-    """One row of the merged agenda. `start` is either a date-only `YYYY-MM-DD`
-    (all-day) or an ISO datetime-with-offset (timed) — see `calendar._occurrence`."""
+    """One row of the merged agenda.
+
+    `start`/`end` are a half-open interval `[start, end)` — an event occupies
+    from `start` (inclusive) up to but not including `end`:
+      * timed    -> ISO datetime-with-offset (see `calendar._iso`); `end` is the
+                    exclusive end instant (`== start` for a zero-duration event).
+      * all-day  -> date-only `YYYY-MM-DD`; `end` is the exclusive day AFTER the
+                    last day covered (raw ICS DTEND), so a single-day all-day
+                    event has `end == start + 1 day` and a span covers the dates
+                    `[start, end)`.
+
+    `end` is `NotRequired`: the offline holiday/observance/info items are
+    single-day and omit it, and a last-good doc cached before `end` existed won't
+    carry it — consumers must treat a missing `end` as a single-day/instant item.
+    """
 
     start: str
+    end: NotRequired[str]
     all_day: bool
     title: str
     kind: Kind
