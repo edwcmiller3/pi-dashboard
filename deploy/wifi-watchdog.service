@@ -1,0 +1,18 @@
+[Unit]
+Description=Wi-Fi reconnect watchdog
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '\
+  while true; do \
+    nmcli -g GENERAL.STATE device show wlan0 2>/dev/null | grep -q "^connected" || \
+      nmcli device connect wlan0 2>/dev/null || true; \
+    sleep 30; \
+  done'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -131,6 +131,20 @@ client mid-session. If the AP sits on DFS, move it to an active-scan channel:
 2.4 GHz (1–11) or 5 GHz UNII-1 (36–48) / UNII-3 (149–165). Check with
 `nmcli -f SSID,CHAN,FREQ device wifi list`.
 
+### Reconnect watchdog (when autoconnect doesn't recover)
+
+`autoconnect-retries 0` (retry forever) keeps NM trying, but its internal backoff
+can leave the interface stuck in "disconnected" for minutes — long enough to look
+permanently broken after a reboot. A simple watchdog service polls every 30 seconds
+and calls `nmcli device connect wlan0` whenever the device isn't connected, which
+forces NM out of any backoff state. It runs as a persistent system service and
+covers both boot-time failures and mid-session drops.
+
+`wifi-watchdog.service` in this repo handles this — see [Install § 2](#2-system-files-root).
+
+The service uses the device name (`wlan0`) rather than a connection profile name, so
+it works regardless of what the profile is called and survives profile renames.
+
 **When hardware *is* warranted.** Only if `iw dev wlan0 link` shows genuinely weak
 signal (below ~-72 dBm) at the mount. Then, best first: wired Ethernet (the Pi 5
 has gigabit built in) → powerline/MoCA → a wireless bridge (a small router in
@@ -149,6 +163,7 @@ it. At a healthy signal no adapter helps — the problem is association, not rad
 | `chromium-reload.{service,timer}` | `~/.config/systemd/user/` | user | Nightly 04:00 browser reload (deploy pickup + memory hygiene). |
 | `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor`. |
 | `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
+| `wifi-watchdog.service` | `/etc/systemd/system/` | system | Polls `wlan0` every 30 s; calls `nmcli device connect` if not connected. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only — zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
 | `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades + auto-reboot 03:00 (inside the nightly blackout). |
@@ -204,6 +219,11 @@ sudo loginctl enable-linger "$USER"     # start at boot without an interactive l
 ### 2. System files (root)
 
 ```sh
+# Wi-Fi reconnect watchdog:
+sudo install -m644 deploy/wifi-watchdog.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wifi-watchdog.service
+
 # Autologin + quiet boot — substitutes the current login user into the drop-in:
 sudo install -Dm644 deploy/getty-autologin.conf \
   /etc/systemd/system/getty@tty1.service.d/autologin.conf
