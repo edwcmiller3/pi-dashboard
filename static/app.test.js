@@ -33,6 +33,7 @@ import {
   hasPersonalEvents,
   localInstant,
   nextUp,
+  pastIndexes,
   dayLabel,
   pickUpdated,
   inBlackout,
@@ -375,6 +376,68 @@ test("nextUp: an event with no end is an instant — upcoming before it, past af
   const past = { start: "2026-07-01T13:00:00-04:00", all_day: false, title: "e", kind: "personal" };
   assert.equal(nextUp([upcoming], NOW), 0);
   assert.equal(nextUp([past], NOW), -1);
+});
+
+// ── pastIndexes (roll-off: which of today's events MAY hide on overflow) ──────
+
+test("pastIndexes: empty day -> no candidates", () => {
+  assert.deepEqual(pastIndexes([], NOW), []);
+});
+
+test("pastIndexes: all upcoming -> no candidates", () => {
+  assert.deepEqual(pastIndexes([timed(15, 16), timed(17, 18)], NOW), []);
+});
+
+test("pastIndexes: past events -> their indices, ascending (oldest first)", () => {
+  // 9–10 and 11–12 are over at 14:00; 15–16 is upcoming.
+  assert.deepEqual(pastIndexes([timed(9, 10), timed(11, 12), timed(15, 16)], NOW), [0, 1]);
+});
+
+test("pastIndexes: an in-progress event is NOT past (half-open [start,end))", () => {
+  // 13–15 straddles 14:00 — it's the event being highlighted, never rolled off.
+  assert.deepEqual(pastIndexes([timed(13, 15)], NOW), []);
+});
+
+test("pastIndexes: past exactly AT its end instant (now === end -> over)", () => {
+  // Half-open: the event no longer covers 14:00 when it ends at 14:00.
+  assert.deepEqual(pastIndexes([timed(12, 14)], NOW), [0]);
+});
+
+test("pastIndexes: past events need not be a prefix (long in-progress first)", () => {
+  // 9–17 is still running at 14:00 but the LATER-sorted 10–11 is already over —
+  // the candidate set is by pastness, not by position in the list.
+  assert.deepEqual(pastIndexes([timed(9, 17), timed(10, 11)], NOW), [1]);
+});
+
+test("pastIndexes: all-day personal items never roll off, even when ended", () => {
+  // A trip that ended YESTERDAY (end 2026-07-01 exclusive) is still day context.
+  const trip = { start: "2026-06-30", end: "2026-07-01", all_day: true, title: "Trip", kind: "personal" };
+  assert.deepEqual(pastIndexes([trip], NOW), []);
+});
+
+test("pastIndexes: holiday / observance / info items never roll off", () => {
+  const items = [
+    { start: "2026-07-01", all_day: true, title: "H", kind: "holiday" },
+    { start: "2026-07-01", all_day: true, title: "O", kind: "observance" },
+    { start: "2026-07-01", all_day: true, title: "I", kind: "info" },
+  ];
+  assert.deepEqual(pastIndexes(items, NOW), []);
+});
+
+test("pastIndexes: an event with no end is an instant — past once start passes", () => {
+  const past = { start: "2026-07-01T13:00:00-04:00", all_day: false, title: "e", kind: "personal" };
+  const upcoming = { start: "2026-07-01T15:00:00-04:00", all_day: false, title: "e", kind: "personal" };
+  assert.deepEqual(pastIndexes([past], NOW), [0]);
+  assert.deepEqual(pastIndexes([upcoming], NOW), []);
+});
+
+test("pastIndexes: disjoint from nextUp — the emphasized event can never roll off", () => {
+  // The two scans partition today's timed events around the same "now": nextUp
+  // picks the first NOT-past one, pastIndexes collects the past ones.
+  const items = [timed(9, 10), timed(13, 15), timed(16, 17)];
+  const past = pastIndexes(items, NOW);
+  assert.deepEqual(past, [0]);
+  assert.equal(past.includes(nextUp(items, NOW)), false);
 });
 
 // ── dayLabel (time frozen so "Today" can't flake across midnight) ─────────────

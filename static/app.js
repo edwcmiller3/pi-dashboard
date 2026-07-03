@@ -298,6 +298,22 @@ export function nextUp(items, now) {
   return -1;
 }
 
+// The indices of the day's events that MAY roll off when today overflows the
+// fit budget: already-past TIMED PERSONAL events — the complement of nextUp's
+// "not past" test (now < end, half-open [start, end); end absent -> an instant
+// at start), over the same kind/all_day filter, so the emphasized event can
+// never be a candidate. All-day and holiday/observance/info items are day
+// context and never roll off. Ascending = oldest first — the order the fit
+// pass hides them in. This is a candidate list, not a command: whether any
+// actually hide is the fit pass's call (demand-driven — only on overflow, only
+// as many as needed). Pure.
+/** @param {AgendaItem[]} items @param {Date} now @returns {number[]} */
+export function pastIndexes(items, now) {
+  return items.flatMap((ev, i) =>
+    ev.kind === "personal" && !ev.all_day && !(now < localInstant(ev.end ?? ev.start)) ? [i] : [],
+  );
+}
+
 // "Updated" = the OLDEST fetched_at among sources that fetched OK — so the
 // stamp honestly means "every fresh source is at least this current," never
 // over-claiming by showing the most-recent one. Compared by instant (epoch) so
@@ -357,11 +373,13 @@ function el(tag, className, text) {
   return node;
 }
 
-// `isNext` marks the "next up" event with a subtle highlight. Applies only to a
-// personal timed row — the only kind `nextUp` ever selects — so the
-// holiday/marker branches ignore it.
-/** @param {AgendaItem} ev @param {boolean} [isNext] @returns {HTMLElement} */
-function eventNode(ev, isNext = false) {
+// `isNext` marks the "next up" event with a subtle highlight; `isPast` tags an
+// already-past event `.is-past` — no CSS of its own, purely a marker the
+// fitDayInPlace roll-off pass consumes. Both apply only to a personal timed
+// row — the only kind nextUp/pastIndexes ever select — so the holiday/marker
+// branches ignore them.
+/** @param {AgendaItem} ev @param {boolean} [isNext] @param {boolean} [isPast] @returns {HTMLElement} */
+function eventNode(ev, isNext = false, isPast = false) {
   // Federal holiday / lesser observance -> identical pill above the day's
   // events (no tiered visual weight — official and unofficial render the same;
   // `kind` stays distinct in the data as provenance only).
@@ -375,7 +393,7 @@ function eventNode(ev, isNext = false) {
   // Personal event -> time + title row; the next-up one gets a subtle highlight
   // so the event to look at reads at a glance (no chip — the tint is enough).
   const { time } = localParts(ev.start);
-  const row = el("div", "event" + (isNext ? " is-next" : ""));
+  const row = el("div", "event" + (isNext ? " is-next" : "") + (isPast ? " is-past" : ""));
   const when =
     ev.all_day || !time ? el("span", "etime allday", "All day") : el("span", "etime", fmtCompact(time));
   row.append(when, el("span", "etitle", ev.title)); // title as text (textContent) — never HTML
@@ -389,11 +407,17 @@ function dayRowNode(group, calendarOk = true, clockSynced = true) {
   const label = el("div", "day-label");
   label.append(el("span", "dname", dname), el("span", "ddate", ddate));
   const events = el("div", "day-events");
-  // "Next up" emphasis: TODAY only, and only when the clock is trustworthy — the
-  // highlight keys off "now", so an unsynced Pi clock (no RTC, pre-NTP boot)
-  // would mis-pick it (the Phase-6 clock-honesty gate). undefined/true = fine.
-  const nextIdx = isToday && clockSynced !== false ? nextUp(group.items, new Date()) : -1;
-  group.items.forEach((ev, i) => events.append(eventNode(ev, i === nextIdx)));
+  // "Today awareness": both the next-up highlight and the roll-off candidates
+  // key off "now" over the same partition of today's items, so they share one
+  // gate — TODAY only, and only when the clock is trustworthy (an unsynced Pi
+  // clock — no RTC, pre-NTP boot — would mis-pick both; the Phase-6
+  // clock-honesty gate; undefined/true = fine) — and one `now`, so the
+  // emphasized row can never simultaneously be a roll-off candidate.
+  const aware = isToday && clockSynced !== false;
+  const now = new Date();
+  const nextIdx = aware ? nextUp(group.items, now) : -1;
+  const pastIdx = new Set(aware ? pastIndexes(group.items, now) : []);
+  group.items.forEach((ev, i) => events.append(eventNode(ev, i === nextIdx, pastIdx.has(i))));
   // Quiet-day state: today with no personal events gets a friendly "Nothing
   // today" (holidays/observances above still show as context). Only when the
   // calendar fetched OK — on a stale/failed calendar we don't know today's
@@ -543,16 +567,49 @@ const moreLine = (text) => el("div", "agenda-more", text);
 // must never drop outright (today; the first upcoming day), so a single very
 // busy day is shortened rather than removed — which is what keeps col 2 from
 // ever ending up empty.
+//
+// Roll-off (today only — `.is-past` marks exist only there): already-past rows
+// hide FIRST, oldest first, into a "+N earlier" line at the TOP, so an
+// overflowing afternoon reveals its hidden UPCOMING events instead of trimming
+// them off the bottom. Demand-driven: on a day that fits, nothing rolls off,
+// and it stops the moment the row fits. Only when every past row is gone and
+// the row still overflows does the bottom "+N more" trim resume.
+//
+// The "+N …" lines are inserted with a placeholder label so measurement
+// reserves their real height — an EMPTY div has no line box, so "" would
+// under-reserve and the final label could push the row back over budget. Any
+// one-line text measures the same.
 /** @param {Element} dayRow @param {number} budget @returns {void} */
 function fitDayInPlace(dayRow, budget) {
   if (rowH(dayRow) <= budget) return;
   const events = dayRow.querySelector(".day-events");
   if (!events || events.children.length === 0) return;
-  const more = moreLine(""); // present during measurement so its height is reserved
+  const past = [...events.children].filter((c) => c.classList.contains("is-past"));
+  /** @type {HTMLElement | null} */
+  let earlier = null;
+  if (past.length > 0) {
+    earlier = moreLine("+0 earlier");
+    events.prepend(earlier);
+    let rolled = 0;
+    for (const row of past) {
+      if (rowH(dayRow) <= budget) break;
+      row.remove();
+      rolled += 1;
+    }
+    if (rolled > 0) earlier.textContent = `+${rolled} earlier`;
+    else {
+      earlier.remove();
+      earlier = null;
+    }
+    if (rowH(dayRow) <= budget) return;
+  }
+  const more = moreLine("+0 more");
   events.append(more);
   let hidden = 0;
   while (rowH(dayRow) > budget && events.children.length > 1) {
-    events.children[events.children.length - 2].remove(); // last real event (keep `more` last)
+    const last = events.children[events.children.length - 2]; // keep `more` last
+    if (last === earlier) break; // never trim the roll-off summary itself
+    last.remove();
     hidden += 1;
   }
   if (hidden > 0) more.textContent = `+${hidden} more`;
@@ -568,7 +625,9 @@ function fitColumnInPlace(col, budget) {
   if (!first) return;
   fitDayInPlace(first, budget); // today / first upcoming day — protected
   if (col.children.length < 2) return; // nothing droppable
-  const footer = moreLine("");
+  // Placeholder label so measurement reserves the footer's real line height
+  // (same reasoning as in fitDayInPlace).
+  const footer = moreLine("+0 more days");
   col.append(footer);
   let hiddenDays = 0;
   while (rowH(col) > budget && col.children.length > 1) {
