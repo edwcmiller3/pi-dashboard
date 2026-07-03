@@ -569,7 +569,9 @@ const moreLine = (text) => el("div", "agenda-more", text);
 // ever ending up empty.
 //
 // Roll-off (today only — `.is-past` marks exist only there): already-past rows
-// hide FIRST, oldest first, into a "+N earlier" line at the TOP, so an
+// hide FIRST, oldest first, into a "+N earlier" line inserted where the first
+// of them sat — i.e. BELOW the all-day/holiday pills (which sort before timed
+// rows and never roll off), right where the timed list begins — so an
 // overflowing afternoon reveals its hidden UPCOMING events instead of trimming
 // them off the bottom. Demand-driven: on a day that fits, nothing rolls off,
 // and it stops the moment the row fits. Only when every past row is gone and
@@ -589,7 +591,7 @@ function fitDayInPlace(dayRow, budget) {
   let earlier = null;
   if (past.length > 0) {
     earlier = moreLine("+0 earlier");
-    events.prepend(earlier);
+    past[0].before(earlier); // takes the oldest past row's place, below the pills
     let rolled = 0;
     for (const row of past) {
       if (rowH(dayRow) <= budget) break;
