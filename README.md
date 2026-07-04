@@ -14,7 +14,6 @@ multi-day all-day span repeating across days, the in-progress "next up"
 highlight, roll-off of past events ("+N earlier"), and agenda overflow
 ("+N more", "+N more days").*
 
-See the build plan and spec (Obsidian vault) for the full design.
 
 ## Requirements
 
