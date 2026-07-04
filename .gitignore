@@ -12,8 +12,5 @@ __pycache__/
 # Runtime cache (CACHE_DIR)
 var/
 
-# Local-only helper scripts (e.g. the README-mockup generator) — not shipped
-tools/
-
 # macOS
 .DS_Store

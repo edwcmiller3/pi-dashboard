@@ -266,7 +266,11 @@ sudo sed -i "s/KIOSK_USER/$USER/" /etc/systemd/system/getty@tty1.service.d/autol
 sudo install -Dm644 deploy/journald.conf \
   /etc/systemd/journald.conf.d/00-kiosk-volatile.conf
 
-# Unattended security upgrades (no auto-reboot; the 06:00 cold boot covers it):
+# Unattended security upgrades (no auto-reboot; the 06:00 cold boot covers it).
+# The package is NOT preinstalled on Raspberry Pi OS — without it the config
+# below is inert (apt's daily timers run but silently skip upgrades). Install
+# it first so our conffiles below overwrite the package's defaults:
+sudo apt install -y unattended-upgrades
 sudo install -m644 deploy/50unattended-upgrades deploy/20auto-upgrades \
   /etc/apt/apt.conf.d/
 
@@ -351,6 +355,9 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   plug via its button/app, wait a few minutes, restore → dashboard back
   unattended. Then confirm one real night: dark by 01:06, live dashboard ~06:01.
   Panel auto-on after wall-power loss was verified 2026-07-04.
+- **Unattended upgrades:** `sudo unattended-upgrade --dry-run 2>&1 | tail -5`
+  parses the config without acting. `command not found` means the package is
+  missing and the apt.conf.d files are doing nothing (see install §2).
 - **Crash recovery:** `systemctl --user kill chromium-kiosk.service` → Chromium
   comes back fullscreen on its own (`Restart=always`).
 - **Deploy pickup:** `git pull` a visible change, trigger the reload

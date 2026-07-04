@@ -28,7 +28,7 @@ pythonpath = ["."]
 [tool.mypy]
 python_version = "3.13"
 strict = true
-files = ["app", "tests"]
+files = ["app", "tests", "tools"]
 
 [[tool.mypy.overrides]]
 module = ["recurring_ical_events.*"]   # ships no py.typed (used in Phase 5)
