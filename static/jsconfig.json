@@ -7,7 +7,7 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "lib": ["es2022", "dom", "dom.iterable"],
-    "strict": false
+    "strict": true
   },
   "include": ["app.js"]
 }

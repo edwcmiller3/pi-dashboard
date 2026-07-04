@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import date, datetime
 from typing import NoReturn
 from zoneinfo import ZoneInfo
@@ -376,6 +376,30 @@ def test_personal_events_are_the_expected_occurrences() -> None:
     )
 
 
+def test_naive_dtstart_is_localized_to_display_tz() -> None:
+    # A floating DTSTART (no TZID, no Z) exercises `_iso`'s defensive fallback:
+    # the naive datetime is localized to the display zone, so the contract still
+    # gets an ISO-with-offset start instead of a bare local string.
+    ics = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Proton//Calendar//EN
+BEGIN:VEVENT
+UID:floating@test
+DTSTART:20260701T083000
+SUMMARY:Floating time
+END:VEVENT
+END:VCALENDAR
+"""
+    floating = next(
+        e
+        for e in calendar.normalize_events(ics, *calendar._window(NOW), TZ)
+        if e["title"] == "Floating time"
+    )
+    assert floating["start"] == "2026-07-01T08:30:00-04:00"  # EDT offset attached
+    assert floating["all_day"] is False
+
+
 def test_missing_summary_becomes_empty_title() -> None:
     ics = ICS.replace("SUMMARY:Team standup\n", "")
     # SUMMARY is the field under test here, so selecting by the (now-unique) start
@@ -386,6 +410,119 @@ def test_missing_summary_becomes_empty_title() -> None:
         if e["start"] == "2026-07-01T08:30:00-04:00"
     )
     assert standup["title"] == ""
+
+
+# ── _read_capped: size cap, secret-free errors, UTF-8 decode ──────────────────
+
+# A URL-shaped secret: every ValueError message assertion below checks it never
+# leaks (the real URL is a bearer credential — see the module docstring).
+_SECRET_URL = "https://calendar.example/SECRET-TOKEN/calendar.ics?PassphraseKey=KEY"
+
+
+class _FakeResponse:
+    """`requests.Response` stand-in covering exactly the surface `_read_capped`
+    touches: context manager, `raise_for_status`, `headers`, `iter_content`, and
+    `encoding`. `encoding` defaults to ISO-8859-1 — what requests derives for a
+    `text/*` content type WITHOUT an explicit charset — so the decode tests
+    exercise the charset-less-header case, not the happy declared-UTF-8 one."""
+
+    def __init__(
+        self,
+        body: bytes,
+        headers: dict[str, str] | None = None,
+        encoding: str | None = "ISO-8859-1",
+    ) -> None:
+        self._body = body
+        self.headers = headers or {}
+        self.encoding = encoding
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def iter_content(self, chunk_size: int) -> Iterator[bytes]:
+        for i in range(0, len(self._body), chunk_size):
+            yield self._body[i : i + chunk_size]
+
+
+def _patch_session_get(monkeypatch: pytest.MonkeyPatch, resp: _FakeResponse) -> None:
+    def fake_get(url: str, *, timeout: int, stream: bool) -> _FakeResponse:
+        return resp
+
+    monkeypatch.setattr(calendar._SESSION, "get", fake_get)
+
+
+def test_read_capped_returns_body_under_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_session_get(monkeypatch, _FakeResponse(b"BEGIN:VCALENDAR\r\n"))
+    assert calendar._read_capped(_SECRET_URL) == "BEGIN:VCALENDAR\r\n"
+
+
+def test_read_capped_decodes_utf8_despite_charsetless_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # RFC 5545 mandates UTF-8, so the decode must NOT honor requests' ISO-8859-1
+    # default for a charset-less `text/calendar` header (the fake's `encoding`
+    # models exactly that). Decoding via `resp.encoding` here would mojibake
+    # "Café ☕" into "CafÃ© â\x98\x95".
+    _patch_session_get(monkeypatch, _FakeResponse("SUMMARY:Café ☕\r\n".encode()))
+    assert calendar._read_capped(_SECRET_URL) == "SUMMARY:Café ☕\r\n"
+
+
+def test_read_capped_replaces_undecodable_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # One bad byte (0xE9 = latin-1 "é", invalid as UTF-8) must not drop the whole
+    # calendar — it decodes to U+FFFD and the rest of the feed survives.
+    _patch_session_get(monkeypatch, _FakeResponse(b"SUMMARY:Caf\xe9\r\n"))
+    assert calendar._read_capped(_SECRET_URL) == "SUMMARY:Caf�\r\n"
+
+
+def test_read_capped_rejects_oversized_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An honest oversized Content-Length is rejected up front — no body is read.
+    declared = str(calendar._MAX_ICS_BYTES + 1)
+    _patch_session_get(
+        monkeypatch, _FakeResponse(b"", headers={"Content-Length": declared})
+    )
+    with pytest.raises(ValueError) as exc_info:
+        calendar._read_capped(_SECRET_URL)
+    message = str(exc_info.value)
+    assert declared in message and str(calendar._MAX_ICS_BYTES) in message  # sizes only
+    assert "SECRET-TOKEN" not in message and "PassphraseKey" not in message
+
+
+def test_read_capped_cuts_off_lying_content_length_mid_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A feed whose header under-declares (or omits) its size is cut off the
+    # moment the streamed body crosses the cap, not fully buffered.
+    oversized = b"X" * (calendar._MAX_ICS_BYTES + 1)
+    _patch_session_get(
+        monkeypatch, _FakeResponse(oversized, headers={"Content-Length": "42"})
+    )
+    with pytest.raises(ValueError) as exc_info:
+        calendar._read_capped(_SECRET_URL)
+    message = str(exc_info.value)
+    assert str(calendar._MAX_ICS_BYTES) in message  # sizes only, never the URL
+    assert "SECRET-TOKEN" not in message and "PassphraseKey" not in message
+
+
+def test_read_capped_ignores_non_numeric_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A junk Content-Length can't crash the pre-check; the mid-stream cap still
+    # guards the actual body.
+    _patch_session_get(
+        monkeypatch,
+        _FakeResponse(b"BEGIN:VCALENDAR\r\n", headers={"Content-Length": "garbage"}),
+    )
+    assert calendar._read_capped(_SECRET_URL) == "BEGIN:VCALENDAR\r\n"
 
 
 # ── _merge: ordering + shape ──────────────────────────────────────────────────

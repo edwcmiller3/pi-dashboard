@@ -1,4 +1,4 @@
-"""Shared pytest fixtures.
+"""Shared pytest fixtures and typed source-block factories.
 
 The autouse `_tmp_cache` fixture redirects the JSON cache at `settings.cache_dir`
 to a per-test `tmp_path` for EVERY test. That kills the ~20 duplicated
@@ -8,6 +8,11 @@ real `var/` dir (a test that forgot the redirect used to be one edit away from
 clobbering a live last-good doc). Tests that need a differently-shaped cache dir
 (e.g. a not-yet-created nested path) still override `cache_dir` themselves — the
 autouse fixture just sets a safe default first.
+
+The block factories build real `WeatherBlock`/`CalendarBlock` values (not
+`dict[str, Any]`), so any test fake that drifts from the contract fails the
+type-check instead of silently passing. Shared here so every suite that fakes a
+source (test_refresh, test_api, …) goes through the same typed discipline.
 """
 
 from __future__ import annotations
@@ -18,6 +23,61 @@ from pathlib import Path
 import pytest
 
 from app.config import settings
+from app.contract import CalendarBlock, CurrentWeather, WeatherBlock
+
+
+def current_weather(temp_f: int) -> CurrentWeather:
+    return {
+        "temp_f": temp_f,
+        "feels_like_f": temp_f,
+        "code": 0,
+        "text": "Clear",
+        "icon": "wi-day-sunny",
+        "is_day": True,
+        "humidity_pct": 50,
+        "wind_mph": 5,
+        "precip_prob_pct": 0,
+        "high_f": temp_f + 5,
+        "low_f": temp_f - 5,
+        "sunrise": "2026-07-01T06:00:00-04:00",
+        "sunset": "2026-07-01T20:00:00-04:00",
+    }
+
+
+def weather_block(
+    *,
+    temp_f: int,
+    fetched_at: str | None,
+    ok: bool = True,
+    ttl: int | None = None,
+    attempted_at: str | None = None,
+) -> WeatherBlock:
+    block: WeatherBlock = {
+        "ok": ok,
+        "fetched_at": fetched_at,
+        "current": current_weather(temp_f),
+        "forecast": [],
+    }
+    if ttl is not None:
+        block["ttl"] = ttl
+    if attempted_at is not None:
+        block["attempted_at"] = attempted_at
+    return block
+
+
+def calendar_block(
+    *,
+    fetched_at: str | None,
+    ok: bool = True,
+    ttl: int | None = None,
+    attempted_at: str | None = None,
+) -> CalendarBlock:
+    block: CalendarBlock = {"ok": ok, "fetched_at": fetched_at, "events": []}
+    if ttl is not None:
+        block["ttl"] = ttl
+    if attempted_at is not None:
+        block["attempted_at"] = attempted_at
+    return block
 
 
 @pytest.fixture(autouse=True)

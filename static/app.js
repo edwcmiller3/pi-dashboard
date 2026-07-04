@@ -291,17 +291,19 @@ export function pastIndexes(items, now) {
  * @returns {string | null}
  */
 export function pickUpdated(sources) {
-  const stamps = sources
-    .filter((s) => s && s.ok && s.fetched_at)
-    .map((s) => s.fetched_at)
-    // Drop unparseable stamps up front: Date.parse(bad) is NaN, and every `<`
-    // comparison with NaN is false, so a garbage stamp encountered first would
-    // "win" the min and never be beaten — over-claiming freshness. Filtering
-    // makes the pick correct regardless of input order.
-    .filter((iso) => !Number.isNaN(Date.parse(iso)));
+  // Drop unparseable stamps up front: Date.parse(bad) is NaN, and every `<`
+  // comparison with NaN is false, so a garbage stamp encountered first would
+  // "win" the min and never be beaten — over-claiming freshness. Filtering
+  // makes the pick correct regardless of input order. (flatMap, not
+  // filter+map — it narrows `fetched_at` to string in one pass.)
+  const stamps = sources.flatMap((s) =>
+    s && s.ok && s.fetched_at && !Number.isNaN(Date.parse(s.fetched_at))
+      ? [s.fetched_at]
+      : [],
+  );
   return stamps.reduce(
     (best, iso) => (best === null || Date.parse(iso) < Date.parse(best) ? iso : best),
-    null,
+    /** @type {string | null} */ (null),
   );
 }
 
@@ -317,6 +319,109 @@ export function dayLabel(dateStr) {
     dname: isToday ? "Today" : dt.toLocaleDateString(undefined, { weekday: "long" }),
     ddate: dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
   };
+}
+
+// ── pure fit planners ────────────────────────────────────────────────────────
+// The measure-and-fit algorithm, factored out of the DOM: the shells below
+// (fitDayInPlace / fitColumnInPlace) measure real pixel heights and apply the
+// returned plan; everything decision-shaped lives here, unit-testable without a
+// DOM. Heights compose linearly because the containers are no-gap flex columns:
+// removing a child shrinks the container by exactly that child's measured
+// height, so the planners can simulate removals instead of re-measuring.
+
+/**
+ * The fit plan for one day-row.
+ * @typedef {object} DayFitPlan
+ * @property {number[]} hide child indexes to remove, ascending
+ * @property {number} earlierCount past rows rolled off (>0 -> insert a
+ *   "+N earlier" line where the FIRST past child sat)
+ * @property {number} moreCount rows trimmed off the bottom (>0 -> append a
+ *   "+N more" line)
+ */
+
+// Plan how to fit a day-row into `budget` px. Mirrors the roll-off contract
+// documented on fitDayInPlace: already-past rows hide FIRST (oldest first) into
+// a "+N earlier" line; only when every past row is gone and the row still
+// overflows does the bottom "+N more" trim resume — and that trim never reaches
+// above the "+N earlier" line (the pills before it are protected). The summary
+// lines' own height (`lineHeight`) is charged BEFORE deciding, so a final label
+// can't push the row back over budget. Demand-driven: a fitting row is a no-op
+// plan. Pure.
+/**
+ * @param {number} totalHeight measured px of the whole day-row
+ * @param {number[]} childHeights per-child measured px, in DOM order
+ * @param {boolean[]} isPast per-child roll-off candidacy (`.is-past`), in DOM order
+ * @param {number} lineHeight px one "+N …" summary line occupies
+ * @param {number} budget
+ * @returns {DayFitPlan}
+ */
+export function planDayFit(totalHeight, childHeights, isPast, lineHeight, budget) {
+  /** @type {number[]} */
+  const hide = [];
+  if (totalHeight <= budget || childHeights.length === 0) {
+    return { hide, earlierCount: 0, moreCount: 0 };
+  }
+  let h = totalHeight;
+  let earlierCount = 0;
+  const past = childHeights.map((_, i) => i).filter((i) => isPast[i]);
+  if (past.length > 0) {
+    h += lineHeight; // the "+N earlier" line takes the oldest past row's place
+    for (const i of past) {
+      if (h <= budget) break;
+      hide.push(i);
+      h -= childHeights[i];
+      earlierCount += 1;
+    }
+    if (h <= budget) return { hide, earlierCount, moreCount: 0 };
+  }
+  h += lineHeight; // the "+N more" line
+  let moreCount = 0;
+  const hidden = new Set(hide);
+  // With a roll-off summary in place, the bottom-up trim stops at it — children
+  // before the first past row (the all-day/holiday pills) never trim.
+  const floor = earlierCount > 0 ? past[0] : 0;
+  for (let i = childHeights.length - 1; i >= floor && h > budget; i--) {
+    if (hidden.has(i)) continue;
+    hide.push(i);
+    h -= childHeights[i];
+    moreCount += 1;
+  }
+  return { hide: [...hide].sort((a, b) => a - b), earlierCount, moreCount };
+}
+
+/**
+ * The fit plan for a column of day-rows.
+ * @typedef {object} ColumnFitPlan
+ * @property {number} dropCount day-rows to remove from the END of the column
+ * @property {boolean} showFooter append the "+N more days" footer (only when it
+ *   itself fits — otherwise the protected day's own "+N more" already signals
+ *   truncation)
+ */
+
+// Plan how to fit a column into `budget` px: later days drop from the end; the
+// first day is protected (index 0 is never dropped — the shell trims its EVENTS
+// via planDayFit instead). The footer's height is charged up front so labeling
+// it can't overflow; a column that already fits is a no-op (the old in-place
+// code could drop a day from an exactly-fitting column because its probe footer
+// momentarily pushed it over). Pure.
+/**
+ * @param {number} totalHeight measured px of the whole column
+ * @param {number[]} dayHeights per-day-row measured px, in DOM order
+ * @param {number} footerHeight px the "+N more days" footer occupies
+ * @param {number} budget
+ * @returns {ColumnFitPlan}
+ */
+export function planColumnFit(totalHeight, dayHeights, footerHeight, budget) {
+  if (totalHeight <= budget || dayHeights.length < 2) {
+    return { dropCount: 0, showFooter: false };
+  }
+  let h = totalHeight + footerHeight;
+  let dropCount = 0;
+  for (let i = dayHeights.length - 1; i >= 1 && h > budget; i--) {
+    h -= dayHeights[i];
+    dropCount += 1;
+  }
+  return { dropCount, showFooter: dropCount > 0 && h <= budget };
 }
 
 // ── inline SVG (refresh), matching the v4 mockup ─────────────────────────────
@@ -413,8 +518,9 @@ function renderClock() {
   // h/minutes are own numbers; build via el()/textContent so no human/contract
   // text is ever interpolated into markup here.
   const clock = document.getElementById("clock");
-  clock.replaceChildren(`${h}:${pad2(now.getMinutes())}`, el("span", "ampm", ampm));
-  document.getElementById("date").textContent = now.toLocaleDateString(undefined, {
+  if (clock) clock.replaceChildren(`${h}:${pad2(now.getMinutes())}`, el("span", "ampm", ampm));
+  const date = document.getElementById("date");
+  if (date) date.textContent = now.toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -446,10 +552,16 @@ function statCell(iconClass, label, value) {
   return cell;
 }
 
+// Sunrise/sunset are full ISO datetimes per the backend contract; a date-only
+// string (time null) would be contract drift — render "—" rather than crash.
+/** @param {LocalTime | null} time @returns {string} */
+const fmtCompactOr = (time) => (time ? fmtCompact(time) : "—");
+
 /** @param {WeatherBlock} weather @returns {void} */
 function renderCurrent(weather) {
   const c = weather.current;
   const card = document.getElementById("current-card");
+  if (!card) return;
   card.replaceChildren();
 
   const main = el("div", "cur-main");
@@ -469,8 +581,8 @@ function renderCurrent(weather) {
     statCell("wi-raindrop", "Rain", `${c.precip_prob_pct}%`),
     statCell("wi-strong-wind", "Wind", `${c.wind_mph} mph`),
     statCell("wi-humidity", "Humidity", `${c.humidity_pct}%`),
-    statCell("wi-sunrise", "Sunrise", fmtCompact(localParts(c.sunrise).time)),
-    statCell("wi-sunset", "Sunset", fmtCompact(localParts(c.sunset).time)),
+    statCell("wi-sunrise", "Sunrise", fmtCompactOr(localParts(c.sunrise).time)),
+    statCell("wi-sunset", "Sunset", fmtCompactOr(localParts(c.sunset).time)),
   );
 
   card.append(wiIcon(c.icon, "cur-icon"), main, el("div", "cur-div"), stats);
@@ -479,6 +591,7 @@ function renderCurrent(weather) {
 /** @param {ForecastDay[]} forecast @returns {void} */
 function renderForecast(forecast) {
   const root = document.getElementById("forecast");
+  if (!root) return;
   root.replaceChildren();
   // The grid is a fixed repeat(4,1fr); slice defensively so a short/long feed
   // never misaligns it.
@@ -518,88 +631,61 @@ const rowH = (node) => node.getBoundingClientRect().height;
 /** @param {string} text @returns {HTMLElement} */
 const moreLine = (text) => el("div", "agenda-more", text);
 
-// Trim a day-row's events in place until the whole row fits `budget` px,
-// appending a "+N more" line when any events are hidden. Used for the days we
-// must never drop outright (today; the first upcoming day), so a single very
-// busy day is shortened rather than removed — which is what keeps col 2 from
-// ever ending up empty.
-//
-// Roll-off (today only — `.is-past` marks exist only there): already-past rows
-// hide FIRST, oldest first, into a "+N earlier" line inserted where the first
-// of them sat — i.e. BELOW the all-day/holiday pills (which sort before timed
-// rows and never roll off), right where the timed list begins — so an
-// overflowing afternoon reveals its hidden UPCOMING events instead of trimming
-// them off the bottom. Demand-driven: on a day that fits, nothing rolls off,
-// and it stops the moment the row fits. Only when every past row is gone and
-// the row still overflows does the bottom "+N more" trim resume.
-//
-// The "+N …" lines are inserted with a placeholder label so measurement
-// reserves their real height — an EMPTY div has no line box, so "" would
-// under-reserve and the final label could push the row back over budget. Any
-// one-line text measures the same.
-/** @param {Element} dayRow @param {number} budget @returns {void} */
-function fitDayInPlace(dayRow, budget) {
-  if (rowH(dayRow) <= budget) return;
-  const events = dayRow.querySelector(".day-events");
-  if (!events || events.children.length === 0) return;
-  const past = [...events.children].filter((c) => c.classList.contains("is-past"));
-  /** @type {HTMLElement | null} */
-  let earlier = null;
-  if (past.length > 0) {
-    earlier = moreLine("+0 earlier");
-    past[0].before(earlier); // takes the oldest past row's place, below the pills
-    let rolled = 0;
-    for (const row of past) {
-      if (rowH(dayRow) <= budget) break;
-      row.remove();
-      rolled += 1;
-    }
-    if (rolled > 0) earlier.textContent = `+${rolled} earlier`;
-    else {
-      earlier.remove();
-      earlier = null;
-    }
-    if (rowH(dayRow) <= budget) return;
-  }
-  const more = moreLine("+0 more");
-  events.append(more);
-  let hidden = 0;
-  while (rowH(dayRow) > budget && events.children.length > 1) {
-    const last = events.children[events.children.length - 2]; // keep `more` last
-    if (last === earlier) break; // never trim the roll-off summary itself
-    last.remove();
-    hidden += 1;
-  }
-  if (hidden > 0) more.textContent = `+${hidden} more`;
-  else more.remove();
+// Height a "+N …" summary line will occupy in `container`, measured with a real
+// (briefly attached) placeholder — an estimate could under-reserve and let the
+// final label push a "fitting" row back over budget. Any one-line text measures
+// the same, so "+0 more" stands in for every label the planners charge for.
+/** @param {Element} container @returns {number} */
+function measureLine(container) {
+  const probe = moreLine("+0 more");
+  container.append(probe);
+  const h = rowH(probe);
+  probe.remove();
+  return h;
 }
 
-// Fit a column of day-rows into `budget` px without clipping. The first day is
-// protected (its events are trimmed, never the whole day); later days that
-// don't fit are dropped and summarized with a "+N more days" footer.
+// Trim a day-row's events in place until the whole row fits `budget` px —
+// the imperative shell around the pure `planDayFit` (see its contract for the
+// roll-off/trim semantics). Used for the days we must never drop outright
+// (today; the first upcoming day), so a single very busy day is shortened
+// rather than removed — which is what keeps col 2 from ever ending up empty.
+/** @param {Element} dayRow @param {number} budget @returns {void} */
+function fitDayInPlace(dayRow, budget) {
+  const events = dayRow.querySelector(".day-events");
+  if (!events || events.children.length === 0) return;
+  const children = [...events.children];
+  const plan = planDayFit(
+    rowH(dayRow),
+    children.map(rowH),
+    children.map((c) => c.classList.contains("is-past")),
+    measureLine(events),
+    budget,
+  );
+  if (plan.earlierCount > 0) {
+    // Takes the oldest past row's place — below the all-day/holiday pills,
+    // right where the timed list begins.
+    const firstPast = children.find((c) => c.classList.contains("is-past"));
+    if (firstPast) firstPast.before(moreLine(`+${plan.earlierCount} earlier`));
+  }
+  for (const i of plan.hide) children[i].remove();
+  if (plan.moreCount > 0) events.append(moreLine(`+${plan.moreCount} more`));
+}
+
+// Fit a column of day-rows into `budget` px without clipping — the imperative
+// shell around the pure `planColumnFit`. The first day is protected (its events
+// are trimmed via fitDayInPlace, never the whole day); later days that don't
+// fit are dropped and summarized with a "+N more days" footer.
 /** @param {Element} col @param {number} budget @returns {void} */
 function fitColumnInPlace(col, budget) {
   const first = col.firstElementChild;
   if (!first) return;
   fitDayInPlace(first, budget); // today / first upcoming day — protected
-  if (col.children.length < 2) return; // nothing droppable
-  // Placeholder label so measurement reserves the footer's real line height
-  // (same reasoning as in fitDayInPlace).
-  const footer = moreLine("+0 more days");
-  col.append(footer);
-  let hiddenDays = 0;
-  while (rowH(col) > budget && col.children.length > 1) {
-    const last = col.children[col.children.length - 2]; // before footer
-    if (last === first) break; // never drop the protected first day
-    last.remove();
-    hiddenDays += 1;
-  }
-  // Only label the footer if it actually fits; otherwise drop it (the protected
-  // day's own "+N more" already signals truncation in that degenerate case).
-  if (hiddenDays > 0 && rowH(col) <= budget) {
-    footer.textContent = `+${hiddenDays} more day${hiddenDays === 1 ? "" : "s"}`;
-  } else {
-    footer.remove();
+  const days = [...col.children];
+  const plan = planColumnFit(rowH(col), days.map(rowH), measureLine(col), budget);
+  for (let k = 0; k < plan.dropCount; k++) days[days.length - 1 - k].remove();
+  if (plan.showFooter) {
+    const n = plan.dropCount;
+    col.append(moreLine(`+${n} more day${n === 1 ? "" : "s"}`));
   }
 }
 
@@ -610,6 +696,7 @@ function renderAgenda(events, calendarOk = true, clockSynced = true) {
   const groups = withTodayGroup(groupByDay(events), localDayKey());
   const [col1, col2] = splitColumns(groups);
   const root = document.getElementById("agenda-body");
+  if (!root) return;
   root.replaceChildren();
   const cols = [];
   for (const col of [col1, col2]) {
@@ -650,11 +737,16 @@ function renderStatus(data, opts = {}) {
   // stamp can't over-claim freshness; rendered from that string's LOCAL
   // wall-clock part (not the Pi clock). opts.stale forces "—".
   const chosen = opts.stale ? null : pickUpdated(sources.map(([, s]) => s));
-  const updated = chosen ? fmtLong(localParts(chosen).time) : "—";
+  // A chosen stamp is always a datetime (fetched_at), but guard the date-only
+  // shape (time null) the same way the sunrise/sunset cells do.
+  const time = chosen ? localParts(chosen).time : null;
+  const updated = time ? fmtLong(time) : "—";
 
   const status = document.getElementById("status");
+  if (!status) return;
   status.replaceChildren();
-  for (const [label, s] of sources) status.append(srcNode(label, !opts.stale && s && s.ok));
+  for (const [label, s] of sources)
+    status.append(srcNode(label, Boolean(!opts.stale && s && s.ok)));
   status.append(el("span", "sep", "·"), el("span", null, `Updated ${updated}`));
 
   const refresh = el("span", "refresh");
@@ -731,6 +823,7 @@ let hasRendered = false;
 // retry cadence instead of the 15-min one, so the "clock not synced" warning
 // clears promptly after sync rather than at the next slow poll. undefined/true
 // (dev host, older cache) is treated as fine.
+/** @type {boolean | undefined} */
 let lastClockSynced;
 
 // Cold-boot degrade: every data region gets an honest placeholder so nothing is
@@ -790,6 +883,7 @@ async function tick() {
 // The local day we last rendered for; flips at midnight to trigger a reload so
 // the agenda rolls (today→tomorrow, new in-window holidays/events) without
 // waiting for the next poll. The clock itself already ticks live each second.
+/** @type {string | null} */
 let currentDay = null;
 
 function init() {

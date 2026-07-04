@@ -15,9 +15,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
+from conftest import calendar_block, weather_block
 from fastapi.testclient import TestClient
 
 from app import cache, main
+from app.contract import CalendarBlock, WeatherBlock
 from app.main import _CACHE_KEY, app
 
 TZ = ZoneInfo("America/New_York")
@@ -81,17 +83,15 @@ def test_api_data_tolerates_non_dict_cached_value() -> None:
 def test_post_refresh_forces_a_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
     # POST /refresh forces an immediate refresh of every source (sources
     # monkeypatched so no network call is made). A bare TestClient runs no
-    # lifespan, so only this request drives the loop.
-    async def fake_weather() -> dict[str, Any]:
-        return {
-            "ok": True,
-            "fetched_at": _stamp(NOW),
-            "current": {"temp_f": 71},
-            "forecast": [],
-        }
+    # lifespan, so only this request drives the loop. Fakes are built via the
+    # typed conftest factories so a contract drift fails the type-check.
+    async def fake_weather() -> WeatherBlock:
+        return weather_block(temp_f=71, fetched_at=_stamp(NOW))
 
-    async def fake_calendar(now: Any = None, last_good: Any = None) -> dict[str, Any]:
-        return {"ok": True, "fetched_at": _stamp(NOW), "events": []}
+    async def fake_calendar(
+        now: datetime | None = None, last_good: CalendarBlock | None = None
+    ) -> CalendarBlock:
+        return calendar_block(fetched_at=_stamp(NOW))
 
     monkeypatch.setattr(main, "get_weather", fake_weather)
     monkeypatch.setattr(main, "get_calendar", fake_calendar)
@@ -108,11 +108,13 @@ def test_post_refresh_502_on_cold_boot_failure(
 ) -> None:
     # No cache + weather fetch fails -> the forced tick raises -> 502 (and the
     # cache stays empty, so /api/data remains an honest 503).
-    async def boom() -> dict[str, Any]:
+    async def boom() -> WeatherBlock:
         raise RuntimeError("open-meteo down")
 
-    async def fake_calendar(now: Any = None, last_good: Any = None) -> dict[str, Any]:
-        return {"ok": True, "fetched_at": _stamp(NOW), "events": []}
+    async def fake_calendar(
+        now: datetime | None = None, last_good: CalendarBlock | None = None
+    ) -> CalendarBlock:
+        return calendar_block(fetched_at=_stamp(NOW))
 
     monkeypatch.setattr(main, "get_weather", boom)
     monkeypatch.setattr(main, "get_calendar", fake_calendar)

@@ -62,7 +62,8 @@ def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]
 
     def offset(d: date) -> timedelta:
         off = datetime.combine(d, time(12), tzinfo=tz).utcoffset()
-        assert off is not None  # an aware ZoneInfo datetime always has an offset
+        if off is None:  # aware ZoneInfo always has an offset; survives `-O`
+            raise RuntimeError(f"no UTC offset for {d} in {tz_name}")
         return off
 
     # One day of lead-in so a transition landing exactly on `start` is detected.

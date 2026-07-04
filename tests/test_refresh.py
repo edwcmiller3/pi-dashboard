@@ -6,10 +6,11 @@ directly; `_refresh_once` is exercised with the source coroutines faked and the
 cache redirected to a tmp dir (autouse `_tmp_cache` fixture), so the suite makes
 no network call and writes only under `tmp_path`.
 
-Source fakes are built through the typed `_weather_block`/`_calendar_block`
-factories (real `WeatherBlock`/`CalendarBlock`, not `dict[str, Any]`) so a fake
-that drifts from the contract fails the type-check. `Recorder` replaces the old
-hand-rolled `calls = {...}` mutable-dict counting with a declarative call count.
+Source fakes are built through the typed `weather_block`/`calendar_block`
+factories (real `WeatherBlock`/`CalendarBlock`, not `dict[str, Any]` — shared in
+conftest.py) so a fake that drifts from the contract fails the type-check.
+`Recorder` replaces the old hand-rolled `calls = {...}` mutable-dict counting
+with a declarative call count.
 """
 
 from __future__ import annotations
@@ -22,10 +23,11 @@ from typing import Any, Generic, TypeVar
 from zoneinfo import ZoneInfo
 
 import pytest
+from conftest import calendar_block, weather_block
 
 from app import cache, main
 from app.config import settings
-from app.contract import CalendarBlock, CurrentWeather, SourceBlock, WeatherBlock
+from app.contract import CalendarBlock, SourceBlock, WeatherBlock
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2026, 7, 1, 9, 0, tzinfo=TZ)
@@ -35,63 +37,6 @@ T = TypeVar("T")
 
 def _stamp(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds")
-
-
-# ── typed source-block factories ─────────────────────────────────────────────
-
-
-def _current(temp_f: int) -> CurrentWeather:
-    return {
-        "temp_f": temp_f,
-        "feels_like_f": temp_f,
-        "code": 0,
-        "text": "Clear",
-        "icon": "wi-day-sunny",
-        "is_day": True,
-        "humidity_pct": 50,
-        "wind_mph": 5,
-        "precip_prob_pct": 0,
-        "high_f": temp_f + 5,
-        "low_f": temp_f - 5,
-        "sunrise": "2026-07-01T06:00:00-04:00",
-        "sunset": "2026-07-01T20:00:00-04:00",
-    }
-
-
-def _weather_block(
-    *,
-    temp_f: int,
-    fetched_at: str | None,
-    ok: bool = True,
-    ttl: int | None = None,
-    attempted_at: str | None = None,
-) -> WeatherBlock:
-    block: WeatherBlock = {
-        "ok": ok,
-        "fetched_at": fetched_at,
-        "current": _current(temp_f),
-        "forecast": [],
-    }
-    if ttl is not None:
-        block["ttl"] = ttl
-    if attempted_at is not None:
-        block["attempted_at"] = attempted_at
-    return block
-
-
-def _calendar_block(
-    *,
-    fetched_at: str | None,
-    ok: bool = True,
-    ttl: int | None = None,
-    attempted_at: str | None = None,
-) -> CalendarBlock:
-    block: CalendarBlock = {"ok": ok, "fetched_at": fetched_at, "events": []}
-    if ttl is not None:
-        block["ttl"] = ttl
-    if attempted_at is not None:
-        block["attempted_at"] = attempted_at
-    return block
 
 
 class Recorder(Generic[T]):
@@ -306,8 +251,8 @@ def test_refresh_once_assembles_doc_with_ttls_and_clock(
     monkeypatch.setattr(main, "_clock_synced", lambda: True)
     _patch_sources(
         monkeypatch,
-        weather=Recorder(_weather_block(temp_f=72, fetched_at=_stamp(NOW))),
-        calendar=Recorder(_calendar_block(fetched_at=_stamp(NOW))),
+        weather=Recorder(weather_block(temp_f=72, fetched_at=_stamp(NOW))),
+        calendar=Recorder(calendar_block(fetched_at=_stamp(NOW))),
     )
 
     healthy = asyncio.run(main._refresh_once(now=NOW))
@@ -342,16 +287,16 @@ def test_refresh_once_ttl_gating(
     monkeypatch.setattr(settings, "weather_ttl_seconds", 3600)
     monkeypatch.setattr(settings, "calendar_ttl_seconds", 3600)
     _seed_cache(
-        weather=_weather_block(
+        weather=weather_block(
             temp_f=68, fetched_at=_stamp(NOW - timedelta(minutes=5)), ttl=3600
         ),
-        calendar=_calendar_block(
+        calendar=calendar_block(
             fetched_at=_stamp(NOW - timedelta(minutes=5)), ttl=3600
         ),
         generated_at=generated_at,
     )
-    weather = Recorder(_weather_block(temp_f=72, fetched_at=_stamp(NOW)))
-    calendar = Recorder(_calendar_block(fetched_at=_stamp(NOW)))
+    weather = Recorder(weather_block(temp_f=72, fetched_at=_stamp(NOW)))
+    calendar = Recorder(calendar_block(fetched_at=_stamp(NOW)))
     _patch_sources(monkeypatch, weather=weather, calendar=calendar)
 
     asyncio.run(main._refresh_once(force=force, now=NOW))
@@ -366,10 +311,10 @@ def test_refresh_once_weather_failure_keeps_last_good_but_calendar_updates(
     # fetch is attempted, fails, and falls back to the last-good DATA (flagged
     # stale). The calendar is stale too and refreshes independently.
     _seed_cache(
-        weather=_weather_block(
+        weather=weather_block(
             temp_f=70, fetched_at=_stamp(NOW - timedelta(hours=2)), ttl=3600
         ),
-        calendar=_calendar_block(fetched_at=_stamp(NOW - timedelta(hours=2)), ttl=900),
+        calendar=calendar_block(fetched_at=_stamp(NOW - timedelta(hours=2)), ttl=900),
     )
 
     def boom() -> WeatherBlock:
@@ -378,7 +323,7 @@ def test_refresh_once_weather_failure_keeps_last_good_but_calendar_updates(
     _patch_sources(
         monkeypatch,
         weather=boom,
-        calendar=Recorder(_calendar_block(fetched_at=_stamp(NOW))),
+        calendar=Recorder(calendar_block(fetched_at=_stamp(NOW))),
     )
     healthy = asyncio.run(main._refresh_once(now=NOW))
 
@@ -401,7 +346,7 @@ def test_refresh_once_cold_boot_weather_failure_raises(
     _patch_sources(
         monkeypatch,
         weather=boom,
-        calendar=Recorder(_calendar_block(fetched_at=_stamp(NOW))),
+        calendar=Recorder(calendar_block(fetched_at=_stamp(NOW))),
     )
     with pytest.raises(RuntimeError):
         asyncio.run(main._refresh_once(now=NOW))
@@ -416,18 +361,18 @@ def test_refresh_once_does_not_hammer_failed_calendar_within_floor(
     monkeypatch.setattr(settings, "weather_ttl_seconds", 900)
     monkeypatch.setattr(settings, "calendar_ttl_seconds", 900)
     _seed_cache(
-        weather=_weather_block(
+        weather=weather_block(
             temp_f=70, fetched_at=_stamp(NOW), ttl=900
         ),  # fresh -> weather also skipped
-        calendar=_calendar_block(
+        calendar=calendar_block(
             fetched_at=_stamp(NOW - timedelta(hours=2)),
             ok=False,
             attempted_at=_stamp(NOW - timedelta(seconds=10)),  # just failed
             ttl=900,
         ),
     )
-    weather = Recorder(_weather_block(temp_f=72, fetched_at=_stamp(NOW)))
-    calendar = Recorder(_calendar_block(fetched_at=_stamp(NOW)))
+    weather = Recorder(weather_block(temp_f=72, fetched_at=_stamp(NOW)))
+    calendar = Recorder(calendar_block(fetched_at=_stamp(NOW)))
     _patch_sources(monkeypatch, weather=weather, calendar=calendar)
 
     asyncio.run(main._refresh_once(now=NOW))
@@ -457,3 +402,102 @@ def test_refresh_lock_serializes_concurrent_refreshes(
 
     asyncio.run(run_two())
     assert state["peak"] == 1  # never overlapped -> the lock held
+
+
+# ── _refresh_loop: the composition of tick → base/backoff → midnight clamp ────
+# The pure pieces (_backoff_delay, _seconds_to_next_local_midnight) are pinned
+# above; these exercise the loop that WIRES them — healthy polarity, the failure
+# counter's growth AND reset, exception containment, and the midnight clamp —
+# with `_refresh_once` and `asyncio.sleep` faked so no tick does real work and
+# the requested delays are observable.
+
+
+def _run_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    outcomes: list[bool | Exception],
+    *,
+    now: datetime = NOW,
+    weather_ttl: int = 900,
+    calendar_ttl: int = 1800,
+) -> list[float]:
+    """Run `_refresh_loop` for `len(outcomes)` ticks and return the sleep delays
+    it requested. Each outcome is the healthy flag the faked `_refresh_once`
+    returns (or an exception it raises). The loop's wall-clock is frozen at
+    `now` — a real `datetime.now()` within 15 min of local midnight would let
+    the midnight clamp swallow the cadence under test (a once-a-day flake). The
+    final sleep cancels the otherwise-unkillable loop."""
+    monkeypatch.setattr(settings, "weather_ttl_seconds", weather_ttl)
+    monkeypatch.setattr(settings, "calendar_ttl_seconds", calendar_ttl)
+
+    class Frozen:
+        """The one classmethod the loop body calls, pinned to `now`."""
+
+        @staticmethod
+        def now(tz: ZoneInfo | None = None) -> datetime:
+            return now if tz is None else now.astimezone(tz)
+
+    monkeypatch.setattr(main, "datetime", Frozen)
+
+    results = iter(outcomes)
+
+    async def fake_once(force: bool = False, *, now: datetime | None = None) -> bool:
+        outcome = next(results)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(main, "_refresh_once", fake_once)
+
+    delays: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        delays.append(delay)
+        if len(delays) >= len(outcomes):
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(main._refresh_loop())
+    return delays
+
+
+def test_refresh_loop_healthy_tick_sleeps_the_shortest_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Base cadence = min(weather, calendar) TTL; healthy ticks never back off.
+    delays = _run_loop(
+        monkeypatch, [True, True], weather_ttl=900, calendar_ttl=1800
+    )
+    assert delays == [900.0, 900.0]
+
+
+def test_refresh_loop_backs_off_on_failure_and_resets_on_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Consecutive failures walk the 30-60-120 backoff; a healthy tick returns to
+    # the base cadence. The trailing 30 is the load-bearing assertion: it proves
+    # the failure counter RESET on recovery — a counter that never reset would
+    # request 240 for the fifth tick, and today's suite wouldn't notice.
+    delays = _run_loop(monkeypatch, [False, False, False, True, False])
+    assert delays == [30.0, 60.0, 120.0, 900.0, 30.0]
+
+
+def test_refresh_loop_survives_a_raising_tick_and_backs_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # "Unkillable": an exception escaping _refresh_once is caught and counted as
+    # an unhealthy tick (backoff), and the NEXT tick still runs (the loop lived).
+    delays = _run_loop(monkeypatch, [RuntimeError("tick exploded"), True])
+    assert delays == [30.0, 900.0]
+
+
+def test_refresh_loop_clamps_sleep_to_just_past_local_midnight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # At 23:59 the next local midnight is 60s out, sooner than the 900s base —
+    # the healthy delay must clamp to midnight + 1s so the day-rollover refresh
+    # fires at the boundary, not up to a full interval late.
+    near_midnight = datetime(2026, 7, 1, 23, 59, 0, tzinfo=TZ)
+    delays = _run_loop(monkeypatch, [True], now=near_midnight)
+    assert delays == [61.0]

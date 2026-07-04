@@ -36,6 +36,8 @@ import {
   pastIndexes,
   dayLabel,
   pickUpdated,
+  planDayFit,
+  planColumnFit,
 } from "./app.js";
 
 /**
@@ -533,6 +535,122 @@ test("pickUpdated: compares by instant across mixed offsets, excludes !ok", () =
     { ok: false, fetched_at: "2026-07-01T00:00:00-04:00" }, // stale -> ignored
   ]);
   assert.equal(got, "2026-07-01T12:30:00+00:00");
+});
+
+// ── planDayFit (pure half of fitDayInPlace: roll-off then bottom trim) ────────
+// Heights are arbitrary px; the shell feeds real measurements. lineHeight = 10
+// throughout so the summary-line charge is visible in the arithmetic.
+
+test("planDayFit: a fitting row is a no-op plan", () => {
+  assert.deepEqual(planDayFit(100, [30, 30, 30], [false, false, false], 10, 100), {
+    hide: [],
+    earlierCount: 0,
+    moreCount: 0,
+  });
+});
+
+test("planDayFit: no children -> no-op even when over budget (nothing to trim)", () => {
+  assert.deepEqual(planDayFit(120, [], [], 10, 100), {
+    hide: [],
+    earlierCount: 0,
+    moreCount: 0,
+  });
+});
+
+test("planDayFit: no past rows -> bottom-up trim into '+N more'", () => {
+  // 130 over an 80 budget: +10 for the more line -> must shed 60 -> the last
+  // two 30px rows go, oldest content at the top survives.
+  const plan = planDayFit(130, [30, 30, 30], [false, false, false], 10, 80);
+  assert.deepEqual(plan, { hide: [1, 2], earlierCount: 0, moreCount: 2 });
+});
+
+test("planDayFit: past rows roll off FIRST, oldest first, into '+N earlier'", () => {
+  // Row 0 is a pill (not past), rows 1-2 are past, row 3 upcoming. 140 over a
+  // 120 budget: +10 earlier line -> shed 30 -> rolling row 1 (30px) fits it.
+  // The upcoming row 3 is untouched — that's the point of roll-off.
+  const plan = planDayFit(140, [20, 30, 30, 30], [false, true, true, false], 10, 120);
+  assert.deepEqual(plan, { hide: [1], earlierCount: 1, moreCount: 0 });
+});
+
+test("planDayFit: the earlier line's own height is charged before deciding", () => {
+  // 125 over a 120 budget: without the +10 line one 30px roll-off would leave
+  // 95 ≤ 120 — but the line makes it 135, still requiring only one roll
+  // (135-30=105). Budget 101 instead: one roll -> 105 > 101 -> a second rolls.
+  const plan = planDayFit(125, [20, 30, 30, 30], [false, true, true, false], 10, 101);
+  assert.deepEqual(plan, { hide: [1, 2], earlierCount: 2, moreCount: 0 });
+});
+
+test("planDayFit: roll-off exhausted -> trim resumes from the bottom", () => {
+  // Both past rows roll (+10 line, shed 60 -> 150 -> still over 80), then the
+  // +N more line (+10) and the bottom row must go too.
+  const plan = planDayFit(200, [20, 30, 30, 40], [false, true, true, false], 10, 80);
+  assert.deepEqual(plan, { hide: [1, 2, 3], earlierCount: 2, moreCount: 1 });
+});
+
+test("planDayFit: bottom trim never reaches above the '+N earlier' line", () => {
+  // Everything below the first past row is gone and it STILL overflows — the
+  // pill at index 0 (above the earlier line) is protected regardless.
+  const plan = planDayFit(500, [20, 30, 30, 40], [false, true, true, false], 10, 50);
+  assert.deepEqual(plan, { hide: [1, 2, 3], earlierCount: 2, moreCount: 1 });
+});
+
+test("planDayFit: without roll-off the trim may take every child", () => {
+  const plan = planDayFit(500, [30, 30, 30], [false, false, false], 10, 50);
+  assert.deepEqual(plan, { hide: [0, 1, 2], earlierCount: 0, moreCount: 3 });
+});
+
+test("planDayFit: hide indexes are ascending regardless of trim order", () => {
+  // Roll-off pushes 1 then 2; the bottom trim pushes 3 — sorted output so the
+  // shell can remove by index without caring about phase order.
+  const plan = planDayFit(500, [20, 30, 30, 40], [false, true, true, false], 10, 50);
+  assert.deepEqual(plan.hide, [...plan.hide].sort((a, b) => a - b));
+});
+
+// ── planColumnFit (pure half of fitColumnInPlace: drop later days) ────────────
+
+test("planColumnFit: a fitting column is a no-op (footer probe can't push it over)", () => {
+  // The old in-place code appended the probe footer BEFORE checking fit, so an
+  // exactly-fitting column could lose its last day. The planner returns no-op.
+  assert.deepEqual(planColumnFit(100, [50, 50], 10, 100), {
+    dropCount: 0,
+    showFooter: false,
+  });
+});
+
+test("planColumnFit: a single day-row is never dropped", () => {
+  assert.deepEqual(planColumnFit(200, [200], 10, 100), {
+    dropCount: 0,
+    showFooter: false,
+  });
+});
+
+test("planColumnFit: drops days from the END until the column + footer fit", () => {
+  // 180 over a 120 budget: +10 footer -> 190 -> both 40px later days drop
+  // (190 -> 150, still over -> 110), leaving the footer room to show.
+  assert.deepEqual(planColumnFit(180, [100, 40, 40], 10, 120), {
+    dropCount: 2,
+    showFooter: true,
+  });
+});
+
+test("planColumnFit: the first day is protected even when it alone overflows", () => {
+  // Dropping every later day still leaves 200+10 over 100 — the footer is
+  // omitted (the first day's own '+N more' signals truncation instead).
+  assert.deepEqual(planColumnFit(280, [200, 40, 40], 10, 100), {
+    dropCount: 2,
+    showFooter: false,
+  });
+});
+
+test("planColumnFit: the footer's own height is charged before deciding", () => {
+  // 145 over a 125 budget with a 20px footer: a planner that ignored the
+  // footer would stop after one drop (145 - 20 = 125 ≤ 125) and the labeled
+  // footer would overflow; charging it up front (165) forces the second drop
+  // (165 -> 145 -> 125 ≤ 125).
+  assert.deepEqual(planColumnFit(145, [85, 20, 20, 20], 20, 125), {
+    dropCount: 2,
+    showFooter: true,
+  });
 });
 
 // mock.timers auto-reset per test via t.mock, but reset the top-level mock too in

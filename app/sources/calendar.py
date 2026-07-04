@@ -204,7 +204,11 @@ def _read_capped(url: str) -> str:
             body.extend(chunk)
             if len(body) > _MAX_ICS_BYTES:
                 raise ValueError(f"ICS body exceeded cap {_MAX_ICS_BYTES} bytes")
-        return body.decode(resp.encoding or "utf-8", errors="replace")
+        # Decode UTF-8 unconditionally (RFC 5545 §3.1.4 mandates it for
+        # iCalendar). `resp.encoding` is deliberately ignored: requests defaults
+        # any `text/*` response without an explicit charset to ISO-8859-1, which
+        # would mojibake non-ASCII titles in a charset-less feed.
+        return body.decode("utf-8", errors="replace")
 
 
 def _fetch_personal(
