@@ -1,0 +1,10 @@
+# Nightly pre-halt before the smart plug cuts wall power. systemd SYSTEM unit
+# (poweroff and the RTC wakealarm need root). Triggered by nightly-halt.timer.
+# Installs to /etc/systemd/system/; the script to /usr/local/bin/.
+
+[Unit]
+Description=Nightly pre-halt before the smart plug cuts power
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nightly-halt.sh

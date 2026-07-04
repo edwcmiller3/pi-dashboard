@@ -1,8 +1,8 @@
 """Tests for the WMO weather-code -> icon/label mapping (Open-Meteo codes).
 
 Written test-first (TDD). The mapping is the single source of truth for both
-the vendored weather-icons font subset and the Phase-4 weather transform, so
-these tests also guard that no glyph outside the subset can sneak in.
+the vendored weather-icons font subset and the weather transform, so these
+tests also guard that no glyph outside the subset can sneak in.
 """
 
 from __future__ import annotations

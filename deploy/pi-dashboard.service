@@ -27,7 +27,7 @@ ExecStart=%h/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=2
 # Cache lives under the repo (var/, git-ignored) on the read-write SD root, so
-# last-good survives the nightly reboot. CACHE_DIR is overridable here if a
+# last-good survives the nightly power-off. CACHE_DIR is overridable here if a
 # future box routes the cache to tmpfs (e.g. a read-only-root build).
 # Environment=CACHE_DIR=/run/user/%U/pi-dashboard
 

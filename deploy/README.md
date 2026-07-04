@@ -160,21 +160,55 @@ it. At a healthy signal no adapter helps — the problem is association, not rad
 | `pi-dashboard.service` | `~/.config/systemd/user/` | user | FastAPI backend (uvicorn) on `127.0.0.1:8000`. |
 | `kiosk.service` | `~/.config/systemd/user/` | user | labwc compositor (the Wayland session). |
 | `chromium-kiosk.service` | `~/.config/systemd/user/` | user | Chromium kiosk, pinned flag set, `Restart=always`. |
-| `chromium-reload.{service,timer}` | `~/.config/systemd/user/` | user | Nightly 04:00 browser reload (deploy pickup + memory hygiene). |
+| `chromium-reload.service` | `~/.config/systemd/user/` | user | Manual browser reload for same-day deploy pickup (no timer — the daily 06:00 cold boot owns nightly hygiene). |
 | `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor`. |
 | `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
 | `wifi-watchdog.service` | `/etc/systemd/system/` | system | Polls `wlan0` every 30 s; calls `nmcli device connect` if not connected. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only — zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
-| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades + auto-reboot 03:00 (inside the nightly blackout). |
+| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades; no auto-reboot (the daily 06:00 cold boot covers reboot-required). |
 | `20auto-upgrades` | `/etc/apt/apt.conf.d/` | system | Enables the apt periodic timers that run the above. |
+| `nightly-halt.sh` | `/usr/local/bin/` | system | Pre-halt script: hour-guard, RTC wakealarm 06:00 (plug-fails backup), `systemctl poweroff`. |
+| `nightly-halt.{service,timer}` | `/etc/systemd/system/` | system | Runs the pre-halt at 01:00, before the plug cuts power at 01:05. `Persistent=false` is load-bearing (see timer comment). |
 
-**Nightly blackout is app-side, not hardware.** Cutting the panel's backlight or
-HDMI signal isn't viable on this class of touchscreen — no DDC/CI or
-`/sys/class/backlight` channel, and dropping the HDMI signal just triggers
-re-detection a couple seconds later. So the nightly 1a–6a blackout is an app-side
-wall-clock CSS overlay (`static/`, `app.js` `inBlackout`) — wall-clock-driven, so a
-reboot *inside* the window comes back to black rather than the bright dashboard.
+## Nightly power-off window (1a–6a)
+
+The screen is dark 1a–6a because the hardware is **off**, via a smart plug on the
+wall side of the 12 V brick plus a pre-halt on the Pi:
+
+| Time | Actor | Action |
+|------|-------|--------|
+| 01:00 | Pi (`nightly-halt.timer`) | Guard hour ∈ [1,6) → set RTC wakealarm 06:00 → clean `poweroff` |
+| 01:05 | Smart plug (on-device schedule) | OFF — monitor + Pi fully dark, true 0 W |
+| 06:00 | Smart plug (on-device schedule) | ON — panel powers up, USB-C 5 V returns, Pi 5 auto-boots on power-apply |
+| ~06:01 | Pi | Normal boot → kiosk → dashboard (wifi-watchdog covers the boot-join flake) |
+
+The pre-halt is what makes a nightly wall cut filesystem-safe: the plug only ever
+hard-cuts a board that already shut down cleanly. The two wake paths are
+complementary — power-apply boot on the normal night, the RTC wakealarm if the
+plug ever fails to cut. The daily 06:00 **cold boot** replaces both of the old
+nightly mechanisms (03:00 upgrade reboot, 04:00 Chromium reload): every day starts
+with a fresh kernel, backend, and browser by construction. (The former app-side
+CSS blackout overlay is gone for the same reason — and it would actively fight a
+deliberate mid-window manual plug override by blacking out the dashboard you just
+turned on.)
+
+**Plug config lives on the plug, not in git.** Requirements, chosen deliberately:
+
+- Schedule stored **on the device**, executing without cloud or Wi-Fi — given this
+  site's Wi-Fi flakiness (above), the 06:00 power-on must not depend on the router.
+- Power-restore behavior = **last state** — after an outage inside the window the
+  panel stays dark until the 06:00 ON; after a daytime outage everything comes
+  straight back.
+- Physical on/off button — manual override, and a bypass path if the plug dies
+  (pull the plug body out of the socket, connect the brick directly).
+- Schedule: **OFF 01:05, ON 06:00**, matching the table above. If the plug is
+  replaced, reconfigure these three things and nothing else changes.
+
+Historical note: the old CSS overlay existed because this panel has no DDC/CI or
+`/sys/class/backlight` channel and drops hotplug on HDMI signal loss (re-detected
+~2 s later), so software alone could never turn the backlight off. Cutting wall
+power is the only true-dark mechanism this hardware supports.
 
 ## Install
 
@@ -205,14 +239,13 @@ These are NOT in git, so a fresh box needs them before the steps below:
 cd ~/pi-dashboard && git pull && uv sync
 mkdir -p ~/.config/systemd/user ~/.config/labwc
 cp deploy/pi-dashboard.service deploy/kiosk.service \
-   deploy/chromium-kiosk.service \
-   deploy/chromium-reload.service deploy/chromium-reload.timer \
+   deploy/chromium-kiosk.service deploy/chromium-reload.service \
    ~/.config/systemd/user/
 cp deploy/labwc/rc.xml deploy/labwc/autostart ~/.config/labwc/
 
 systemctl --user daemon-reload
 systemctl --user enable --now pi-dashboard.service kiosk.service \
-   chromium-kiosk.service chromium-reload.timer
+   chromium-kiosk.service
 sudo loginctl enable-linger "$USER"     # start at boot without an interactive login
 ```
 
@@ -233,11 +266,17 @@ sudo sed -i "s/KIOSK_USER/$USER/" /etc/systemd/system/getty@tty1.service.d/autol
 sudo install -Dm644 deploy/journald.conf \
   /etc/systemd/journald.conf.d/00-kiosk-volatile.conf
 
-# Unattended security upgrades + 03:00 reboot:
+# Unattended security upgrades (no auto-reboot; the 06:00 cold boot covers it):
 sudo install -m644 deploy/50unattended-upgrades deploy/20auto-upgrades \
   /etc/apt/apt.conf.d/
 
+# Nightly 01:00 pre-halt (pairs with the smart plug's 01:05 OFF / 06:00 ON):
+sudo install -m755 deploy/nightly-halt.sh /usr/local/bin/
+sudo install -m644 deploy/nightly-halt.service deploy/nightly-halt.timer \
+  /etc/systemd/system/
+
 sudo systemctl daemon-reload
+sudo systemctl enable --now nightly-halt.timer
 sudo systemctl restart systemd-journald
 ```
 
@@ -293,9 +332,9 @@ cd ~/pi-dashboard && git pull
 | **New/changed dependency** (`pyproject.toml`/`uv.lock`) | `uv sync`, then restart the backend. |
 | **A `deploy/` unit or config file** | Re-run the relevant install step, then `systemctl --user daemon-reload` (user) / `sudo systemctl daemon-reload` (system). |
 
-**Nothing to nudge = within a day anyway:** the nightly 04:00 Chromium reload picks
-up frontend changes and the 03:00 unattended-upgrades reboot (when one fires) picks
-up everything. The commands above are just for *instant* pickup after a same-day pull.
+**Nothing to nudge = within a day anyway:** the nightly power-off window ends in a
+06:00 cold boot, which starts a fresh backend and browser and so picks up
+everything. The commands above are just for *instant* pickup after a same-day pull.
 
 ## Verifying the install (on the panel)
 
@@ -306,9 +345,12 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   stray cursor in the bare-compositor gap.
 - **Legibility:** eyeball the layout at standing distance. If sizing is off it's a
   type-scale tweak in `static/style.css`, not a redesign.
-- **Nightly blackout:** confirm the screen is black across 1a–6a, that a reboot
-  *inside* the window returns to black (not the bright dashboard), and that the
-  dashboard is back at 06:00.
+- **Nightly power-off window:** simulate one cycle — `sudo systemctl start
+  nightly-halt.service` during the window (a daytime start is a guard no-op by
+  design; off-hours, test the halt path with `sudo poweroff` instead), cut the
+  plug via its button/app, wait a few minutes, restore → dashboard back
+  unattended. Then confirm one real night: dark by 01:06, live dashboard ~06:01.
+  Panel auto-on after wall-power loss was verified 2026-07-04.
 - **Crash recovery:** `systemctl --user kill chromium-kiosk.service` → Chromium
   comes back fullscreen on its own (`Restart=always`).
 - **Deploy pickup:** `git pull` a visible change, trigger the reload

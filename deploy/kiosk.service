@@ -1,8 +1,7 @@
 # labwc compositor — the Wayland session the Chromium kiosk runs inside.
 # systemd USER service. Installs to ~/.config/systemd/user/kiosk.service.
-# Promoted from the Phase-0 bring-up unit (see plan 0.0); Chromium is now its
-# OWN unit (chromium-kiosk.service) layered on top, so each respawns independently
-# and the nightly reload can restart the browser without bouncing the compositor.
+# Chromium is its OWN unit (chromium-kiosk.service) layered on top, so each
+# respawns independently and a browser restart doesn't bounce the compositor.
 #
 #   systemctl --user enable --now kiosk.service
 #   sudo loginctl enable-linger "$USER"   # start at boot without an interactive login
@@ -10,8 +9,8 @@
 # No `After=seatd.service`: a USER unit can't order against a SYSTEM unit, so it
 # would be inert. Restart=always covers the seatd-not-ready boot race (labwc exits,
 # is retried every RestartSec until seatd's socket is up) and any labwc crash.
-# Do NOT set <autoEnableOutputs>no</autoEnableOutputs> in rc.xml (spike 0.4 — it
-# stops labwc driving the single fixed panel at all).
+# Do NOT set <autoEnableOutputs>no</autoEnableOutputs> in rc.xml — it stops
+# labwc driving the single fixed panel at all.
 
 [Unit]
 Description=labwc kiosk compositor

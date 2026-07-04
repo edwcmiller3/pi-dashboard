@@ -4,22 +4,21 @@
 #   systemctl --user enable --now chromium-kiosk.service
 #
 # Its OWN unit (not a labwc autostart entry) so Restart=always respawns it on a
-# crash — the 0.10 soak noted Chromium was NOT auto-respawned before Phase 8 —
-# and so the nightly reload (chromium-reload.timer) can `restart` just the browser
-# without bouncing the compositor.
+# crash, and so a manual deploy-pickup reload (chromium-reload.service) can
+# `restart` just the browser without bouncing the compositor.
 #
 # Ordering: After kiosk.service (labwc). A USER unit ordering against another USER
 # unit is valid, but "active" != "wayland socket ready", so ExecStartPre waits for
 # the socket and Restart=always covers any residual race.
 #
-# PINNED FLAG SET (Phase 8 determinism + quiet log + SD-wear):
-#   --ozone-platform=wayland --enable-features=UseOzonePlatform  native Wayland (0.7)
+# PINNED FLAG SET (determinism + quiet log + SD-wear):
+#   --ozone-platform=wayland --enable-features=UseOzonePlatform  native Wayland
 #   --kiosk --app=...                fullscreen, no chrome, single app
-#   --force-device-scale-factor=1.5  effective 1280x800 viewport (decision 2026-06-27)
+#   --force-device-scale-factor=1.5  effective 1280x800 viewport
 #   --noerrdialogs --disable-infobars --disable-session-crashed-bubble --no-first-run
-#                                    suppress dialogs/bubbles (spec flag set)
+#                                    suppress dialogs/bubbles
 #   --disable-background-networking  kills GCM/push registration + component-update
-#                                    chatter (the soak's DEPRECATED_ENDPOINT noise)
+#                                    chatter (DEPRECATED_ENDPOINT log noise)
 #   --disable-component-update --disable-sync --disable-translate
 #   --check-for-update-interval=31536000   never nag for updates
 #   --overscroll-history-navigation=0      no touch swipe-to-go-back on the panel
@@ -30,7 +29,7 @@
 #
 # NOTE on the wrapper: Pi OS /usr/bin/chromium injects extra flags from
 # /etc/chromium.d/* (incl. a stale --js-flags=--no-decommit-pooled-pages that V8
-# logs as "unrecognized flag" — cosmetic, confirmed harmless in the 0.10 soak).
+# logs as "unrecognized flag" — cosmetic, harmless).
 # Our flags append/override; to fully silence it, clear /etc/chromium.d or set an
 # empty CHROMIUM_FLAGS (see deploy/README) — not done here to avoid masking the
 # distro's other defaults.

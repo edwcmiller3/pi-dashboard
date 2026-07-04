@@ -1,13 +1,10 @@
 // Pi Dashboard front-end — vanilla, functional render of the data contract.
-//
-// Phase 3: reads the live JSON API (/api/data), which the backend refresh loop
-// keeps warm. Every render function consumes the same contract the Phase-2 fake
-// data was authored against, so the swap was just this DATA_URL + a poll cycle.
+// Reads the live JSON API (/api/data), which the backend refresh loop keeps warm.
 //
 // Time policy: event/sunrise/sunset times are rendered from the wall-clock
-// encoded in each ISO string's local part (honoring "render from the API
-// offset, not the Pi clock"). The big clock is the deliberate exception — it
-// ticks live from the browser (clock-sync honesty is a Phase-6 concern).
+// encoded in each ISO string's local part (render from the API offset, not
+// the Pi clock). The big clock is the deliberate exception — it ticks live
+// from the browser.
 
 // ── contract types (mirror app/contract.py) ─────────────────────────────────
 // JSDoc typedefs so an editor and `tsc --checkJs` verify the contract the
@@ -105,8 +102,8 @@
 
 const DATA_URL = "/api/data";
 
-// How often the page re-fetches the API. Phase 6 makes refresh TTL-aware; for
-// now a fixed poll matching the backend's fetch cadence is plenty.
+// How often the page re-fetches the API — a fixed poll matching the backend's
+// fetch cadence.
 const POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 // After a FAILED load, retry soon rather than waiting the full poll — so the
@@ -189,36 +186,6 @@ export function localDayKey(d = new Date()) {
 /** @param {string | null} prevDay @param {string} nowDay @returns {boolean} */
 export function dayRolledOver(prevDay, nowDay) {
   return prevDay !== null && nowDay !== prevDay;
-}
-
-// ── nightly blackout (wall-clock-driven) ─────────────────────────────────────
-
-// The 1a–6a blackout window. Spikes 0.4/0.5 found this panel has no DDC/CI and
-// no /sys/class/backlight, so there is NO hardware brightness/power channel —
-// and cutting the HDMI signal (wlopm) can't hold it dark either (the panel drops
-// hotplug-detect, the Pi re-detects, ~2s later it's back on). The only blackout
-// left is this full-screen CSS-black overlay: backlight + Pi stay on, the screen
-// just renders black. It is driven by the wall clock (time-of-day), NOT a
-// runtime timer, on purpose: the Phase-8 nightly 03:00 reboot lands INSIDE this
-// window, so a fresh page load mid-window must return to black — a timer
-// counting from boot would instead paint the bright dashboard.
-const BLACKOUT_START_HOUR = 1; // inclusive — 01:00 local
-const BLACKOUT_END_HOUR = 6; // exclusive — 06:00 local
-
-// Whether `date`'s local hour falls in the blackout window. Pure. Hour-grained
-// (the window edges are whole hours), so the overlay flips exactly at the top of
-// 01:00 and 06:00. Supports a window that wraps past midnight (start > end),
-// though the shipped 1a–6a window does not.
-/**
- * @param {Date} date
- * @param {number} [startHour]
- * @param {number} [endHour]
- * @returns {boolean}
- */
-export function inBlackout(date, startHour = BLACKOUT_START_HOUR, endHour = BLACKOUT_END_HOUR) {
-  if (startHour === endHour) return false;
-  const h = date.getHours();
-  return startHour < endHour ? h >= startHour && h < endHour : h >= startHour || h < endHour;
 }
 
 // ── pure agenda transforms ───────────────────────────────────────────────────
@@ -407,12 +374,10 @@ function dayRowNode(group, calendarOk = true, clockSynced = true) {
   const label = el("div", "day-label");
   label.append(el("span", "dname", dname), el("span", "ddate", ddate));
   const events = el("div", "day-events");
-  // "Today awareness": both the next-up highlight and the roll-off candidates
-  // key off "now" over the same partition of today's items, so they share one
-  // gate — TODAY only, and only when the clock is trustworthy (an unsynced Pi
-  // clock — no RTC, pre-NTP boot — would mis-pick both; the Phase-6
-  // clock-honesty gate; undefined/true = fine) — and one `now`, so the
-  // emphasized row can never simultaneously be a roll-off candidate.
+  // "Today awareness": the next-up highlight and the roll-off candidates share
+  // one gate — TODAY only, and only when the clock is trustworthy (an unsynced
+  // Pi clock would mis-pick both; undefined/true = fine) — and one `now`, so
+  // the emphasized row can never simultaneously be a roll-off candidate.
   const aware = isToday && clockSynced !== false;
   const now = new Date();
   const nextIdx = aware ? nextUp(group.items, now) : -1;
@@ -454,15 +419,6 @@ function renderClock() {
     month: "long",
     day: "numeric",
   });
-}
-
-// Show/hide the full-screen blackout overlay for the current wall-clock time.
-// Toggled every second alongside the clock, so it flips at the top of 01:00 /
-// 06:00 and is already correct on a fresh load (e.g. after the 03:00 reboot).
-/** @param {Date} [now] @returns {void} */
-function renderBlackout(now = new Date()) {
-  const overlay = document.getElementById("blackout");
-  if (overlay) overlay.hidden = !inBlackout(now);
 }
 
 // A weather <i class="wi wi-…"> glyph. The icon class is an OWN value (resolved
@@ -838,11 +794,9 @@ let currentDay = null;
 
 function init() {
   renderClock();
-  renderBlackout();
   currentDay = localDayKey();
   setInterval(() => {
     renderClock();
-    renderBlackout();
     const today = localDayKey();
     if (dayRolledOver(currentDay, today)) load();
     currentDay = today;

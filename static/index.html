@@ -12,8 +12,8 @@
   <!-- v4 layout (bento over ambient glow). Designed for the 1280x800 effective
        viewport (scale 1.5). app.js fills every region from data.json; only the
        shell + the "Upcoming" heading are static.
-       `glass-blur` is the Phase-9 frosted-glass OPT-IN: it turns .glass cards
-       into real backdrop-filter frosted glass, but ONLY where the compositor can
+       `glass-blur` is the frosted-glass OPT-IN: it turns .glass cards into real
+       backdrop-filter frosted glass, but ONLY where the compositor can
        accelerate it (the rules are also behind @supports in style.css). Remove
        this one class to fall back to the no-blur "safe" build. -->
   <div class="screen glass-blur">
@@ -39,14 +39,6 @@
     </section>
 
   </div>
-
-  <!-- Nightly blackout (1a–6a) — wall-clock-driven full-screen black overlay.
-       The panel has no DDC/CI or /sys/class/backlight (spikes 0.4/0.5), so this
-       CSS overlay is the only blackout available: backlight + Pi stay on, the
-       screen just renders black. app.js toggles it from the local clock (not a
-       runtime timer) so the Phase-8 03:00 reboot returns to black, not the
-       bright dashboard. -->
-  <div class="blackout" id="blackout" hidden></div>
 
   <script type="module" src="app.js"></script>
 </body>

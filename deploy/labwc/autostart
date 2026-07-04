@@ -2,22 +2,18 @@
 # Installs to ~/.config/labwc/autostart (user). labwc executes it with /bin/sh.
 #
 # Initial-cursor hide. With <touch mouseEmulation="no"/> (rc.xml) and no physical
-# mouse, NO pointer-motion event ever fires, so the page never gets pointer focus
+# mouse, no pointer-motion event ever fires, so the page never gets pointer focus
 # and its CSS `cursor:none` never applies — labwc's default pointer just sits at
-# screen center from boot until the first touch (after which it stays gone, since
-# mouseEmulation="no" means touch can't re-summon it). This nudges the virtual
-# pointer a few times so that, once the fullscreen Chromium surface has mapped, a
-# motion event reaches it, Chromium applies `cursor:none`, and the cursor hides
-# with no human touch required. Requires wlrctl (apt).
+# screen center until the first touch. This nudges the virtual pointer so that,
+# once the fullscreen Chromium surface has mapped, a motion event reaches it and
+# `cursor:none` takes effect with no human touch required. Requires wlrctl (apt).
 #
-# Looped, not a single move: the Chromium kiosk is a SEPARATE user service, so its
-# surface may not be mapped yet when this autostart runs. ~10s of 0.5s-spaced
-# nudges rides out that startup gap; each move is 1px and the cursor is hidden
-# anyway, so the drift is invisible. Backgrounded so it never blocks the session.
+# Looped, not a single move: the Chromium kiosk is a SEPARATE user service, so
+# its surface may not be mapped yet when this runs. ~10s of 0.5s-spaced 1px
+# nudges rides out that gap; backgrounded so it never blocks the session.
 #
-# NOTE: this only hides the cursor once Chromium is up; the brief default pointer
-# during the pre-paint black gap is not addressed here (would need a transparent
-# cursor theme) and is accepted as-is.
+# Only hides the cursor once Chromium is up; the brief default pointer during
+# the pre-paint gap is accepted (fixing it needs a transparent cursor theme).
 [ -x "$(command -v wlrctl)" ] && (
   for _ in $(seq 1 20); do
     wlrctl pointer move 1 1

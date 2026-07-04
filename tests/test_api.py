@@ -1,4 +1,4 @@
-"""Phase 3 — /api/data route, cache-backed.
+"""/api/data route, cache-backed.
 
 A bare TestClient (no `with`) does NOT run the app's lifespan, so the background
 refresh loop never starts and no network call is made. The cache is redirected to

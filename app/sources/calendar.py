@@ -17,8 +17,7 @@ Two layers, kept apart so the transform is pure and unit-testable (mirrors
 
 `ok` tracks the Proton fetch ONLY. Holidays/observances/DST are offline and
 always merge in regardless — so a Proton outage (or no URL configured) still
-shows holidays, with the calendar honestly flagged stale. Per-source last-good
-cache fallback is Phase 6.
+shows holidays, with the calendar honestly flagged stale.
 
 The Proton URL is a SECRET bearer credential (embeds the decryption key inline)
 and the feed is PII-bearing. The URL is NEVER logged — fetch/parse failures log
@@ -140,12 +139,12 @@ def _emit(item: AgendaItem, window_lo: date, window_hi: date) -> list[AgendaItem
     """One normalized occurrence -> the agenda item(s) it contributes.
 
     * All-day -> one single-day all-day item per day it covers within the window
-      (a multi-day span repeats across each day — the Phase-9 MVP). `_covered_days`
-      clamps an in-progress span to Today, so it renders from Today forward.
+      (a multi-day span repeats across each day). `_covered_days` clamps an
+      in-progress span to Today, so it renders from Today forward.
     * Timed -> the item itself when its start lands in the window, else dropped.
-      A timed span that began before the window is still dropped: timed multi-day
-      rendering is deferred (see the Phase-9 backlog), and emitting its real
-      pre-window start would bucket it under a day the agenda never renders."""
+      A timed span that began before the window is dropped too: timed multi-day
+      rendering is deferred, and emitting its real pre-window start would bucket
+      it under a day the agenda never renders."""
     if item["all_day"]:
         days = _covered_days(
             date.fromisoformat(item["start"]),

@@ -1,4 +1,4 @@
-"""Phase 5 — calendar adapter tests.
+"""Calendar adapter tests.
 
 The heart is `normalize_events`, the pure transform from raw ICS text to the
 contract's personal agenda-items (recurrence expansion + EXDATE + the
@@ -229,7 +229,7 @@ def test_all_day_single_day_end_is_exclusive_next_day() -> None:
 
 
 def test_multiday_all_day_expands_to_one_item_per_covered_day() -> None:
-    # Multi-day rendering (Phase-9): a multi-day all-day event is exploded into
+    # A multi-day all-day event is exploded into
     # one single-day all-day item per day of its half-open span [start, end), so
     # it shows on EVERY day it covers (07-02, 07-03, 07-04 — not 07-05). Each
     # emitted day is itself half-open ([day, day+1)), the single-day `end` rule.
@@ -516,7 +516,7 @@ def test_get_calendar_no_url_is_holidays_only(monkeypatch: pytest.MonkeyPatch) -
 def test_get_calendar_proton_failure_keeps_last_good_personal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Phase 6 per-source last-good: a transient Proton blip must NOT wipe the
+    # Per-source last-good: a transient Proton blip must NOT wipe the
     # user's personal events from the agenda. With a last-good doc in hand, the
     # in-window personal events are kept (ok=False) and holidays still merge.
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")

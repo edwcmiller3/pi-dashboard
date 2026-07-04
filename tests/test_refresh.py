@@ -1,4 +1,4 @@
-"""Phase 6 — refresh-loop orchestration: TTL-gated cadence, per-source last-good
+"""Refresh-loop orchestration: TTL-gated cadence, per-source last-good
 fallback, clock-honesty, and failure backoff.
 
 The pure helpers (`_is_due`, `_backoff_delay`, `_clock_synced`) are tested

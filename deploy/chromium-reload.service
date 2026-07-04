@@ -1,13 +1,15 @@
-# Nightly Chromium reload — restarts ONLY the browser unit (not labwc, not the
-# backend). systemd USER service, triggered by chromium-reload.timer.
-# Installs to ~/.config/systemd/user/.
+# Manual Chromium reload — restarts ONLY the browser unit (not labwc, not the
+# backend). systemd USER service. Installs to ~/.config/systemd/user/.
 #
-# Why, given the 03:00 unattended-upgrades reboot exists: that reboot only fires
-# on nights an upgrade actually requires it. This guarantees a daily browser
-# refresh regardless — it picks up a deploy (`git pull`; with the no-cache static
-# headers the new bundle loads on this reload) and clears any Chromium memory
-# creep. Fires inside the 1a-6a blackout, so the reload flash sits behind the
-# app's black overlay.
+# No timer: nightly browser hygiene is owned by the power-off window (the smart
+# plug cold-boots the box at 06:00 daily, so every day starts with a fresh
+# Chromium). This unit remains as the documented way to pick up a same-day
+# frontend deploy without waiting for that boot:
+#
+#   systemctl --user start chromium-reload.service
+#
+# With the no-cache static headers, the restarted browser fetches the new
+# bundle immediately.
 
 [Unit]
 Description=Reload the pi-dashboard Chromium kiosk

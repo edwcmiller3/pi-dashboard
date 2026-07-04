@@ -1,11 +1,10 @@
 /* Pi Dashboard — v4 design (bento over ambient glow).
-   Ported from ~/Documents/pi_tmp/pi-dashboard-mockup-v4.html (2026-06-28).
    The BASE build is the no-blur "safe" build: .glass cards are a semi-transparent
    dark fill so the ambient glow tints through, with NO backdrop-filter. Real
-   frosted glass ships as a Phase-9 progressive enhancement gated on BOTH the
-   `.glass-blur` opt-in class and an `@supports` feature query (see the block
-   after `.glass`) — GPU-risky on a software compositor per spike 0.7, so the
-   safe build stays the floor and the panel's repaint smoothness is the judge.
+   frosted glass is a progressive enhancement gated on BOTH the `.glass-blur`
+   opt-in class and an `@supports` feature query (see the block after `.glass`)
+   — backdrop-filter is GPU-risky on a software compositor, so the safe build
+   stays the floor.
    Layout surface sized in rem against the 1280x800 effective viewport
    (root 16px -> 80rem x 50rem); hairline borders kept at 1px on purpose. */
 
@@ -78,27 +77,18 @@ body {
     0 16px 36px rgba(0, 0, 0, 0.4);
 }
 
-/* FROSTED-GLASS progressive enhancement (Phase-9 backlog, user request 2026-06-29).
-   Doubly gated so the safe build above is always the fallback:
+/* FROSTED-GLASS progressive enhancement. Doubly gated so the safe build above
+   is always the fallback:
      1. `@supports` — only applies where the browser advertises backdrop-filter
-        (prefixed or not; Chromium on the Pi honors the unprefixed form, the
-        `-webkit-` alias is defensive for the feature query and the declaration).
+        (the `-webkit-` alias is defensive for the query and the declaration).
      2. `.glass-blur` on `.screen` (index.html) — the opt-in. Remove that one
-        class to revert to the safe build with zero other edits; this is the
-        "one-flag-revertible if it janks on the panel" escape hatch.
-   The card fill alphas are LOWERED here (vs the safe build's 0.70/0.78) so the
-   blurred glow actually reads as frosted glass; they're still dark enough over
-   the #070a0f canvas to keep --text legible. Blur radius kept modest on purpose
-   — backdrop-filter is the single most expensive paint op on a software
-   compositor, so a big radius is exactly what would jank the clock tick / data
-   swap. Final radius + alphas are dialed on the panel, not in DevTools.
-   Also restores the RICHER ambient glows (muted in :root for the safe build) —
-   blur now diffuses them into soft washes rather than harsh blobs, which is what
-   sells the "glass" read; and brightens the card edge so it catches light like
-   real glass. All of it is inside this same gate, so the safe build keeps its
-   muted glows + hairline edge. Glow intensity doesn't change the blur cost
-   (backdrop-filter is dominated by radius x area, not alpha), so it rides the
-   same on-panel smoothness check as the blur itself. */
+        class to revert to the safe build with zero other edits.
+   Card fill alphas are LOWERED here (vs the safe build's 0.70/0.78) so the
+   blurred glow reads as frosted glass, but stay dark enough over the #070a0f
+   canvas to keep --text legible. Blur radius kept modest — backdrop-filter is
+   the most expensive paint op on a software compositor, and cost scales with
+   radius x area (not alpha), so the richer glows restored here ride free.
+   Final radius + alphas are dialed on the panel, not in DevTools. */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .screen.glass-blur {
     --glow-cyan: rgba(92, 200, 255, 0.3);
@@ -118,10 +108,10 @@ body {
 }
 
 /* ───────────── top: clock + current hero ───────────── */
-/* Vertical rebalance (Phase-9 backlog): the agenda card is the grid's elastic
-   `1fr` row, so a `min-height` floor on the two weather rows gives the hero +
-   forecast a bit more height and the agenda shrinks to match. Sizing-only, kept
-   modest on purpose; final proportions are validated on the panel. */
+/* Vertical rebalance: the agenda card is the grid's elastic `1fr` row, so a
+   `min-height` floor on the two weather rows gives the hero + forecast a bit
+   more height and the agenda shrinks to match. Final proportions are validated
+   on the panel. */
 .top {
   display: grid;
   grid-template-columns: 0.95fr 2.05fr;
@@ -542,22 +532,4 @@ body {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* Nightly blackout (1a–6a) — wall-clock-driven full-screen black overlay.
-   The panel has no DDC/CI and no /sys/class/backlight (spikes 0.4/0.5), and
-   cutting the HDMI signal can't hold it dark (0.4), so this is the only blackout
-   left: backlight + Pi stay on, the screen just renders black. Covers the whole
-   viewport (above the centered .screen) and absorbs touches so a night-time tap
-   does nothing — the window is wall-clock-driven, not idle/touch-driven.
-   app.js toggles [hidden]; display:none is set explicitly so a reset can't
-   leave a stale UA `hidden` style overridden. */
-.blackout {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: #000;
-}
-.blackout[hidden] {
-  display: none;
 }

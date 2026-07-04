@@ -1,7 +1,4 @@
-"""Phase 1 smoke test — proves the app imports and the health route works.
-
-Real source/cache tests land with their phases (3-6).
-"""
+"""Smoke test — proves the app imports and the health route works."""
 
 from fastapi.testclient import TestClient
 

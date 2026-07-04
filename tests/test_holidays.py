@@ -1,4 +1,4 @@
-"""Phase 5 increment 1 — holidays/observances/DST-markers source.
+"""Holidays/observances/DST-markers source.
 
 `get_holidays(start, end)` is pure and fully offline (the `holidays` lib +
 `zoneinfo`), so the whole suite runs with no network. It emits contract

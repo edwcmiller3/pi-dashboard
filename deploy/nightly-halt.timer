@@ -1,0 +1,19 @@
+# Fires nightly-halt.service at 01:00 local — the Pi shuts down cleanly, the
+# smart plug cuts wall power at 01:05 and restores it at 06:00 (plug schedule
+# lives on the plug, not in git; see README "Nightly power-off window").
+# systemd SYSTEM timer. Installs to /etc/systemd/system/:
+#
+#   sudo systemctl enable --now nightly-halt.timer
+
+[Unit]
+Description=Nightly 01:00 pre-halt (smart plug cuts wall power 01:05, restores 06:00)
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+# NEVER Persistent=true — a catch-up firing after a late boot (e.g. power
+# restored at 07:00) would halt the Pi mid-morning. The in-script hour guard
+# is the second layer of the same defense.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

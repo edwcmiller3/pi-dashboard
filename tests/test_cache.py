@@ -1,4 +1,4 @@
-"""Phase 3 — JSON cache round-trip + missing-key behavior.
+"""JSON cache round-trip + missing-key behavior.
 
 `cache_dir` is redirected to a per-test tmp dir by the autouse `_tmp_cache`
 fixture (see conftest), so these tests write only under `tmp_path`.
@@ -43,7 +43,7 @@ def test_write_leaves_no_tmp_file(tmp_path: Path) -> None:
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-# ── Phase 6 — corrupt/unreadable cache is non-fatal (degrades like a cold cache)
+# ── corrupt/unreadable cache is non-fatal (degrades like a cold cache) ───────
 
 
 def test_read_corrupt_json_returns_none(

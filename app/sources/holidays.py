@@ -2,11 +2,9 @@
 
 Pure and fully offline: no network, no I/O. Produces contract agenda-items
 (`start`/`all_day`/`title`/`kind`, with a date-only `start`) for a date window,
-ready to merge with the Proton personal events into one sorted agenda (the
-Phase-5 merge increment).
+ready to merge with the Proton personal events into one sorted agenda.
 
-Three tiers (per the 2026-06-28 decision; the lesser tier is the full set —
-user chose all 10):
+Three tiers (all 10 lesser observances included — 2026-06-28 decision):
   * federal US holidays -> kind="holiday"    (observed=False -> actual dates,
                                               no shifted "(observed)" ghost)
   * lesser/unofficial   -> kind="observance" (Valentine's, Halloween, ...),

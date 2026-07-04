@@ -1,4 +1,4 @@
-"""Phase 3 — weather adapter tests.
+"""Weather adapter tests.
 
 The heart of this is `normalize_weather`, the pure transform from raw Open-Meteo
 JSON to the contract's `weather` block (written test-first). `get_weather` is the

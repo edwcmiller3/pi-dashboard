@@ -2,8 +2,8 @@
 
 Pure, functional, no classes: an immutable lookup table plus pure functions.
 Single source of truth for (a) the vendored weather-icons font subset and
-(b) the Phase-4 weather transform that resolves `icon`/`text` for the data
-contract. The frontend never sees raw WMO codes.
+(b) the weather transform that resolves `icon`/`text` for the data contract.
+The frontend never sees raw WMO codes.
 
 Granularity: "Detailed" (2026-06-28 decision). Day/night variants come from
 Open-Meteo's free `is_day` field; neutral buckets (overcast/fog/mix/storm)

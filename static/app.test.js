@@ -36,7 +36,6 @@ import {
   pastIndexes,
   dayLabel,
   pickUpdated,
-  inBlackout,
 } from "./app.js";
 
 /**
@@ -534,63 +533,6 @@ test("pickUpdated: compares by instant across mixed offsets, excludes !ok", () =
     { ok: false, fetched_at: "2026-07-01T00:00:00-04:00" }, // stale -> ignored
   ]);
   assert.equal(got, "2026-07-01T12:30:00+00:00");
-});
-
-// ── inBlackout (nightly 1a–6a wall-clock blackout window) ────────────────────
-
-// A local Date at hour h (minute m) on an arbitrary day — the window is
-// hour-grained and day-agnostic, so the calendar date is irrelevant.
-/** @type {(h: number, m?: number) => Date} */
-const atHour = (h, m = 0) => new Date(2026, 5, 30, h, m);
-
-test("inBlackout: false just before the window opens (00:59)", () => {
-  assert.equal(inBlackout(atHour(0, 59)), false);
-});
-
-test("inBlackout: true exactly at the 01:00 open boundary (inclusive)", () => {
-  assert.equal(inBlackout(atHour(1, 0)), true);
-});
-
-test("inBlackout: true mid-window at 03:00 — the Phase-8 reboot lands in black", () => {
-  // The 03:00 nightly reboot is INSIDE the window; a fresh page load at 03:00
-  // must come back to black, which is exactly why this is wall-clock-driven and
-  // not a timer counting from boot.
-  assert.equal(inBlackout(atHour(3, 0)), true);
-});
-
-test("inBlackout: true at the last in-window minute (05:59)", () => {
-  assert.equal(inBlackout(atHour(5, 59)), true);
-});
-
-test("inBlackout: false exactly at the 06:00 close boundary (exclusive)", () => {
-  assert.equal(inBlackout(atHour(6, 0)), false);
-});
-
-test("inBlackout: false during the day and evening", () => {
-  assert.equal(inBlackout(atHour(0, 0)), false); // midnight, before the window
-  assert.equal(inBlackout(atHour(12, 0)), false);
-  assert.equal(inBlackout(atHour(23, 0)), false);
-});
-
-test("inBlackout: a window that wraps past midnight (start > end)", () => {
-  // The shipped 1a–6a window doesn't wrap, but the function supports it: a
-  // 22:00–06:00 window is in-blackout late evening AND early morning, not midday.
-  assert.equal(inBlackout(atHour(23, 0), 22, 6), true);
-  assert.equal(inBlackout(atHour(5, 0), 22, 6), true);
-  assert.equal(inBlackout(atHour(12, 0), 22, 6), false);
-});
-
-test("inBlackout: wrapped-window boundaries (22:00 inclusive, 06:00 exclusive)", () => {
-  // The exact edges of the wrapped path — the ones most likely to be off by one,
-  // and untested before (the wrap test above only checked interior hours).
-  assert.equal(inBlackout(atHour(21, 59), 22, 6), false); // just before open
-  assert.equal(inBlackout(atHour(22, 0), 22, 6), true); // inclusive open
-  assert.equal(inBlackout(atHour(5, 59), 22, 6), true); // last in-window minute
-  assert.equal(inBlackout(atHour(6, 0), 22, 6), false); // exclusive close
-});
-
-test("inBlackout: an empty window (start === end) is never in blackout", () => {
-  assert.equal(inBlackout(atHour(3, 0), 6, 6), false);
 });
 
 // mock.timers auto-reset per test via t.mock, but reset the top-level mock too in

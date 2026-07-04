@@ -101,9 +101,9 @@ def _forecast_day(daily: dict[str, Any], i: int) -> ForecastDay:
 def _require(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate the shape `normalize_weather` indexes into, turning a cryptic
     KeyError/IndexError on a malformed or truncated payload into a legible
-    ValueError. The transform stays all-or-nothing: a bad response raises and
-    the refresh loop keeps the last-good doc rather than rendering a partial
-    weather block (per-field tolerance was rejected — see the Phase-6 notes)."""
+    ValueError. All-or-nothing on purpose (per-field tolerance was rejected):
+    a bad response raises and the refresh loop keeps the last-good doc rather
+    than rendering a partial weather block."""
     try:
         cur = raw["current"]
         daily = raw["daily"]
@@ -185,7 +185,7 @@ async def get_weather() -> WeatherBlock:
 
     The blocking `requests` call is offloaded so the event loop never stalls.
     Raises on fetch/parse failure — the refresh loop catches it and keeps the
-    last-good cached doc (per-source soft-fail / cache fallback is Phase 6).
+    last-good cached doc.
     """
     raw = await asyncio.to_thread(_fetch_raw)
     data = normalize_weather(raw)

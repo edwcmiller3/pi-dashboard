@@ -1,4 +1,4 @@
-// Unattended security upgrades + nightly auto-reboot for the kiosk.
+// Unattended security upgrades for the kiosk.
 // Installs to /etc/apt/apt.conf.d/50unattended-upgrades (system file; needs root).
 // Pair with 20auto-upgrades (this dir), which enables the apt periodic timers
 // that actually run this.
@@ -8,10 +8,13 @@
 // overlayfs root — installs would land in the tmpfs upper layer and vanish on
 // reboot; that build updates by re-imaging instead.)
 //
-// Reboot at 03:00 lands INSIDE the app's 1a-6a CSS blackout, so the kiosk comes
-// back to the black overlay (wall-clock-driven), not a bright dashboard flash.
-// The backend + kiosk are enabled systemd units, so they restart automatically
-// on the reboot.
+// Timing vs. the nightly power-off window (01:05-06:00, smart plug + pre-halt):
+// the upgrade run is apt-daily-upgrade.timer (~06:00 + randomized delay,
+// Persistent=true), which fires right after the 06:00 wake — installs happen in
+// the morning, far from the 01:00 halt, and a trigger missed while off is caught
+// on boot. No Automatic-Reboot config: the daily 06:00 cold boot satisfies any
+// reboot-required by construction (a scheduled 03:00 reboot could never fire
+// anyway — the box is off at 03:00).
 
 Unattended-Upgrade::Origins-Pattern {
     // Security updates only — keep the appliance stable; no feature churn.
@@ -24,6 +27,6 @@ Unattended-Upgrade::Origins-Pattern {
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 
-// Reboot automatically if an upgrade needs it, at 03:00 (inside the blackout).
-Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-Time "03:00";
+// No auto-reboot — the nightly power-off cycle cold-boots the box at 06:00
+// daily, which picks up any pending kernel/libc within 24 h of install.
+Unattended-Upgrade::Automatic-Reboot "false";

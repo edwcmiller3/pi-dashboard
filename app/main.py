@@ -7,8 +7,7 @@ contract, and caches the doc; `/api/data` serves that doc to the polling fronten
 The refresh loop is deliberately "unkillable": a failing tick is caught and
 logged so the loop survives (the cache keeps the last-good doc), the task is
 held by a strong `app.state` ref so it isn't garbage-collected mid-flight, and
-a done-callback logs loudly if it ever exits unexpectedly. This pattern is
-load-bearing for the Phase-6 freshness hardening, established now with one source.
+a done-callback logs loudly if it ever exits unexpectedly.
 """
 
 from __future__ import annotations
@@ -325,7 +324,7 @@ app = FastAPI(title="pi-dashboard", version="0.1.0", lifespan=lifespan)
 
 @app.get("/healthz")
 def healthz() -> JSONResponse:
-    """Liveness probe — also the thing the Phase-1 exit criterion hits."""
+    """Liveness probe."""
     return JSONResponse({"status": "ok"})
 
 
@@ -381,7 +380,7 @@ class _NoCacheStaticFiles(StaticFiles):
     each load. Combined with the ETag/Last-Modified `StaticFiles` already stamps,
     an unchanged asset short-circuits to a 304 (free over localhost) while a
     deploy (`git pull`) is picked up the instant the file differs — no stale
-    `app.js` surviving until a hard refresh / nightly reload / 03:00 reboot.
+    `app.js` surviving until a hard refresh / the next 06:00 cold boot.
     `/api/data` is a separate route (unaffected); the frontend already fetches it
     with `cache:"no-store"`.
     """

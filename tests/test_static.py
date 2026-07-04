@@ -1,8 +1,8 @@
-"""Phase 8 — static-asset deploy freshness.
+"""Static-asset deploy freshness.
 
 `StaticFiles` stamps ETag/Last-Modified but no `Cache-Control`, so a browser may
 reuse an old `app.js`/`style.css`/`index.html` after a `git pull` until something
-busts the cache (hard refresh, nightly Chromium reload, 03:00 reboot). On the
+busts the cache (hard refresh, the next 06:00 cold boot). On the
 kiosk that means a same-day deploy can be silently masked by a stale cached
 bundle. We send `Cache-Control: no-cache` on every static response: the browser
 keeps its copy but MUST revalidate (cheap 304 over localhost when unchanged, a
@@ -45,7 +45,7 @@ def test_static_revalidation_validators_present() -> None:
     assert resp.headers.get("last-modified")
 
 
-# ── Frosted-glass progressive enhancement (Phase-9 backlog) ──────────────────
+# ── Frosted-glass progressive enhancement ────────────────────────────────────
 # The frosted-glass build is a PURE-CSS progressive enhancement. Its visual
 # result and repaint smoothness are validated on the panel, not here — that
 # can't be unit-tested. The ONE invariant worth guarding automatically is the
