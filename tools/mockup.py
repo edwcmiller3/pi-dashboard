@@ -5,6 +5,14 @@ with headless Chrome into docs/mockup.png:
 
     uv run python -m tools.mockup
 
+Palette preview: `--theme <name>` runs the server with THEME=<name> (a
+stylesheet in static/themes/), screenshotting to docs/mockup-<name>.png so the
+README image is never clobbered by a theme experiment (override with --out).
+`--serve` skips Chrome and keeps the fixture-backed server running to browse
+interactively — in that mode the fixture is built in the machine's LOCAL zone
+so event times line up with the real browser clock, which means which marquee
+states appear (next-up, roll-off) depends on the time of day you run it.
+
 Every stamp in the fixture is fresh, so the server's boot refresh tick sees
 both sources within TTL and serves the fixture verbatim — no live fetch, no
 .env / PROTON_ICS_URL needed, and nothing personal on screen (all event titles
@@ -32,6 +40,7 @@ precludes by design — the trim only runs once every past row has rolled.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -40,7 +49,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -69,7 +78,7 @@ def fake_zone() -> tuple[str, timezone]:
     return name, timezone(timedelta(hours=offset))
 
 
-def build_doc(tz: timezone) -> DashboardDoc:
+def build_doc(tz: tzinfo) -> DashboardDoc:
     """The fixture DashboardDoc — fabricated values, contract-true shapes."""
     now = datetime.now(tz)
 
@@ -199,8 +208,21 @@ def build_doc(tz: timezone) -> DashboardDoc:
     }
 
 
-def wait_healthy(url: str, tries: int = 50) -> None:
+def wait_healthy(url: str, server: subprocess.Popen[bytes], tries: int = 50) -> None:
+    """Poll `url` until the fixture server answers — watching the CHILD too.
+
+    If the child exits while we poll (typically a bind failure because another
+    server — e.g. a lingering `--serve` session — already holds the port), fail
+    loudly. Without that check a foreign server on the same port answers the
+    health probe and the screenshot silently captures the WRONG app state.
+    """
     for _ in range(tries):
+        if server.poll() is not None:
+            raise RuntimeError(
+                f"fixture server exited (code {server.returncode}) before "
+                f"becoming healthy — is the port already in use, e.g. by a "
+                f"running --serve session? Try --port."
+            )
         try:
             with urllib.request.urlopen(url, timeout=1):
                 return
@@ -209,23 +231,88 @@ def wait_healthy(url: str, tries: int = 50) -> None:
     raise RuntimeError(f"server never became healthy at {url}")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Render the mockup screenshot (or serve the fixture-backed "
+        "app) from fabricated, PII-free data."
+    )
+    parser.add_argument(
+        "--theme",
+        help="palette override: a stylesheet name from static/themes/ (no .css)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        help="screenshot path (default docs/mockup.png, "
+        "or docs/mockup-<theme>.png with --theme)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=PORT,
+        help=f"local port for the fixture server (default {PORT}); pick "
+        "another when a --serve session already holds the default",
+    )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="keep the fixture-backed server running to browse interactively "
+        "instead of screenshotting (fixture built in the LOCAL zone, so which "
+        "marquee states show depends on the time of day)",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    if not Path(CHROME).exists():
+    args = parse_args()
+    if args.theme:
+        themes_dir = REPO / "static" / "themes"
+        if not (themes_dir / f"{args.theme}.css").is_file():
+            names = ", ".join(sorted(p.stem for p in themes_dir.glob("*.css")))
+            print(
+                f"unknown theme {args.theme!r} — available: {names or '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
+    if not args.serve and not Path(CHROME).exists():
         print(f"Chrome not found at {CHROME!r} — set CHROME_BIN", file=sys.stderr)
         return 1
-    tz_name, tz = fake_zone()
+    # A themed frame defaults to its own file so a palette experiment can never
+    # silently clobber the README image.
+    out: Path = args.out or (
+        OUT.with_name(f"mockup-{args.theme}.png") if args.theme else OUT
+    )
+    if args.serve:
+        # Interactive browsing: the viewer's browser runs on real local time, so
+        # build the fixture in the local zone to keep event times aligned.
+        local = datetime.now().astimezone().tzinfo
+        assert local is not None
+        tz_name, tz = "local", local
+    else:
+        tz_name, tz = fake_zone()
     with tempfile.TemporaryDirectory(prefix="mockup-cache-") as cache_dir:
         (Path(cache_dir) / "dashboard.json").write_text(json.dumps(build_doc(tz)))
+        server_env = {**os.environ, "CACHE_DIR": cache_dir}
+        if args.theme:
+            server_env["THEME"] = args.theme
         server = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(PORT)],
+            [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(args.port)],
             cwd=REPO,
-            env={**os.environ, "CACHE_DIR": cache_dir},
+            env=server_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         try:
-            wait_healthy(f"http://127.0.0.1:{PORT}/healthz")
-            OUT.parent.mkdir(parents=True, exist_ok=True)
+            wait_healthy(f"http://127.0.0.1:{args.port}/healthz", server)
+            if args.serve:
+                note = f" (theme: {args.theme})" if args.theme else ""
+                print(f"serving http://127.0.0.1:{args.port}/{note} — Ctrl-C to stop")
+                try:
+                    server.wait()
+                except KeyboardInterrupt:
+                    pass
+                return 0
+            out.parent.mkdir(parents=True, exist_ok=True)
             chrome_args = [
                 CHROME,
                 "--headless",
@@ -234,10 +321,10 @@ def main() -> int:
                 "--force-device-scale-factor=2",  # 2560x1600 png: crisp in the README
                 "--virtual-time-budget=6000",
             ]
-            url = f"http://127.0.0.1:{PORT}/"
+            url = f"http://127.0.0.1:{args.port}/"
             env = {**os.environ, "TZ": tz_name}
             subprocess.run(
-                [*chrome_args, f"--screenshot={OUT}", url],
+                [*chrome_args, f"--screenshot={out}", url],
                 env=env,
                 check=True,
                 capture_output=True,
@@ -272,7 +359,7 @@ def main() -> int:
         finally:
             server.terminate()
             server.wait(timeout=10)
-    print(f"wrote {OUT} (clock pinned to {DISPLAY_HOUR}:00 via TZ={tz_name})")
+    print(f"wrote {out} (clock pinned to {DISPLAY_HOUR}:00 via TZ={tz_name})")
     return 0
 
 

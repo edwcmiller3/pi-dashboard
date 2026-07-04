@@ -33,5 +33,10 @@ class Settings(BaseSettings):
     # --- Cache (JSON now; SQLite-swappable later) ---
     cache_dir: str = "var"
 
+    # --- Theme (optional palette override) ---
+    # Name of a stylesheet in static/themes/ (without ".css") served at
+    # /theme.css to override the :root palette vars. Empty = built-in palette.
+    theme: str = ""
+
 
 settings = Settings()

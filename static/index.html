@@ -7,6 +7,10 @@
 <!-- Self-hosted, subset weather-icons font (no CDN — prod requirement). -->
 <link rel="stylesheet" href="vendor/weather-icons/weather-icons.css" />
 <link rel="stylesheet" href="style.css" />
+<!-- Palette override (THEME setting): the server serves the configured
+     static/themes/<name>.css here, or empty CSS when unset. Loaded after
+     style.css so its :root block wins the cascade. -->
+<link rel="stylesheet" href="theme.css" />
 </head>
 <body>
   <!-- v4 layout (bento over ambient glow). Designed for the 1280x800 effective

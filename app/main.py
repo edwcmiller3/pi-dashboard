@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -391,7 +392,38 @@ class _NoCacheStaticFiles(StaticFiles):
         return response
 
 
-# Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz and /api/* take precedence over the catch-all static mount.
 _static_dir = Path(__file__).resolve().parent.parent / "static"
+
+# A theme name is interpolated into a filesystem path, so it must be a bare
+# slug — anything with a separator (or any other oddity) is rejected outright.
+_THEME_NAME_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
+
+
+@app.get("/theme.css")
+def theme_css() -> Response:
+    """The configured palette override (THEME setting), or empty CSS when unset.
+
+    index.html links this after style.css, so the theme's `:root` block wins
+    the cascade over the built-in palette. Any invalid THEME — a non-slug name
+    or a stylesheet that doesn't exist under static/themes/ — degrades to the
+    built-in palette with a logged warning; the kiosk must never lose the
+    dashboard over a bad theme value. Read per request (like the no-cache
+    static bundle) so editing a theme file shows on the next reload.
+    """
+    css = ""
+    if settings.theme:
+        path = _static_dir / "themes" / f"{settings.theme}.css"
+        if not _THEME_NAME_RE.fullmatch(settings.theme):
+            log.warning("THEME %r is not a bare theme name; ignoring", settings.theme)
+        else:
+            try:
+                css = path.read_text(encoding="utf-8")
+            except OSError:
+                log.warning("THEME stylesheet %s is unreadable; ignoring", path)
+    return Response(css, media_type="text/css", headers={"Cache-Control": "no-cache"})
+
+
+# Serve the static dashboard. html=True serves index.html at "/". Mounted last
+# so /healthz, /api/*, and /theme.css take precedence over the catch-all
+# static mount.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

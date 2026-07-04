@@ -1,0 +1,27 @@
+/* Nord-inspired dark palette (https://www.nordtheme.com — colors adapted, not
+   copied wholesale: surfaces are darkened for the dim-room kiosk).
+
+   THEME CONTRACT — a theme is ONE `:root` block overriding the palette vars
+   defined at the top of style.css, nothing else. Every alpha tint, glow, and
+   card fill in style.css is color-mix()-derived from these base vars, so they
+   retint automatically; don't restate selectors or override --glow-* here
+   (the frosted-glass build re-derives glow intensity on `.screen.glass-blur`,
+   which would win over a :root glow override anyway). Copy this file to
+   static/themes/<name>.css and set THEME=<name> in .env (or pass
+   --theme <name> to tools/mockup.py). */
+:root {
+  --text: #eceff4;
+  --muted: #9aa7bd;
+  --faint: #616e88;
+  --accent: #d08770; /* aurora orange — event times, hero icon */
+  --cool: #88c0d0; /* frost cyan — forecast icons, today/next-up identity */
+  --gold: #ebcb8b; /* aurora yellow — holiday pills */
+  --ok: #a3be8c; /* aurora green — fresh status dots */
+  --stale: #bf616a; /* aurora red — stale dots / warnings */
+  --violet: #b48ead; /* aurora purple — ambient glow only */
+  --bg: #000;
+  --canvas: #0c111b;
+  --card-hi: #2a3040;
+  --card-lo: #1c212d;
+  --edge: #e5e9f0;
+}

@@ -1,0 +1,22 @@
+/* Gruvbox-inspired dark palette (https://github.com/morhetz/gruvbox — colors
+   adapted, not copied wholesale: surfaces are darkened for the dim-room kiosk).
+   Warm retro browns/cream where nord is cool steel/frost.
+
+   THEME CONTRACT — a theme is ONE `:root` block overriding the palette vars
+   defined at the top of style.css, nothing else (see themes/nord.css). */
+:root {
+  --text: #ebdbb2;
+  --muted: #a89984;
+  --faint: #7c6f64;
+  --accent: #fe8019; /* orange — event times, hero icon */
+  --cool: #83a598; /* blue — forecast icons, today/next-up identity */
+  --gold: #fabd2f; /* yellow — holiday pills */
+  --ok: #b8bb26; /* green — fresh status dots */
+  --stale: #fb4934; /* red — stale dots / warnings */
+  --violet: #d3869b; /* purple — ambient glow only */
+  --bg: #000;
+  --canvas: #131110;
+  --card-hi: #322e29;
+  --card-lo: #211f1b;
+  --edge: #f2e5bc;
+}
