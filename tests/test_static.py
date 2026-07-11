@@ -16,8 +16,6 @@ separate JSON route the frontend already fetches with `cache:"no-store"`.
 
 from __future__ import annotations
 
-import re
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -43,64 +41,3 @@ def test_static_revalidation_validators_present() -> None:
     resp = TestClient(app).get("/app.js")
     assert resp.headers.get("etag")
     assert resp.headers.get("last-modified")
-
-
-# ── Frosted-glass progressive enhancement ────────────────────────────────────
-# The frosted-glass build is a PURE-CSS progressive enhancement. Its visual
-# result and repaint smoothness are validated on the panel, not here — that
-# can't be unit-tested. The ONE invariant worth guarding automatically is the
-# fallback contract: `backdrop-filter` (the GPU-expensive op) must never be
-# reachable on a software compositor. It ships gated by BOTH `@supports` (feature
-# query) AND a `.glass-blur` opt-in class, so removing that one class reverts to
-# the safe build. These text-level checks guard against a future edit
-# accidentally making the blur unconditional and breaking the SW-render floor.
-
-
-def _supports_blocks(css: str) -> list[str]:
-    """Return the body text of every top-level `@supports (...) { ... }` block.
-
-    A hand-rolled brace matcher (no CSS-parser dependency); adequate because the
-    stylesheet's only nested at-rule is this one enhancement block.
-    """
-    blocks: list[str] = []
-    marker = "@supports"
-    idx = css.find(marker)
-    while idx != -1:
-        open_brace = css.find("{", idx)
-        depth, j = 1, open_brace + 1
-        while j < len(css) and depth:
-            depth += (css[j] == "{") - (css[j] == "}")
-            j += 1
-        blocks.append(css[open_brace + 1 : j - 1])
-        idx = css.find(marker, j)
-    return blocks
-
-
-def test_glass_blur_is_gated_by_supports_and_optin_class() -> None:
-    # Strip `/* ... */` comments first so prose mentions of `@supports` /
-    # `backdrop-filter` in the stylesheet's docs can't skew the structural checks.
-    raw = TestClient(app).get("/style.css").text
-    css = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL)
-
-    # Fallback contract: a `.glass` rule with a solid-ish fill must exist OUTSIDE
-    # any @supports block, so a compositor without backdrop-filter still gets the
-    # safe surface. (Everything before the first @supports is un-gated CSS.)
-    ungated = css.split("@supports", 1)[0]
-    assert ".glass {" in ungated
-    assert "background:" in ungated.split(".glass {", 1)[1]
-
-    # Every backdrop-filter DECLARATION (prefixed or not — `-webkit-backdrop-
-    # filter:` ends in the same `backdrop-filter:` substring) must live inside an
-    # @supports block, and never in the un-gated CSS. The colon form ignores
-    # prose mentions of the property in comments.
-    assert "backdrop-filter:" not in ungated
-
-    supports_bodies = _supports_blocks(css)
-    assert supports_bodies, "expected an @supports block for the frosted-glass build"
-    blur_bodies = [b for b in supports_bodies if "backdrop-filter:" in b]
-    assert blur_bodies, "backdrop-filter must be declared inside @supports"
-
-    # …and each such block must scope the blur under the `.glass-blur` opt-in, so
-    # the enhancement is off unless the class is present on the container.
-    for body in blur_bodies:
-        assert ".glass-blur" in body

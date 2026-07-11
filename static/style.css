@@ -1,10 +1,9 @@
-/* Pi Dashboard — v4 design (bento over ambient glow).
-   The BASE build is the no-blur "safe" build: .glass cards are a semi-transparent
-   dark fill so the ambient glow tints through, with NO backdrop-filter. Real
-   frosted glass is a progressive enhancement gated on BOTH the `.glass-blur`
-   opt-in class and an `@supports` feature query (see the block after `.glass`)
-   — backdrop-filter is GPU-risky on a software compositor, so the safe build
-   stays the floor.
+/* Pi Dashboard — v4 design (bento over ambient glow, no-blur "safe" build).
+   Deliberately NO backdrop-filter: .glass cards are a semi-transparent dark
+   fill so the ambient glow tints through. A frosted-glass backdrop-filter
+   enhancement shipped 2026-07-01 and was reverted 2026-07-11 — the GPU
+   compositing it forced ran the Pi hot even with an active cooler. Don't
+   reintroduce blur without checking panel temps.
    Layout surface sized in rem against the 1280x800 effective viewport
    (root 16px -> 80rem x 50rem); hairline borders kept at 1px on purpose. */
 
@@ -28,10 +27,8 @@
   --card-hi: #161e29; /* .glass gradient top (alpha applied via color-mix) */
   --card-lo: #0e141c; /* .glass gradient bottom */
   --edge: #fff; /* hairline borders / inset highlights */
-  /* Ambient corner glows — muted DEFAULTS for the safe (no-blur) build, where
-     there's nothing to diffuse them so full intensity would read as harsh color
-     blobs. The frosted-glass opt-in overrides these with richer alphas (blur
-     diffuses them into soft washes). See the @supports block after `.glass`. */
+  /* Ambient corner glows — muted alphas: with no blur to diffuse them, full
+     intensity would read as harsh color blobs. */
   --glow-cyan: color-mix(in srgb, var(--cool) 18%, transparent);
   --glow-amber: color-mix(in srgb, var(--accent) 12%, transparent);
   --glow-violet: color-mix(in srgb, var(--violet) 13%, transparent);
@@ -58,9 +55,7 @@ body {
   cursor: none;
 }
 
-/* ambient canvas — glow intensity comes from the --glow-* vars (muted by default
-   for the safe build; richer under the frosted-glass opt-in, which has blur to
-   diffuse them). */
+/* ambient canvas — glow intensity comes from the --glow-* vars */
 .screen {
   width: 80rem;
   height: 50rem;
@@ -90,40 +85,6 @@ body {
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--edge) 6%, transparent) inset,
     0 16px 36px rgba(0, 0, 0, 0.4);
-}
-
-/* FROSTED-GLASS progressive enhancement. Doubly gated so the safe build above
-   is always the fallback:
-     1. `@supports` — only applies where the browser advertises backdrop-filter
-        (the `-webkit-` alias is defensive for the query and the declaration).
-     2. `.glass-blur` on `.screen` (index.html) — the opt-in. Remove that one
-        class to revert to the safe build with zero other edits.
-   Card fill alphas are LOWERED here (vs the safe build's 0.70/0.78) so the
-   blurred glow reads as frosted glass, but stay dark enough over the --canvas
-   base to keep --text legible. Blur radius kept modest — backdrop-filter is
-   the most expensive paint op on a software compositor, and cost scales with
-   radius x area (not alpha), so the richer glows restored here ride free.
-   Final radius + alphas are dialed on the panel, not in DevTools. */
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .screen.glass-blur {
-    --glow-cyan: color-mix(in srgb, var(--cool) 30%, transparent);
-    --glow-amber: color-mix(in srgb, var(--accent) 22%, transparent);
-    --glow-violet: color-mix(in srgb, var(--violet) 24%, transparent);
-    --glow-teal: color-mix(in srgb, var(--ok) 20%, transparent);
-  }
-  .screen.glass-blur .glass {
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--card-hi) 50%, transparent) 0%,
-      color-mix(in srgb, var(--card-lo) 58%, transparent) 100%
-    );
-    border-color: color-mix(in srgb, var(--edge) 14%, transparent);
-    box-shadow:
-      0 1px 0 color-mix(in srgb, var(--edge) 10%, transparent) inset,
-      0 16px 36px rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(12px) saturate(1.3);
-    backdrop-filter: blur(12px) saturate(1.3);
-  }
 }
 
 /* ───────────── top: clock + current hero ───────────── */
