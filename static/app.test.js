@@ -205,8 +205,8 @@ test("splitColumns: 2 groups -> today (first) alone in col1, rest in col2", () =
 });
 
 test("splitColumns: a light today still gets col1 to itself (no balancing)", () => {
-  // The old height-balanced rule would pull d2 up beside a light d1; the v4
-  // rule keeps today alone regardless of how few events it has.
+  // A height-balanced rule would pull d2 up beside a light d1; this rule
+  // keeps today alone regardless of how few events it has.
   const groups = [dayGroup("d1", 1), dayGroup("d2", 100)];
   const [c1, c2] = splitColumns(groups);
   assert.deepEqual(

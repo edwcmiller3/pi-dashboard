@@ -86,6 +86,20 @@ def _tmp_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(settings, "cache_dir", str(tmp_path))
 
 
+@pytest.fixture(autouse=True)
+def _default_weather_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the weather-source settings to their shipped defaults for every test.
+
+    `settings` reads the developer's real `.env` at import, so without this a
+    deployed checkout (NWS_STATION set — the feature's normal end state) fails
+    the tests that assert off-by-default behavior AND lets `get_weather` tests
+    that only patch `_fetch_raw` make a live api.weather.gov call mid-suite —
+    a network-dependent, weather-dependent flake. Tests that need overrides
+    re-set these in their own body (which runs after autouse fixtures)."""
+    monkeypatch.setattr(settings, "nws_station", "")
+    monkeypatch.setattr(settings, "weather_model", "best_match")
+
+
 @pytest.fixture
 def clock_synced(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Path]:
     """Make `main._clock_synced()` report True: the timesyncd runtime dir exists

@@ -5,7 +5,8 @@ Single source of truth for (a) the vendored weather-icons font subset and
 (b) the weather transform that resolves `icon`/`text` for the data contract.
 The frontend never sees raw WMO codes.
 
-Granularity: "Detailed" (2026-06-28 decision). Day/night variants come from
+Granularity: "Detailed" — one entry per WMO interpretation code, not coarse
+buckets. Day/night variants come from
 Open-Meteo's free `is_day` field; neutral buckets (overcast/fog/mix/storm)
 use one glyph for both. NOTE: these are Open-Meteo WMO *interpretation* codes,
 deliberately mapped by hand from Open-Meteo's documented list -- NOT the

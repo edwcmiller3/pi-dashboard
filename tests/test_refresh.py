@@ -466,9 +466,7 @@ def test_refresh_loop_healthy_tick_sleeps_the_shortest_ttl(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Base cadence = min(weather, calendar) TTL; healthy ticks never back off.
-    delays = _run_loop(
-        monkeypatch, [True, True], weather_ttl=900, calendar_ttl=1800
-    )
+    delays = _run_loop(monkeypatch, [True, True], weather_ttl=900, calendar_ttl=1800)
     assert delays == [900.0, 900.0]
 
 

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Local bind (spec §5) ---
+    # --- Local bind (loopback only; the kiosk browser is the sole client) ---
     host: str = "127.0.0.1"
     port: int = 8000
 
@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     weather_lat: float = 40.7128
     weather_lon: float = -74.0060
     weather_ttl_seconds: int = 900
+
+    # --- Weather: model + optional NWS observation overlay ---
+    # Open-Meteo forecast model (models= param). "best_match" = provider default.
+    # US deployments may prefer "ncep_nbm_conus" (NOAA's calibrated blend);
+    # judge over ~2 weeks before pinning.
+    weather_model: str = "best_match"
+    # NWS station ID (e.g. "KOQT") for real current-conditions observations on
+    # the hero. US-only; empty = disabled (hero stays pure Open-Meteo).
+    # .env.example documents how to find the nearest station.
+    nws_station: str = ""
+    # Sent on every NWS call (required by api.weather.gov; they ask for contact
+    # info). Personalize in .env, e.g. "pi-dashboard (you@example.com)".
+    nws_user_agent: str = "pi-dashboard (https://github.com/edwcmiller3/pi-dashboard)"
 
     # --- Calendar (Proton ICS) ---
     # PROTON_ICS_URL is secret + PII-bearing — set it in .env, never commit it.

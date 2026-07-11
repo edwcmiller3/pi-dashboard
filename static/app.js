@@ -202,7 +202,7 @@ export function groupByDay(events) {
   return [...map.entries()].map(([date, items]) => ({ date, items }));
 }
 
-// Split ordered day groups into two columns the way the v4 mockup does:
+// Split ordered day groups into two columns the way the README mockup does:
 // TODAY (the first/earliest group — events arrive pre-sorted) gets column 1 to
 // itself; all upcoming days stack in column 2, chronological order preserved.
 // This is a deliberate hierarchy (today is the focus), NOT height-balancing.
@@ -424,7 +424,7 @@ export function planColumnFit(totalHeight, dayHeights, footerHeight, budget) {
   return { dropCount, showFooter: dropCount > 0 && h <= budget };
 }
 
-// ── inline SVG (refresh), matching the v4 mockup ─────────────────────────────
+// ── inline SVG (refresh), matching the mockup ─────────────────────────────────
 
 const REFRESH_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">' +

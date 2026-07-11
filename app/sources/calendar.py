@@ -5,7 +5,8 @@ Two layers, kept apart so the transform is pure and unit-testable (mirrors
   * `normalize_events(ics_text, start, end, tz)` — pure: raw ICS text -> the
     contract's personal agenda-items. Parses with `icalendar`, expands
     recurrences with `recurring-ical-events` over tz-aware `[start, end)` bounds
-    (naive bounds raise — lib #26), honors EXDATE-on-master (confirmed 0.D1),
+    (naive bounds raise — recurring-ical-events#26), honors EXDATE-on-master
+    (verified against a live Proton feed),
     and normalizes the DATE-vs-DATETIME split: all-day -> date-only `start`
     (`all_day=True`); timed -> ISO-with-offset `start` (`all_day=False`). A
     multi-day all-day span is exploded into one single-day item per day it covers
@@ -53,7 +54,7 @@ _SESSION: Final = build_session()
 _DISPLAY_TZ: Final = "America/New_York"
 
 # Agenda window: today + 4 future days, aligned with the 4-future-day forecast
-# row. A short window (0.D1) — NOT a 180-day span that would expand a daily
+# row. A deliberately short window — NOT a 180-day span that would expand a daily
 # event into hundreds of rows.
 _AGENDA_DAYS: Final = 5
 
@@ -77,7 +78,7 @@ def _window(now: datetime, days: int = _AGENDA_DAYS) -> tuple[datetime, datetime
 def _iso(dt: date | datetime, tz: ZoneInfo) -> str:
     """Normalize an occurrence's DTSTART/DTEND to a contract ISO string.
     `datetime` subclasses `date`, so test datetime first: timed -> ISO-with-offset
-    (the feed is tz-aware in the display zone per 0.D1; a naive datetime is
+    (Proton feeds are tz-aware in the display zone — verified live; a naive datetime is
     localized as a defensive fallback); all-day DATE -> date-only `YYYY-MM-DD`."""
     if isinstance(dt, datetime):
         if dt.tzinfo is None:
@@ -176,9 +177,7 @@ def normalize_events(
         for occ in recurring_ical_events.of(cal).between(start, end)
     )
     return [
-        emitted
-        for occ in occurrences
-        for emitted in _emit(occ, window_lo, window_hi)
+        emitted for occ in occurrences for emitted in _emit(occ, window_lo, window_hi)
     ]
 
 

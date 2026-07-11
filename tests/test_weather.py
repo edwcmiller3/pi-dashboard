@@ -15,14 +15,17 @@ spreading lives in one place.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 
+from app.config import Settings, settings
 from app.sources import weather
+from app.sources.nws import Observation
 
-# A realistic single-call Open-Meteo response (shape confirmed live in 0.D4 +
-# the v4 expanded-fields decision). timezone=auto -> naive-local time strings;
+# A realistic single-call Open-Meteo response (shape captured from a live API
+# response). timezone=auto -> naive-local time strings;
 # utc_offset_seconds carries the offset. 5 daily entries: today + 4 future.
 RAW: dict[str, Any] = {
     "latitude": 36.0,
@@ -247,3 +250,117 @@ def test_get_weather_wraps_with_ok_and_offset_stamp(
     # covered by test_round_half_up / test_current_numbers_rounded_to_int).
     assert result["current"]["icon"] == "wi-day-sunny"
     assert len(result["forecast"]) == 4
+
+
+# ── get_weather: optional NWS observation overlay ─────────────────────────────
+
+
+def _fresh_observation(temp_f: float) -> Observation:
+    return Observation(
+        timestamp=datetime.now(timezone.utc),
+        temp_f=temp_f,
+        heat_index_f=None,
+        wind_chill_f=None,
+        humidity_pct=80.0,
+        wind_mph=None,
+        wmo_code=None,
+    )
+
+
+def test_no_station_means_no_nws_call_and_identical_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # NWS_STATION unset (the default) must produce output identical to pure
+    # Open-Meteo AND attempt zero NWS traffic.
+    async def _must_not_be_called(station: str) -> Observation | None:
+        raise AssertionError("fetch_observation called with NWS_STATION unset")
+
+    monkeypatch.setattr(weather, "fetch_observation", _must_not_be_called)
+    monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
+    # the SHIPPED default is OFF (the runtime value is pinned "" by conftest's
+    # autouse fixture, so assert the class default, not the instance)
+    assert Settings.model_fields["nws_station"].default == ""
+    result = asyncio.run(weather.get_weather())
+    assert result["current"] == weather.normalize_weather(RAW)["current"]
+
+
+def test_station_set_and_observation_returned_merges_the_hero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_fetch(station: str) -> Observation | None:
+        assert station == "KTST"
+        return _fresh_observation(temp_f=90.4)
+
+    monkeypatch.setattr(settings, "nws_station", "KTST")
+    monkeypatch.setattr(weather, "fetch_observation", _fake_fetch)
+    monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
+    result = asyncio.run(weather.get_weather())
+    assert result["current"]["temp_f"] == 90  # obs, not the model's 72
+    assert result["current"]["humidity_pct"] == 80
+    # forecast cards are untouched by the overlay
+    assert result["forecast"] == weather.normalize_weather(RAW)["forecast"]
+
+
+def test_station_set_but_fetch_fails_keeps_pure_model_hero_and_ok(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The overlay is fail-soft end to end: a dead api.weather.gov degrades to
+    # today's pure-model hero on a SUCCESSFUL tick — never a failed block.
+    async def _fake_fetch(station: str) -> Observation | None:
+        return None
+
+    monkeypatch.setattr(settings, "nws_station", "KTST")
+    monkeypatch.setattr(weather, "fetch_observation", _fake_fetch)
+    monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
+    result = asyncio.run(weather.get_weather())
+    assert result["ok"] is True
+    assert result["current"] == weather.normalize_weather(RAW)["current"]
+
+
+# ── _fetch_raw: forecast-model param ─────────────────────────────────────────
+
+
+class _FakeResponse:
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> dict[str, Any]:
+        return RAW
+
+
+def _capture_params(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    captured: dict[str, Any] = {}
+
+    class _FakeSession:
+        def get(self, url: str, params: dict[str, Any], timeout: int) -> _FakeResponse:
+            captured.update(params)
+            return _FakeResponse()
+
+    monkeypatch.setattr(weather, "_SESSION", _FakeSession())
+    return captured
+
+
+def test_fetch_sends_default_weather_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = _capture_params(monkeypatch)
+    weather._fetch_raw()
+    assert captured["models"] == "best_match"  # the provider-default setting
+
+
+def test_fetch_respects_weather_model_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "weather_model", "ncep_nbm_conus")
+    captured = _capture_params(monkeypatch)
+    weather._fetch_raw()
+    assert captured["models"] == "ncep_nbm_conus"
+
+
+def test_fetch_treats_empty_weather_model_as_provider_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # WEATHER_MODEL= (empty) in .env overrides the settings default with "" —
+    # that must still mean best_match, never a models="" query param.
+    monkeypatch.setattr(settings, "weather_model", "")
+    captured = _capture_params(monkeypatch)
+    weather._fetch_raw()
+    assert captured["models"] == "best_match"

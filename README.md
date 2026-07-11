@@ -62,6 +62,18 @@ size):
 | --- | --- | --- |
 | ![Nord theme](docs/mockup-nord.png) | ![Gruvbox theme](docs/mockup-gruvbox.png) | ![Catppuccin theme](docs/mockup-catppuccin.png) |
 
+### Weather sources
+
+Current conditions and the forecast default to [Open-Meteo](https://open-meteo.com/)
+(no key needed). Optionally, set `NWS_STATION=<station id>` in `.env` to overlay
+real [National Weather Service](https://www.weather.gov/) station observations on
+the hero's current conditions — a measurement instead of a model estimate. US-only,
+off by default, and fail-soft: any NWS hiccup falls back to the pure Open-Meteo
+hero for that refresh; the forecast cards always stay Open-Meteo. See
+`.env.example` for how to find your nearest station (and the `NWS_USER_AGENT`
+contact-info note). The Open-Meteo forecast model is selectable via
+`WEATHER_MODEL` (default `best_match`).
+
 ## Deploy (Pi)
 
 Production runs on the Pi as systemd user services (backend + labwc + Chromium
@@ -93,4 +105,7 @@ calendar PII stays out of any org tooling.
 ## Attribution
 
 Weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). When `NWS_STATION` is
+set, current conditions come from the
+[National Weather Service](https://www.weather.gov/) (US-government public
+domain).

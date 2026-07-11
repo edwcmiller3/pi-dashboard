@@ -34,7 +34,7 @@ NOW = datetime(2026, 7, 1, 9, 0, tzinfo=TZ)
 
 # Synthetic Proton-shaped feed: an all-day event, a timed event, a DAILY
 # recurrence with one EXDATE-excluded occurrence, and one event OUTSIDE the
-# window. VTIMEZONE rides along like the real feed (0.D1).
+# window. VTIMEZONE rides along like the real feed.
 ICS = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -84,8 +84,9 @@ END:VCALENDAR
 """
 
 
-# A WEEKLY 10:00-local event straddling the 2026-11-01 DST end (EDT->EST). 0.D1
-# proved `recurring_ical_events` preserves local wall-clock across DST; this
+# A WEEKLY 10:00-local event straddling the 2026-11-01 DST end (EDT->EST).
+# `recurring_ical_events` preserves local wall-clock across DST (verified against
+# a live Proton feed); this
 # asserts that survives `normalize_events` — the wall-clock stays 10:00 while the
 # emitted offset flips -04:00 -> -05:00. Same VTIMEZONE as ICS.
 DST_ICS = """\
@@ -299,7 +300,9 @@ def test_covered_days_clamps_span_running_past_window_hi() -> None:
 
 def test_covered_days_entirely_outside_window_is_empty() -> None:
     # No overlap with the window -> no days (max(lo) > min(hi) -> empty range).
-    assert calendar._covered_days(date(2026, 6, 20), date(2026, 6, 25), _WLO, _WHI) == []
+    assert (
+        calendar._covered_days(date(2026, 6, 20), date(2026, 6, 25), _WLO, _WHI) == []
+    )
 
 
 # ── normalize_events: recurrence + EXDATE + windowing ─────────────────────────

@@ -5,9 +5,9 @@ Two layers, kept apart so the transform is pure and unit-testable:
     `weather` block (`current` + 4 future-day `forecast`). The frontend never
     sees raw WMO codes; `icon`/`text` are resolved here via `weather_codes`.
   * `get_weather()` — impure: the single Open-Meteo call, offloaded off the
-    event loop via `asyncio.to_thread` (spec §5), wrapped with `ok`/`fetched_at`.
+    event loop via `asyncio.to_thread`, wrapped with `ok`/`fetched_at`.
 
-Param set confirmed live 2026-06-28 (0.D4 + the v4 expanded-fields decision):
+Param set verified against the live API 2026-06-28:
 one request, no extra dependency. `forecast_days=5` returns today + 4 future;
 the cards use `daily[1:5]`, the hero uses `daily[0]`.
 """
@@ -22,6 +22,7 @@ from typing import Any, Final
 from app.config import settings
 from app.contract import CurrentWeather, ForecastDay, WeatherBlock, WeatherData
 from app.http import build_session
+from app.sources.nws import Observation, fetch_observation
 from app.weather_codes import describe, is_wet
 
 _API_URL: Final = "https://api.open-meteo.com/v1/forecast"
@@ -30,9 +31,8 @@ _API_URL: Final = "https://api.open-meteo.com/v1/forecast"
 # refresh loop serializes fetches, so only one worker thread uses it at a time.
 _SESSION: Final = build_session()
 
-# current.precipitation/precipitation_unit are requested for parity with the
-# confirmed param set; the contract surfaces precip *probability* (from daily),
-# not the current precip *amount*, so that field is fetched but not mapped.
+# current.precipitation is requested but deliberately unmapped: the contract
+# surfaces precip *probability* (from daily), not the current precip *amount*.
 _PARAMS: Final[dict[str, str | int | float]] = {
     "current": (
         "temperature_2m,apparent_temperature,relative_humidity_2m,"
@@ -157,6 +157,57 @@ def normalize_weather(raw: dict[str, Any]) -> WeatherData:
     return {"current": current, "forecast": forecast}
 
 
+# Discard an observation older than this rather than merge a confidently wrong
+# "now". Stations report hourly (plus SPECI on weather changes), so 90 min =
+# "missed more than one cycle". A code constant, not a setting — promote only if
+# someone actually needs to tune it.
+_MAX_OBS_AGE: Final = timedelta(minutes=90)
+
+
+def _obs_or(value: float | None, fallback: int) -> int:
+    """An observed number (rounded for display) or the model's value when the
+    station didn't report that field — the per-field half of fail-soft."""
+    return fallback if value is None else _round_half_up(value)
+
+
+def merge_current(
+    model: CurrentWeather, obs: Observation, now: datetime
+) -> CurrentWeather:
+    """Overlay a station observation onto the model's current conditions (pure).
+
+    A measurement beats an estimate, per field: temp/humidity/wind and the
+    condition come from the observation where present; each missing field keeps
+    the model's value. Feels-like chains heatIndex -> windChill -> obs temp
+    (NWS nulls the first two exactly when they don't apply) and never falls
+    back to the model's apparent temperature — a model feels-like next to an
+    obs temp reads incoherently. Forecast-only concepts (precip probability,
+    high/low, sunrise/sunset) and the clock-derived `is_day` stay the model's.
+
+    A stale observation (older than `_MAX_OBS_AGE` at `now`, which the caller
+    supplies so this stays deterministic) is discarded entirely. Condition
+    mapping is fail-soft: an unmappable `wmo_code=None` keeps the model's
+    code/text/icon, so the overlay can only correct the condition, never
+    coarsen it. Returns a new dict; never mutates `model`.
+    """
+    if now - obs.timestamp > _MAX_OBS_AGE:
+        return {**model}
+    feels_like = next(
+        (v for v in (obs.heat_index_f, obs.wind_chill_f, obs.temp_f) if v is not None),
+        None,
+    )
+    cond = describe(obs.wmo_code, model["is_day"]) if obs.wmo_code is not None else None
+    return {
+        **model,
+        "temp_f": _obs_or(obs.temp_f, model["temp_f"]),
+        "feels_like_f": _obs_or(feels_like, model["feels_like_f"]),
+        "humidity_pct": _obs_or(obs.humidity_pct, model["humidity_pct"]),
+        "wind_mph": _obs_or(obs.wind_mph, model["wind_mph"]),
+        "code": model["code"] if obs.wmo_code is None else obs.wmo_code,
+        "text": model["text"] if cond is None else cond["text"],
+        "icon": model["icon"] if cond is None else cond["icon"],
+    }
+
+
 def _stamp(utc_offset_seconds: int) -> str:
     """Stamp "now" in the dashboard location's offset (per the API, not the Pi
     clock), as ISO with an explicit offset — so the frontend renders the right
@@ -172,6 +223,10 @@ def _fetch_raw() -> dict[str, Any]:
             **_PARAMS,
             "latitude": settings.weather_lat,
             "longitude": settings.weather_lon,
+            # merged here (not in _PARAMS) so a per-test settings override is
+            # seen — _PARAMS is a module Final built once at import. An empty
+            # WEATHER_MODEL in .env still means the provider default.
+            "models": settings.weather_model or "best_match",
         },
         timeout=_REQUEST_TIMEOUT_SECONDS,
     )
@@ -189,6 +244,15 @@ async def get_weather() -> WeatherBlock:
     """
     raw = await asyncio.to_thread(_fetch_raw)
     data = normalize_weather(raw)
+    # Opt-in NWS overlay: a real station measurement beats the model's estimate
+    # for the hero's current conditions. fetch_observation returns None on ANY
+    # failure, so a flaky api.weather.gov can never fail the tick.
+    if settings.nws_station:
+        obs = await fetch_observation(settings.nws_station)
+        if obs is not None:
+            data["current"] = merge_current(
+                data["current"], obs, datetime.now(timezone.utc)
+            )
     return {
         "ok": True,
         "fetched_at": _stamp(int(raw["utc_offset_seconds"])),

@@ -230,7 +230,9 @@ These are NOT in git, so a fresh box needs them before the steps below:
   ```sh
   cp ~/pi-dashboard/.env.example ~/pi-dashboard/.env
   # then edit .env: set PROTON_ICS_URL to a Proton Calendar "Full view" link
-  # and WEATHER_LAT/WEATHER_LON to your location.
+  # and WEATHER_LAT/WEATHER_LON to your location. Optional: NWS_STATION for
+  # real current-conditions observations (US-only — .env.example shows how
+  # to find your station) and WEATHER_MODEL to pin a forecast model.
   ```
 
 ### 1. App + backend service
