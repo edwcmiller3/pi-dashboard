@@ -58,9 +58,13 @@ The bundled themes, rendered by that command from the same fixture data as the
 mockup at the top (which shows the built-in palette — click any image for full
 size):
 
-| `nord` | `gruvbox` | `catppuccin` |
-| --- | --- | --- |
-| ![Nord theme](docs/mockup-nord.png) | ![Gruvbox theme](docs/mockup-gruvbox.png) | ![Catppuccin theme](docs/mockup-catppuccin.png) |
+| `nord` | `gruvbox` | `catppuccin` | `synthwave` |
+| --- | --- | --- | --- |
+| ![Nord theme](docs/mockup-nord.png) | ![Gruvbox theme](docs/mockup-gruvbox.png) | ![Catppuccin theme](docs/mockup-catppuccin.png) | ![Synthwave theme](docs/mockup-synthwave.png) |
+
+`synthwave` is an *effect theme*: on top of the palette it boosts the ambient
+glows and adds a neon text-shadow to the hero temperature (documented
+deviations from the hue-only contract — see `static/themes/nord.css`).
 
 ### Weather sources
 

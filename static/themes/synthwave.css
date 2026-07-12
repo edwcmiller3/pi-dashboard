@@ -1,0 +1,32 @@
+/* Synthwave — neon cyberpunk: violet-black canvas, hot pink accent, electric
+   cyan secondary.
+
+   Deliberately an EFFECT THEME: beyond the hue-only contract (see nord.css)
+   it also boosts the ambient --glow-* mixes and adds a neon text-shadow on
+   the hero temp — the neon look IS the theme. Static shadows only; no
+   backdrop-filter (the Pi thermal constraint in style.css still applies). */
+:root {
+  --text: #f2ecff;
+  --muted: #a89ec4;
+  --faint: #645d80;
+  --accent: #ff4fa3; /* hot pink — event times, hero icon, ▴ glyph */
+  --cool: #22d8ff; /* electric cyan — forecast icons, today/next-up identity */
+  --gold: #ffc94d; /* holiday pills */
+  --ok: #3ef2b6; /* fresh status dots */
+  --stale: #ff6b6b; /* stale dots / warnings */
+  --violet: #9d5cff; /* ambient glow only */
+  --bg: #000;
+  --canvas: #0c0716;
+  --card-hi: #241a3a;
+  --card-lo: #150e26;
+  --edge: #e9d9ff;
+  /* Boosted past the style.css defaults — the neon haze is the point. */
+  --glow-cyan: color-mix(in srgb, var(--cool) 28%, transparent);
+  --glow-amber: color-mix(in srgb, var(--accent) 22%, transparent);
+  --glow-violet: color-mix(in srgb, var(--violet) 26%, transparent);
+  --glow-teal: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+/* Neon-sign hero temp. */
+.cur-temp {
+  text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
+}

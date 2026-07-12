@@ -34,13 +34,22 @@ def test_default_is_empty_css() -> None:
     assert headers["cache-control"] == "no-cache"
 
 
-def test_configured_theme_is_served_verbatim(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "theme", "nord")
+# Every theme we bundle. A new theme file isn't "shipped" until it's listed
+# here (and in the README's theme table).
+_BUNDLED_THEMES = ["nord", "gruvbox", "catppuccin", "synthwave"]
+
+
+@pytest.mark.parametrize("name", _BUNDLED_THEMES)
+def test_configured_theme_is_served_verbatim(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(settings, "theme", name)
     status, body, _ = _get_theme_css()
     assert status == 200
-    assert body == (_static_dir / "themes" / "nord.css").read_text(encoding="utf-8")
-    # A theme is a pure :root palette override — assert the shape holds so a
-    # future theme edit can't quietly start restating component selectors.
+    assert body == (_static_dir / "themes" / f"{name}.css").read_text(encoding="utf-8")
+    # Every theme overrides the :root palette. Hue-only themes stop there;
+    # an effect theme (synthwave) may add documented effect rules on top —
+    # see the contract note in nord.css.
     assert ":root {" in body
 
 

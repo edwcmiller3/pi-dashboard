@@ -1,14 +1,16 @@
 /* Nord-inspired dark palette (https://www.nordtheme.com — colors adapted, not
    copied wholesale: surfaces are darkened for the dim-room kiosk).
 
-   THEME CONTRACT — a theme is ONE `:root` block overriding the palette vars
-   defined at the top of style.css, nothing else. Every alpha tint, glow, and
-   card fill in style.css is color-mix()-derived from these base vars, so they
-   retint automatically; don't restate selectors or override --glow-* here
-   (glow intensity is style.css's call — themes supply hue only). Copy this
-   file to
-   static/themes/<name>.css and set THEME=<name> in .env (or pass
-   --theme <name> to tools/mockup.py). */
+   THEME CONTRACT — the baseline theme is ONE `:root` block overriding the
+   palette vars defined at the top of style.css, nothing else. Every alpha
+   tint, glow, and card fill in style.css is color-mix()-derived from these
+   base vars, so they retint automatically; hue-only themes (this one,
+   gruvbox, catppuccin) don't restate selectors or override --glow-*. An
+   EFFECT THEME may go further — override glow mixes or add effect rules —
+   but must document each deviation in its header (see synthwave.css) and
+   never use backdrop-filter (Pi thermal constraint, see style.css). Copy
+   this file to static/themes/<name>.css and set THEME=<name> in .env (or
+   pass --theme <name> to tools/mockup.py). */
 :root {
   --text: #eceff4;
   --muted: #9aa7bd;
