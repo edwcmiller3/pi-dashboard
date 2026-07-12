@@ -36,6 +36,7 @@ import {
   pastIndexes,
   dayLabel,
   pickUpdated,
+  fmtHiLo,
   planDayFit,
   planColumnFit,
 } from "./app.js";
@@ -535,6 +536,22 @@ test("pickUpdated: compares by instant across mixed offsets, excludes !ok", () =
     { ok: false, fetched_at: "2026-07-01T00:00:00-04:00" }, // stale -> ignored
   ]);
   assert.equal(got, "2026-07-01T12:30:00+00:00");
+});
+
+// ── fmtHiLo (hero's stacked H/L pair beside the big temp) ─────────────────────
+
+test("fmtHiLo: glyph + degree string per line, hi over lo", () => {
+  assert.deepEqual(fmtHiLo({ high_f: 75, low_f: 61 }), {
+    hi: { glyph: "▴", temp: "75°" },
+    lo: { glyph: "▾", temp: "61°" },
+  });
+});
+
+test("fmtHiLo: negative temps keep the sign on the value", () => {
+  assert.deepEqual(fmtHiLo({ high_f: 10, low_f: -5 }), {
+    hi: { glyph: "▴", temp: "10°" },
+    lo: { glyph: "▾", temp: "-5°" },
+  });
 });
 
 // ── planDayFit (pure half of fitDayInPlace: roll-off then bottom trim) ────────

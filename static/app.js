@@ -307,6 +307,22 @@ export function pickUpdated(sources) {
   );
 }
 
+// The hero's H/L pair, stacked beside the big temp (▴ over ▾) instead of
+// trailing the condition text — a long description no longer stretches the
+// left cluster. Glyph and value are separate so the glyph can be styled
+// (size/color) independently.
+/**
+ * @param {{ high_f: number, low_f: number }} c
+ * @returns {{ hi: HiLoLine, lo: HiLoLine }}
+ * @typedef {{ glyph: string, temp: string }} HiLoLine
+ */
+export function fmtHiLo({ high_f, low_f }) {
+  return {
+    hi: { glyph: "▴", temp: `${high_f}°` },
+    lo: { glyph: "▾", temp: `${low_f}°` },
+  };
+}
+
 /**
  * @param {string} dateStr "YYYY-MM-DD"
  * @returns {{ isToday: boolean, dname: string, ddate: string }}
@@ -557,6 +573,19 @@ function statCell(iconClass, label, value) {
 /** @param {LocalTime | null} time @returns {string} */
 const fmtCompactOr = (time) => (time ? fmtCompact(time) : "—");
 
+// One glyph+value line of a fmtHiLo pair (hero stack and forecast cards);
+// the glyph gets its own span so CSS can size/color it independently.
+/**
+ * @param {"hi" | "lo"} cls
+ * @param {HiLoLine} line
+ * @returns {HTMLElement}
+ */
+function hiLoLine(cls, line) {
+  const node = el("span", cls);
+  node.append(el("span", "glyph", line.glyph), line.temp);
+  return node;
+}
+
 /** @param {WeatherBlock} weather @returns {void} */
 function renderCurrent(weather) {
   const c = weather.current;
@@ -567,13 +596,15 @@ function renderCurrent(weather) {
   const main = el("div", "cur-main");
   const temp = el("div", "cur-temp");
   temp.append(String(c.temp_f), el("span", "deg", "°"));
+  const { hi, lo } = fmtHiLo(c);
+  const hilo = el("div", "cur-hilo");
+  hilo.append(hiLoLine("hi", hi), hiLoLine("lo", lo));
+  const tempRow = el("div", "cur-temp-row");
+  tempRow.append(temp, hilo);
   const cond = el("div", "cur-cond");
   // c.text is HUMAN TEXT — route through textContent, never innerHTML.
-  cond.append(
-    c.text + " ",
-    el("small", null, `· H ${c.high_f}° / L ${c.low_f}°`),
-  );
-  main.append(temp, cond);
+  cond.append(c.text);
+  main.append(tempRow, cond);
 
   const stats = el("div", "cur-stats");
   stats.append(
@@ -600,7 +631,8 @@ function renderForecast(forecast) {
     const card = el("section", "glass fcard");
 
     const temp = el("span", "ftemp");
-    temp.append(`${f.high_f}°`, el("span", "lo", ` / ${f.low_f}°`));
+    const { hi, lo } = fmtHiLo(f);
+    temp.append(hiLoLine("hi", hi), hiLoLine("lo", lo));
 
     // Right of the icon: temps, with the precip-chance line beneath — shown only
     // on codes that precipitate (backend is_wet gate); an absent flag reads dry.

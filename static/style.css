@@ -150,6 +150,11 @@ body {
 .cur-main {
   flex: none;
 }
+.cur-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
 .cur-temp {
   font-size: 4.6rem;
   font-weight: 680;
@@ -160,14 +165,33 @@ body {
   font-weight: 400;
   color: var(--muted);
 }
+.cur-hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1;
+}
+/* Shared H/L glyphs: hero stack (.cur-hilo) and forecast cards (.ftemp). */
+.cur-hilo .glyph,
+.ftemp .glyph {
+  font-size: 1.25em;
+  line-height: 1;
+  margin-right: 0.28rem;
+}
+.cur-hilo .hi .glyph,
+.ftemp .hi .glyph {
+  color: var(--accent);
+}
+.cur-hilo .lo .glyph,
+.ftemp .lo .glyph {
+  color: var(--cool);
+}
 .cur-cond {
   color: var(--text);
   font-size: 1.4rem;
   margin-top: 0.55rem;
-}
-.cur-cond small {
-  color: var(--muted);
-  font-size: 1.05rem;
 }
 .cur-div {
   width: 1px;
@@ -254,6 +278,9 @@ body {
   font-size: 1.35rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem; /* the space between H and L — replaces the old " / " */
 }
 .fcard .ftemp .lo {
   color: var(--muted);
