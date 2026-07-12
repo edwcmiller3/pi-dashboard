@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Soft Scandi — Dashboard Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Warm linen base */
+    --linen-hi: #FAF6EC;
+    --linen-lo: #F3ECDD;
+    --card: #FFFEFA;
+    --hairline: #EAE2D2;
+
+    /* Ink */
+    --ink: #413B31;
+    --muted: #8A8171;
+    --faint: #A99F8D;
+
+    /* Muted natural palette */
+    --sage: #7E9370;
+    --sage-milk: #EAEFE2;
+    --terracotta: #BC6B4C;
+    --terracotta-milk: #F7E6DC;
+    --dusty: #7C99AE;
+    --dusty-milk: #E7EDF1;
+    --ochre: #B98A34;
+    --ochre-milk: #F4E8CF;
+
+    --shadow: 0 14px 34px rgba(96, 78, 54, 0.08), 0 3px 8px rgba(96, 78, 54, 0.05);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: #E6DFD2;
+    font-family: 'Nunito Sans', system-ui, sans-serif;
+    color: var(--ink);
+    padding: 40px 0;
+  }
+
+  /* ---------- Canvas ---------- */
+  .canvas {
+    width: 1280px;
+    height: 800px;
+    background: linear-gradient(178deg, var(--linen-hi) 0%, var(--linen-lo) 100%);
+    border-radius: 14px;
+    box-shadow: 0 30px 70px rgba(80, 62, 40, 0.22), 0 4px 14px rgba(80, 62, 40, 0.12);
+    padding: 34px 36px 26px;
+    display: grid;
+    grid-template-columns: 464px 1fr;
+    grid-template-rows: 1fr auto;
+    column-gap: 30px;
+    row-gap: 14px;
+    overflow: hidden;
+  }
+
+  /* ---------- Left column ---------- */
+  .left {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 0;
+  }
+
+  /* Clock */
+  .clock-block { padding: 4px 6px 0; }
+  .clock {
+    font-family: 'Fraunces', serif;
+    font-weight: 550;
+    font-variation-settings: 'opsz' 120;
+    font-size: 92px;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+  .clock .ampm {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 480;
+    font-size: 34px;
+    letter-spacing: 0.01em;
+    color: var(--terracotta);
+    margin-left: 8px;
+  }
+  .date {
+    margin-top: 10px;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .date::before {
+    content: "";
+    width: 26px;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--terracotta);
+    opacity: 0.65;
+  }
+
+  /* Card base */
+  .card {
+    background: var(--card);
+    border-radius: 26px;
+    box-shadow: var(--shadow);
+  }
+
+  /* Hero — current conditions */
+  .hero { padding: 24px 26px 22px; }
+  .hero-top {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .hero-icon { flex: 0 0 auto; width: 128px; height: 114px; }
+  .hero-temp-block { flex: 1; }
+  .hero-temp {
+    font-family: 'Fraunces', serif;
+    font-weight: 560;
+    font-variation-settings: 'opsz' 130;
+    font-size: 94px;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+  .hero-cond {
+    margin-top: 6px;
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .hero-hl {
+    margin-top: 3px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .hero-hl .hi { color: var(--terracotta); }
+  .hero-hl .lo { color: var(--dusty); }
+
+  .chips {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #F5EFE1;
+    border-radius: 999px;
+    padding: 6px 12px 6px 10px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .chip svg { width: 15px; height: 15px; }
+  .chip .lbl { color: var(--muted); font-weight: 600; }
+  .chip b { font-weight: 800; color: var(--ink); }
+  .chip.c-terra svg { color: var(--terracotta); }
+  .chip.c-dusty svg { color: var(--dusty); }
+  .chip.c-sage  svg { color: var(--sage); }
+  .chip.c-ochre svg { color: var(--ochre); }
+
+  /* Forecast */
+  .forecast {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    min-height: 0;
+  }
+  .fc {
+    border-radius: 22px;
+    padding: 14px 18px 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .fc-clear  { background: #F8EDD6; }
+  .fc-storm  { background: #E1E8EE; }
+  .fc-rain   { background: #EBF0F3; }
+  .fc-partly { background: #EBF0E3; }
+  .fc-day {
+    font-family: 'Fraunces', serif;
+    font-weight: 560;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .fc-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 2px;
+  }
+  .fc-main svg { width: 52px; height: 46px; flex: 0 0 auto; }
+  .fc-temps { display: flex; align-items: baseline; gap: 8px; }
+  .fc-hi {
+    font-family: 'Fraunces', serif;
+    font-weight: 580;
+    font-size: 27px;
+    color: var(--ink);
+  }
+  .fc-lo { font-size: 17px; font-weight: 700; color: var(--muted); }
+  .fc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .fc-precip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--dusty);
+    font-weight: 800;
+  }
+  .fc-precip svg { width: 12px; height: 12px; }
+
+  /* ---------- Agenda ---------- */
+  .agenda {
+    padding: 30px 34px 26px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .agenda-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 26px;
+  }
+  .agenda-cols {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 34px;
+    min-height: 0;
+  }
+  .agenda-col { min-width: 0; }
+  .agenda-col + .agenda-col {
+    border-left: 1.5px dashed var(--hairline);
+    padding-left: 34px;
+  }
+
+  .day-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .day-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    align-self: center;
+    flex: 0 0 auto;
+  }
+  .dot-terra { background: var(--terracotta); }
+  .dot-sage  { background: var(--sage); }
+  .dot-dusty { background: var(--dusty); }
+  .day-name {
+    font-family: 'Fraunces', serif;
+    font-weight: 580;
+    font-size: 26px;
+    color: var(--ink);
+  }
+  .day-sub { font-size: 15px; font-weight: 700; color: var(--faint); }
+
+  .holiday {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--ochre-milk);
+    color: #8C6A22;
+    border-radius: 999px;
+    padding: 5px 13px;
+    font-size: 14.5px;
+    font-weight: 800;
+    margin: 6px 0 14px;
+  }
+  .holiday::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ochre);
+    opacity: 0.8;
+  }
+
+  .events {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 17px;
+    margin-top: 10px;
+  }
+  .ev {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 2px 4px;
+  }
+  .ev-time {
+    flex: 0 0 68px;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--terracotta);
+    font-variant-numeric: tabular-nums;
+  }
+  .ev-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ev-allday .ev-time {
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--sage);
+    background: var(--sage-milk);
+    border-radius: 999px;
+    padding: 4px 0;
+    text-align: center;
+    align-self: center;
+  }
+
+  .roll-off {
+    font-size: 14px;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--faint);
+    padding: 1px 4px 1px 84px;
+  }
+
+  /* Next-up highlight */
+  .ev-now {
+    background: var(--terracotta-milk);
+    border-radius: 16px;
+    padding: 13px 16px 13px 14px;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 16px rgba(188, 107, 76, 0.10);
+  }
+  .ev-now .ev-time { color: #A5552F; flex-basis: 66px; }
+  .ev-now .ev-title { font-weight: 800; flex: 1; }
+  .now-tag {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #FFFDF8;
+    background: var(--terracotta);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+
+  .day-block + .day-block { margin-top: 44px; }
+  .more-days {
+    margin-top: 36px;
+    font-size: 15px;
+    font-weight: 700;
+    font-style: italic;
+    color: var(--faint);
+    padding-left: 4px;
+  }
+
+  /* ---------- Footer ---------- */
+  .status {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    padding-right: 6px;
+  }
+  .status .svc {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    text-transform: uppercase;
+  }
+  .status .ok-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--sage);
+  }
+  .status .sep { color: var(--hairline); }
+  .status .updated { letter-spacing: 0.02em; text-transform: none; }
+</style>
+</head>
+<body>
+
+<!-- Shared weather icon symbols: soft filled shapes, muted palette -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-sun" viewBox="0 0 72 64">
+    <g stroke="#DFAE58" stroke-width="4" stroke-linecap="round">
+      <line x1="36" y1="13" x2="36" y2="7"/>
+      <line x1="36" y1="47" x2="36" y2="53"/>
+      <line x1="53" y1="30" x2="59" y2="30"/>
+      <line x1="19" y1="30" x2="13" y2="30"/>
+      <line x1="48" y1="18" x2="52.3" y2="13.7"/>
+      <line x1="48" y1="42" x2="52.3" y2="46.3"/>
+      <line x1="24" y1="18" x2="19.7" y2="13.7"/>
+      <line x1="24" y1="42" x2="19.7" y2="46.3"/>
+    </g>
+    <circle cx="36" cy="30" r="13" fill="#E4B25F"/>
+  </symbol>
+  <symbol id="i-partly" viewBox="0 0 72 64">
+    <g stroke="#DFAE58" stroke-width="3.5" stroke-linecap="round">
+      <line x1="26" y1="9" x2="26" y2="4"/>
+      <line x1="13" y1="22" x2="8" y2="22"/>
+      <line x1="16.8" y1="12.8" x2="13.3" y2="9.3"/>
+      <line x1="35.2" y1="12.8" x2="38.7" y2="9.3"/>
+    </g>
+    <circle cx="26" cy="22" r="10" fill="#E4B25F"/>
+    <g fill="#D6DFE6">
+      <circle cx="32" cy="40" r="11"/>
+      <circle cx="46" cy="33" r="13"/>
+      <circle cx="57" cy="41" r="9"/>
+      <rect x="32" y="36" width="25" height="14" rx="7"/>
+    </g>
+  </symbol>
+  <symbol id="i-storm" viewBox="0 0 72 64">
+    <g fill="#A7BBC8">
+      <circle cx="26" cy="30" r="11"/>
+      <circle cx="40" cy="24" r="13"/>
+      <circle cx="52" cy="31" r="9"/>
+      <rect x="26" y="26" width="26" height="14" rx="7"/>
+    </g>
+    <path d="M39 40 L31 51 h6 l-3 10 10-13 h-6 l5-8 Z" fill="#E4B25F"/>
+  </symbol>
+  <symbol id="i-rain" viewBox="0 0 72 64">
+    <g fill="#BFCEDA">
+      <circle cx="26" cy="28" r="11"/>
+      <circle cx="40" cy="22" r="13"/>
+      <circle cx="52" cy="29" r="9"/>
+      <rect x="26" y="24" width="26" height="14" rx="7"/>
+    </g>
+    <g stroke="#82A0B5" stroke-width="3.5" stroke-linecap="round">
+      <line x1="30" y1="46" x2="27" y2="54"/>
+      <line x1="40" y1="46" x2="37" y2="54"/>
+      <line x1="50" y1="46" x2="47" y2="54"/>
+    </g>
+  </symbol>
+</svg>
+
+<main class="canvas">
+
+  <!-- ============ Left: clock + weather ============ -->
+  <section class="left">
+
+    <div class="clock-block">
+      <div class="clock">2:46<span class="ampm">pm</span></div>
+      <div class="date">Saturday, July 11</div>
+    </div>
+
+    <div class="card hero">
+      <div class="hero-top">
+        <svg class="hero-icon" role="img" aria-label="Partly cloudy"><use href="#i-partly"/></svg>
+        <div class="hero-temp-block">
+          <div class="hero-temp">82°</div>
+          <div class="hero-cond">Partly cloudy</div>
+          <div class="hero-hl"><span class="hi">H 88°</span> &nbsp;·&nbsp; <span class="lo">L 71°</span></div>
+        </div>
+      </div>
+      <div class="chips">
+        <span class="chip c-terra">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 5a2 2 0 0 1 4 0v8.5a4.2 4.2 0 1 1-4 0Z"/></svg>
+          <span class="lbl">Feels</span><b>85°</b>
+        </span>
+        <span class="chip c-dusty">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5C12 3.5 6.5 10 6.5 14a5.5 5.5 0 0 0 11 0C17.5 10 12 3.5 12 3.5Z"/></svg>
+          <span class="lbl">Rain</span><b>15%</b>
+        </span>
+        <span class="chip c-dusty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3.5C12 3.5 6.5 10 6.5 14a5.5 5.5 0 0 0 11 0C17.5 10 12 3.5 12 3.5Z"/><path d="M9.5 14.5c1.2 1 3.8 1 5 0"/></svg>
+          <span class="lbl">Humidity</span><b>52%</b>
+        </span>
+        <span class="chip c-sage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h9.5a3 3 0 1 0-3-3.5"/><path d="M3 13h13a3 3 0 1 1-3 3.5"/></svg>
+          <span class="lbl">Wind</span><b>7 mph</b>
+        </span>
+        <span class="chip c-ochre">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 17h16"/><path d="M8 17a4 4 0 0 1 8 0"/><path d="M12 9V3.5"/><path d="M9.5 6 12 3.5 14.5 6"/></svg>
+          <span class="lbl">Sunrise</span><b>5:47a</b>
+        </span>
+        <span class="chip c-terra">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 17h16"/><path d="M8 17a4 4 0 0 1 8 0"/><path d="M12 3.5V9"/><path d="M9.5 6.5 12 9l2.5-2.5"/></svg>
+          <span class="lbl">Sunset</span><b>8:29p</b>
+        </span>
+      </div>
+    </div>
+
+    <div class="forecast">
+      <div class="fc fc-clear">
+        <div class="fc-day">Sunday</div>
+        <div class="fc-main">
+          <svg role="img" aria-label="Clear"><use href="#i-sun"/></svg>
+          <div class="fc-temps"><span class="fc-hi">90°</span><span class="fc-lo">72°</span></div>
+        </div>
+        <div class="fc-foot"><span>Clear</span></div>
+      </div>
+      <div class="fc fc-storm">
+        <div class="fc-day">Monday</div>
+        <div class="fc-main">
+          <svg role="img" aria-label="Thunderstorm"><use href="#i-storm"/></svg>
+          <div class="fc-temps"><span class="fc-hi">84°</span><span class="fc-lo">70°</span></div>
+        </div>
+        <div class="fc-foot">
+          <span>Thunderstorm</span>
+          <span class="fc-precip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5C12 3.5 6.5 10 6.5 14a5.5 5.5 0 0 0 11 0C17.5 10 12 3.5 12 3.5Z"/></svg>65%</span>
+        </div>
+      </div>
+      <div class="fc fc-rain">
+        <div class="fc-day">Tuesday</div>
+        <div class="fc-main">
+          <svg role="img" aria-label="Light rain"><use href="#i-rain"/></svg>
+          <div class="fc-temps"><span class="fc-hi">78°</span><span class="fc-lo">66°</span></div>
+        </div>
+        <div class="fc-foot">
+          <span>Light rain</span>
+          <span class="fc-precip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5C12 3.5 6.5 10 6.5 14a5.5 5.5 0 0 0 11 0C17.5 10 12 3.5 12 3.5Z"/></svg>45%</span>
+        </div>
+      </div>
+      <div class="fc fc-partly">
+        <div class="fc-day">Wednesday</div>
+        <div class="fc-main">
+          <svg role="img" aria-label="Partly cloudy"><use href="#i-partly"/></svg>
+          <div class="fc-temps"><span class="fc-hi">81°</span><span class="fc-lo">68°</span></div>
+        </div>
+        <div class="fc-foot"><span>Partly cloudy</span></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ Right: agenda ============ -->
+  <section class="card agenda">
+    <div class="agenda-title">Upcoming</div>
+    <div class="agenda-cols">
+
+      <div class="agenda-col">
+        <div class="day-block">
+          <div class="day-header">
+            <span class="day-dot dot-terra"></span>
+            <span class="day-name">Today</span>
+            <span class="day-sub">Jul 11</span>
+          </div>
+          <span class="holiday">Summer Festival</span>
+          <ul class="events">
+            <li class="ev ev-allday"><span class="ev-time">All day</span><span class="ev-title">Cabin trip</span></li>
+            <li class="roll-off">+5 earlier</li>
+            <li class="ev ev-now"><span class="ev-time">1:30p</span><span class="ev-title">Focus block</span><span class="now-tag">Now</span></li>
+            <li class="ev"><span class="ev-time">3:30p</span><span class="ev-title">School pickup</span></li>
+            <li class="ev"><span class="ev-time">4:45p</span><span class="ev-title">Vet appointment</span></li>
+            <li class="ev"><span class="ev-time">5:30p</span><span class="ev-title">Swim practice</span></li>
+            <li class="ev"><span class="ev-time">7:00p</span><span class="ev-title">Dinner reservation</span></li>
+            <li class="roll-off">+2 more</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="agenda-col">
+        <div class="day-block">
+          <div class="day-header">
+            <span class="day-dot dot-sage"></span>
+            <span class="day-name">Sunday</span>
+            <span class="day-sub">Jul 12</span>
+          </div>
+          <ul class="events">
+            <li class="ev ev-allday"><span class="ev-time">All day</span><span class="ev-title">Cabin trip</span></li>
+            <li class="ev"><span class="ev-time">9:00a</span><span class="ev-title">Farmers market</span></li>
+            <li class="ev"><span class="ev-time">2:00p</span><span class="ev-title">Bike ride</span></li>
+          </ul>
+        </div>
+
+        <div class="day-block">
+          <div class="day-header">
+            <span class="day-dot dot-dusty"></span>
+            <span class="day-name">Monday</span>
+            <span class="day-sub">Jul 13</span>
+          </div>
+          <span class="holiday">Independence Day</span>
+          <ul class="events">
+            <li class="ev"><span class="ev-time">11:00a</span><span class="ev-title">Neighborhood parade</span></li>
+            <li class="ev"><span class="ev-time">8:30p</span><span class="ev-title">Fireworks picnic</span></li>
+          </ul>
+        </div>
+
+        <div class="more-days">+2 more days</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ Footer ============ -->
+  <footer class="status">
+    <span class="svc"><span class="ok-dot"></span>Weather ok</span>
+    <span class="sep">·</span>
+    <span class="svc"><span class="ok-dot"></span>Calendar ok</span>
+    <span class="sep">·</span>
+    <span class="updated">Updated 2:46 PM</span>
+  </footer>
+
+</main>
+
+</body>
+</html>

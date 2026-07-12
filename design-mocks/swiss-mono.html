@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swiss-mono — pi-dashboard design mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F5F4F0;
+    --paper-dim: #EFEEE9;
+    --ink: #161613;
+    --ink-60: rgba(22, 22, 19, 0.60);
+    --ink-40: rgba(22, 22, 19, 0.40);
+    --rule: rgba(22, 22, 19, 0.16);
+    --red: #E30613;
+    --surround: #D9D8D2;
+    --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    --grot: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--surround);
+    font-family: var(--grot);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 48px 0;
+  }
+
+  /* ---------- frame + crop marks ---------- */
+
+  .frame { position: relative; }
+
+  .crop { position: absolute; width: 18px; height: 18px; pointer-events: none; }
+  .crop::before, .crop::after { content: ""; position: absolute; background: rgba(22,22,19,0.55); }
+  .crop::before { width: 18px; height: 1px; }
+  .crop::after  { width: 1px;  height: 18px; }
+  .crop.tl { top: -26px; left: -26px; }
+  .crop.tl::before { bottom: 0; left: 0; }
+  .crop.tl::after  { right: 0;  top: 0; }
+  .crop.tr { top: -26px; right: -26px; }
+  .crop.tr::before { bottom: 0; right: 0; }
+  .crop.tr::after  { left: 0;   top: 0; }
+  .crop.bl { bottom: -26px; left: -26px; }
+  .crop.bl::before { top: 0;   left: 0; }
+  .crop.bl::after  { right: 0; bottom: 0; }
+  .crop.br { bottom: -26px; right: -26px; }
+  .crop.br::before { top: 0;  right: 0; }
+  .crop.br::after  { left: 0; bottom: 0; }
+
+  .frame-note {
+    position: absolute;
+    top: -26px; left: 0;
+    font: 500 10px/18px var(--mono);
+    letter-spacing: 0.14em;
+    color: rgba(22,22,19,0.45);
+    text-transform: uppercase;
+  }
+  .frame-note-r {
+    position: absolute;
+    top: -26px; right: 0;
+    font: 500 10px/18px var(--mono);
+    letter-spacing: 0.14em;
+    color: rgba(22,22,19,0.45);
+    text-transform: uppercase;
+  }
+
+  /* ---------- canvas: the exposed modular grid ---------- */
+
+  .canvas {
+    width: 1280px;
+    height: 800px;
+    background: var(--ink);           /* gaps read as drafted 1px rules */
+    border: 1px solid var(--ink);
+    display: grid;
+    grid-template-columns: 466px 1fr;
+    grid-template-rows: 272px 1fr 42px;
+    gap: 1px;
+    box-shadow: 0 24px 60px rgba(22,22,19,0.18);
+  }
+
+  .cell { background: var(--paper); position: relative; overflow: hidden; }
+
+  /* index tags — engineering-drawing corner labels */
+  .tag {
+    position: absolute;
+    top: 10px; left: 14px;
+    font: 500 10px var(--mono);
+    letter-spacing: 0.16em;
+    color: var(--ink-40);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .tag-r {
+    position: absolute;
+    top: 10px; right: 14px;
+    font: 500 10px var(--mono);
+    letter-spacing: 0.16em;
+    color: var(--ink-40);
+    text-transform: uppercase;
+  }
+
+  svg.icon { display: block; stroke: var(--ink); stroke-width: 1.7; fill: none;
+             stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- 01 / TIME ---------- */
+
+  .time { padding: 46px 28px 24px 28px; display: flex; flex-direction: column; }
+  .clock { display: flex; align-items: baseline; }
+  .clock-big {
+    font: 700 138px/0.82 var(--grot);
+    letter-spacing: -0.05em;
+  }
+  .clock-mer {
+    font: 500 20px var(--mono);
+    letter-spacing: 0.1em;
+    margin-left: 14px;
+    color: var(--ink-60);
+  }
+  .clock-date {
+    margin-top: auto;
+    font: 500 15px var(--mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* ---------- 02 / CURRENT ---------- */
+
+  .current { padding: 44px 28px 26px 28px; display: flex; flex-direction: column; }
+  .cur-top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .cur-temp {
+    font: 800 168px/0.8 var(--grot);
+    letter-spacing: -0.055em;
+    margin-left: -6px;
+  }
+  .cur-temp .deg {
+    color: var(--red);
+    font-size: 84px;
+    font-weight: 400;
+    vertical-align: 74px;
+    margin-left: 4px;
+  }
+  .cur-iconblock { text-align: right; padding-top: 8px; }
+  .cur-wmo {
+    margin-top: 8px;
+    font: 500 10px var(--mono);
+    letter-spacing: 0.14em;
+    color: var(--ink-40);
+  }
+  .cur-cond {
+    margin-top: 18px;
+    font: 600 27px/1 var(--grot);
+    letter-spacing: -0.015em;
+  }
+  .meta {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .meta-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-top: 1px solid var(--rule);
+    padding: 8px 0 7px;
+  }
+  .meta-item:nth-child(odd)  { padding-right: 16px; }
+  .meta-item:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--rule); }
+  .meta-k {
+    font: 500 11px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+  .meta-v { font: 600 17px var(--grot); letter-spacing: -0.01em; }
+
+  /* ---------- 03–06 / FORECAST ---------- */
+
+  .forecast {
+    background: var(--ink);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+  }
+  .fc { background: var(--paper); position: relative; padding: 44px 18px 18px 18px;
+        display: flex; flex-direction: column; }
+  .fc-day {
+    font: 700 13px var(--mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .fc .icon { margin: 18px 0 0 -2px; }
+  .fc-temps { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; }
+  .fc-hi { font: 700 46px/0.9 var(--grot); letter-spacing: -0.035em; }
+  .fc-lo { font: 500 15px var(--mono); color: var(--ink-60); }
+  .fc-foot { margin-top: auto; min-height: 48px; border-top: 1px solid var(--rule); padding-top: 9px; }
+  .fc-cond {
+    font: 500 13px var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .fc-precip {
+    margin-top: 4px;
+    font: 500 12px var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--ink-60);
+  }
+  .fc-precip b { color: var(--ink); font-weight: 700; }
+
+  /* ---------- 07 / AGENDA ---------- */
+
+  .agenda { padding: 0; display: flex; flex-direction: column; }
+  .agenda-cols {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.18fr 1fr;
+    min-height: 0;
+  }
+  .ag-col { padding: 42px 24px 18px 24px; min-height: 0; }
+  .ag-col.rt { border-left: 1px solid var(--ink); }
+
+  .ag-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+  .ag-day { font: 700 17px var(--grot); letter-spacing: -0.01em; }
+  .ag-date {
+    font: 500 12px var(--mono);
+    letter-spacing: 0.16em;
+    color: var(--ink-60);
+    text-transform: uppercase;
+  }
+  .pill {
+    margin-left: auto;
+    font: 700 10.5px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--red);
+    border: 1px solid var(--red);
+    padding: 3px 8px 2px;
+  }
+
+  .ev {
+    display: grid;
+    grid-template-columns: 66px 1fr;
+    align-items: baseline;
+    column-gap: 14px;
+    padding: 7.5px 10px 7px;
+    margin: 0 -10px;
+    border-top: 1px solid var(--rule);
+  }
+  .ev-t {
+    font: 500 14px var(--mono);
+    color: var(--ink-60);
+    white-space: nowrap;
+  }
+  .ev-t.allday { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .ev-n { font: 600 17px/1.25 var(--grot); letter-spacing: -0.01em; }
+
+  .ev.now {
+    grid-template-columns: 66px 1fr auto;
+    background: var(--red);
+    border-top-color: var(--red);
+    padding-top: 9px; padding-bottom: 9px;
+  }
+  .ev.now + .ev { border-top-color: transparent; }
+  .ev.now .ev-t, .ev.now .ev-n { color: #fff; }
+  .ev-nowtag {
+    font: 700 10px var(--mono);
+    letter-spacing: 0.18em;
+    color: #fff;
+    align-self: center;
+  }
+
+  .marker {
+    font: 500 11.5px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    padding: 6px 0 5px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .ag-block + .ag-block { margin-top: 26px; }
+  .ag-col.rt .marker.days { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 10px; }
+
+  /* ---------- 08 / STATUS ---------- */
+
+  .status {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 0 16px 0 14px;
+    background: var(--paper-dim);
+    font: 500 11.5px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+  .st-idx { color: var(--ink-40); }
+  .st-item { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+  .st-sq { width: 7px; height: 7px; background: var(--ink); display: inline-block; }
+  .st-right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--ink-40); }
+  .reg { width: 14px; height: 14px; }
+  .reg circle, .reg line { stroke: var(--ink-40); stroke-width: 1; fill: none; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- drafted geometric weather glyphs, 48×48 -->
+    <symbol id="i-sun" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="7.5"/>
+      <line x1="34.5" y1="24" x2="38.5" y2="24"/>
+      <line x1="13.5" y1="24" x2="9.5"  y2="24"/>
+      <line x1="24" y1="34.5" x2="24" y2="38.5"/>
+      <line x1="24" y1="13.5" x2="24" y2="9.5"/>
+      <line x1="31.4" y1="31.4" x2="34.3" y2="34.3"/>
+      <line x1="16.6" y1="16.6" x2="13.7" y2="13.7"/>
+      <line x1="31.4" y1="16.6" x2="34.3" y2="13.7"/>
+      <line x1="16.6" y1="31.4" x2="13.7" y2="34.3"/>
+    </symbol>
+    <symbol id="i-partly" viewBox="0 0 48 48">
+      <circle cx="31" cy="15" r="6"/>
+      <line x1="31" y1="6.5" x2="31" y2="3.2"/>
+      <line x1="39.5" y1="15" x2="42.8" y2="15"/>
+      <line x1="37" y1="9" x2="39.4" y2="6.6"/>
+      <line x1="25" y1="9" x2="22.6" y2="6.6"/>
+      <path d="M11 34 A6 6 0 0 1 11 22 A9 9 0 0 1 28.5 19.5 A8 8 0 0 1 35 34 Z"/>
+    </symbol>
+    <symbol id="i-storm" viewBox="0 0 48 48">
+      <path d="M12 26 A6 6 0 0 1 12 14 A9 9 0 0 1 29.5 11.5 A8 8 0 0 1 36 26 Z"/>
+      <polyline points="25 26 20 36 26 36 22 45"/>
+    </symbol>
+    <symbol id="i-rain" viewBox="0 0 48 48">
+      <path d="M12 26 A6 6 0 0 1 12 14 A9 9 0 0 1 29.5 11.5 A8 8 0 0 1 36 26 Z"/>
+      <line x1="17" y1="31" x2="15" y2="38"/>
+      <line x1="24" y1="31" x2="22" y2="38"/>
+      <line x1="31" y1="31" x2="29" y2="38"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="frame">
+  <div class="crop tl"></div><div class="crop tr"></div>
+  <div class="crop bl"></div><div class="crop br"></div>
+  <span class="frame-note">PI-DASHBOARD / KIOSK PANEL — SWISS-MONO</span>
+  <span class="frame-note-r">SHEET 1 / 1 · SCALE 1:1</span>
+
+  <div class="canvas">
+
+    <!-- 01 / TIME -->
+    <section class="cell time">
+      <span class="tag">01 / TIME</span>
+      <div class="clock">
+        <span class="clock-big">2:46</span>
+        <span class="clock-mer">PM</span>
+      </div>
+      <div class="clock-date">Saturday, July 11</div>
+    </section>
+
+    <!-- 03–06 / FORECAST -->
+    <section class="cell forecast" style="background:var(--ink)">
+      <div class="fc">
+        <span class="tag">03 / SUN</span><span class="tag-r">WMO 00</span>
+        <div class="fc-day">Sunday</div>
+        <svg class="icon" width="54" height="54"><use href="#i-sun"/></svg>
+        <div class="fc-temps"><span class="fc-hi">90°</span><span class="fc-lo">/ 72°</span></div>
+        <div class="fc-foot">
+          <div class="fc-cond">Clear</div>
+        </div>
+      </div>
+      <div class="fc">
+        <span class="tag">04 / MON</span><span class="tag-r">WMO 95</span>
+        <div class="fc-day">Monday</div>
+        <svg class="icon" width="54" height="54"><use href="#i-storm"/></svg>
+        <div class="fc-temps"><span class="fc-hi">84°</span><span class="fc-lo">/ 70°</span></div>
+        <div class="fc-foot">
+          <div class="fc-cond">Thunderstorm</div>
+          <div class="fc-precip">PRECIP <b>65%</b></div>
+        </div>
+      </div>
+      <div class="fc">
+        <span class="tag">05 / TUE</span><span class="tag-r">WMO 61</span>
+        <div class="fc-day">Tuesday</div>
+        <svg class="icon" width="54" height="54"><use href="#i-rain"/></svg>
+        <div class="fc-temps"><span class="fc-hi">78°</span><span class="fc-lo">/ 66°</span></div>
+        <div class="fc-foot">
+          <div class="fc-cond">Light rain</div>
+          <div class="fc-precip">PRECIP <b>45%</b></div>
+        </div>
+      </div>
+      <div class="fc">
+        <span class="tag">06 / WED</span><span class="tag-r">WMO 02</span>
+        <div class="fc-day">Wednesday</div>
+        <svg class="icon" width="54" height="54"><use href="#i-partly"/></svg>
+        <div class="fc-temps"><span class="fc-hi">81°</span><span class="fc-lo">/ 68°</span></div>
+        <div class="fc-foot">
+          <div class="fc-cond">Partly cloudy</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 / CURRENT -->
+    <section class="cell current">
+      <span class="tag">02 / CURRENT</span>
+      <div class="cur-top">
+        <div class="cur-temp">82<span class="deg">°</span></div>
+        <div class="cur-iconblock">
+          <svg class="icon" width="68" height="68"><use href="#i-partly"/></svg>
+          <div class="cur-wmo">WMO 02 / DAY</div>
+        </div>
+      </div>
+      <div class="cur-cond">Partly cloudy</div>
+      <div class="meta">
+        <div class="meta-item"><span class="meta-k">High</span><span class="meta-v">88°</span></div>
+        <div class="meta-item"><span class="meta-k">Low</span><span class="meta-v">71°</span></div>
+        <div class="meta-item"><span class="meta-k">Feels like</span><span class="meta-v">85°</span></div>
+        <div class="meta-item"><span class="meta-k">Rain</span><span class="meta-v">15%</span></div>
+        <div class="meta-item"><span class="meta-k">Humidity</span><span class="meta-v">52%</span></div>
+        <div class="meta-item"><span class="meta-k">Wind</span><span class="meta-v">7 mph</span></div>
+        <div class="meta-item"><span class="meta-k">Sunrise</span><span class="meta-v">5:47a</span></div>
+        <div class="meta-item"><span class="meta-k">Sunset</span><span class="meta-v">8:29p</span></div>
+      </div>
+    </section>
+
+    <!-- 07 / AGENDA -->
+    <section class="cell agenda">
+      <span class="tag">07 / AGENDA — UPCOMING</span>
+      <div class="agenda-cols">
+
+        <div class="ag-col">
+          <div class="ag-head">
+            <span class="ag-day">Today</span>
+            <span class="ag-date">Jul 11</span>
+            <span class="pill">Summer Festival</span>
+          </div>
+          <div class="ev"><span class="ev-t allday">All day</span><span class="ev-n">Cabin trip</span></div>
+          <div class="marker">↑ +5 earlier</div>
+          <div class="ev now">
+            <span class="ev-t">1:30p</span>
+            <span class="ev-n">Focus block</span>
+            <span class="ev-nowtag">● NOW</span>
+          </div>
+          <div class="ev"><span class="ev-t">3:30p</span><span class="ev-n">School pickup</span></div>
+          <div class="ev"><span class="ev-t">4:45p</span><span class="ev-n">Vet appointment</span></div>
+          <div class="ev"><span class="ev-t">5:30p</span><span class="ev-n">Swim practice</span></div>
+          <div class="ev"><span class="ev-t">7:00p</span><span class="ev-n">Dinner reservation</span></div>
+          <div class="marker">↓ +2 more</div>
+        </div>
+
+        <div class="ag-col rt">
+          <div class="ag-block">
+            <div class="ag-head">
+              <span class="ag-day">Sunday</span>
+              <span class="ag-date">Jul 12</span>
+            </div>
+            <div class="ev"><span class="ev-t allday">All day</span><span class="ev-n">Cabin trip</span></div>
+            <div class="ev"><span class="ev-t">9:00a</span><span class="ev-n">Farmers market</span></div>
+            <div class="ev"><span class="ev-t">2:00p</span><span class="ev-n">Bike ride</span></div>
+          </div>
+          <div class="ag-block">
+            <div class="ag-head">
+              <span class="ag-day">Monday</span>
+              <span class="ag-date">Jul 13</span>
+              <span class="pill">Independence Day</span>
+            </div>
+            <div class="ev"><span class="ev-t">11:00a</span><span class="ev-n">Neighborhood parade</span></div>
+            <div class="ev"><span class="ev-t">8:30p</span><span class="ev-n">Fireworks picnic</span></div>
+          </div>
+          <div class="marker days">↓ +2 more days</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 08 / STATUS -->
+    <footer class="cell status">
+      <span class="st-idx">08 / STATUS</span>
+      <span class="st-item"><span class="st-sq"></span>Weather ok</span>
+      <span class="st-item"><span class="st-sq"></span>Calendar ok</span>
+      <span>Updated 2:46 PM</span>
+      <span class="st-right">
+        <span>MOD-GRID 1280 × 800</span>
+        <svg class="reg" viewBox="0 0 14 14">
+          <circle cx="7" cy="7" r="5"/>
+          <line x1="7" y1="0" x2="7" y2="14"/>
+          <line x1="0" y1="7" x2="14" y2="7"/>
+        </svg>
+      </span>
+    </footer>
+
+  </div>
+</div>
+
+</body>
+</html>

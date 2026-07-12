@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pi-dashboard — neo-brutalist mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:  #F6EEDD;
+    --ink:    #101010;
+    --white:  #FFFDF4;
+    --mustard:#FFC53D;
+    --coral:  #FF5D3A;
+    --cobalt: #2B54E0;
+    --mint:   #5FE0A2;
+    --muted:  #6b6459;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body { height:100%; }
+  body {
+    background:#37342f;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh;
+    font-family:'Space Grotesk', sans-serif;
+    color:var(--ink);
+  }
+
+  /* ---------- canvas ---------- */
+  .canvas {
+    width:1280px; height:800px; flex:none;
+    background:
+      radial-gradient(rgba(16,16,16,.07) 1.3px, transparent 1.3px) 0 0 / 26px 26px,
+      var(--paper);
+    border:4px solid var(--ink);
+    box-shadow:14px 14px 0 #1c1a17;
+    padding:26px;
+    display:grid;
+    grid-template-columns:430px 1fr;
+    grid-template-rows:210px 1fr 46px;
+    gap:22px;
+    overflow:hidden;
+    position:relative;
+  }
+
+  .panel {
+    border:4px solid var(--ink);
+    box-shadow:7px 7px 0 var(--ink);
+    background:var(--white);
+    position:relative;
+  }
+
+  .af { font-family:'Archivo Black', sans-serif; font-weight:400; }
+
+  /* ---------- clock ---------- */
+  .clock {
+    grid-column:1; grid-row:1;
+    background:var(--ink);
+    box-shadow:7px 7px 0 var(--coral);   /* black panels cast coral */
+    display:flex; flex-direction:column;
+    padding:14px 20px 0;
+  }
+  .clock .time-row {
+    flex:1; display:flex; align-items:center; gap:14px;
+  }
+  .clock .time {
+    font-size:112px; line-height:.86; color:var(--mustard);
+    letter-spacing:-4px;
+  }
+  .clock .meridiem {
+    background:var(--coral); color:var(--ink);
+    border:3px solid var(--white);
+    font-size:24px; padding:2px 10px; line-height:1.2;
+    align-self:flex-start; margin-top:14px;
+  }
+  .clock .date-strip {
+    margin:0 -20px;
+    background:var(--mustard); color:var(--ink);
+    border-top:4px solid var(--white);
+    font-size:17px; letter-spacing:3px;
+    padding:9px 20px 10px; text-transform:uppercase;
+    white-space:nowrap;
+  }
+
+  /* ---------- current conditions ---------- */
+  .current {
+    grid-column:1; grid-row:2;
+    padding:18px 20px 20px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .current .headline { display:flex; align-items:center; gap:10px; }
+  .current .headline svg { width:104px; height:104px; flex:none; }
+  .current .big-temp {
+    font-size:108px; line-height:.9; letter-spacing:-4px;
+  }
+  .cond-strip {
+    background:var(--ink); color:var(--white);
+    font-size:19px; letter-spacing:2.5px; text-transform:uppercase;
+    padding:8px 12px 9px; text-align:center;
+  }
+  .hl-row { display:flex; gap:10px; align-items:center; }
+  .chip {
+    border:3px solid var(--ink); box-shadow:4px 4px 0 var(--ink);
+    font-size:17px; font-weight:700; padding:3px 12px 4px;
+    background:var(--white); white-space:nowrap;
+  }
+  .chip.hi { background:var(--coral); }
+  .chip.lo { background:var(--white); }
+  .chip .lbl { font-size:12px; letter-spacing:1px; margin-right:5px; }
+  .stats {
+    flex:1;
+    display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr;
+    gap:3px; background:var(--ink); border:3px solid var(--ink);
+  }
+  .stat { background:var(--white); padding:7px 12px 8px; display:flex; flex-direction:column; justify-content:center; }
+  .stat .k { font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:700; color:var(--muted); }
+  .stat .v { font-size:21px; font-weight:700; letter-spacing:-.5px; }
+  .stat.sun { background:var(--mustard); }
+  .stat.sun .k { color:var(--ink); }
+
+  /* ---------- forecast ---------- */
+  .forecast {
+    grid-column:2; grid-row:1;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:20px;
+  }
+  .fcard {
+    border:4px solid var(--ink); box-shadow:7px 7px 0 var(--ink);
+    display:flex; flex-direction:column; align-items:center;
+    padding-bottom:10px;
+  }
+  .fcard .day {
+    align-self:stretch;
+    background:var(--ink); color:var(--white);
+    font-size:15px; letter-spacing:3px; text-transform:uppercase;
+    text-align:center; padding:7px 0 8px;
+  }
+  .fcard svg { width:58px; height:58px; margin:8px 0 2px; }
+  .fcard .temps { display:flex; align-items:baseline; gap:6px; }
+  .fcard .hi-t { font-size:31px; letter-spacing:-1px; }
+  .fcard .lo-t { font-size:18px; font-weight:600; opacity:.75; }
+  .fcard .cond {
+    font-size:12.5px; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; margin-top:3px;
+  }
+  .fcard .precip {
+    margin-top:6px;
+    background:var(--coral); border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);
+    font-size:12px; font-weight:700; letter-spacing:1px;
+    padding:1px 8px 2px; text-transform:uppercase;
+  }
+  .fcard.c-mustard { background:var(--mustard); }
+  .fcard.c-cobalt  { background:var(--cobalt); color:var(--white); }
+  .fcard.c-mint    { background:var(--mint); }
+  .fcard.c-white   { background:var(--white); }
+  .fcard.c-cobalt .day { background:var(--ink); }
+  .fcard.c-cobalt .precip { color:var(--ink); }
+
+  /* ---------- agenda ---------- */
+  .agenda {
+    grid-column:2; grid-row:2;
+    padding:24px 22px 16px;
+    display:grid; grid-template-columns:1fr 300px; gap:0 26px;
+  }
+  .agenda-tag {
+    position:absolute; top:-16px; left:20px;
+    background:var(--ink); color:var(--white);
+    border:3px solid var(--white); box-shadow:5px 5px 0 var(--coral);
+    font-size:16px; letter-spacing:4px; padding:4px 14px 5px;
+    transform:rotate(-1.2deg);
+  }
+  .day-head {
+    display:flex; align-items:center; gap:10px;
+    border-bottom:4px solid var(--ink);
+    padding-bottom:6px; margin-bottom:2px;
+  }
+  .day-head .dname { font-size:19px; letter-spacing:1px; text-transform:uppercase; }
+  .day-head .dnum  { font-size:13px; font-weight:700; letter-spacing:2px; color:var(--muted); white-space:nowrap; }
+  .pill {
+    background:var(--mustard);
+    border:2.5px solid var(--ink); box-shadow:3px 3px 0 var(--ink);
+    font-size:11px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; padding:2px 9px 3px;
+    transform:rotate(-1deg); white-space:nowrap;
+  }
+  .pill.p2 { transform:rotate(.8deg); }
+
+  .evt {
+    display:flex; align-items:center; gap:10px;
+    padding:6px 2px 7px;
+    border-bottom:2px solid rgba(16,16,16,.22);
+    min-height:34px;
+  }
+  .evt:last-child { border-bottom:none; }
+  .evt .t {
+    flex:none; width:66px;
+    font-size:14.5px; font-weight:700; color:var(--cobalt);
+    letter-spacing:.5px; font-variant-numeric:tabular-nums;
+  }
+  .evt .t.allday {
+    font-size:10.5px; letter-spacing:1px; color:var(--white);
+    background:var(--ink); text-align:center; padding:2px 0 3px; width:66px;
+  }
+  .evt .name { font-size:16.5px; font-weight:600; letter-spacing:-.2px; }
+
+  .evt.now {
+    background:var(--coral);
+    border:3px solid var(--ink); box-shadow:5px 5px 0 var(--ink);
+    margin:5px 0 6px; padding:8px 10px;
+    min-height:44px;
+  }
+  .evt.now .t { color:var(--ink); font-size:16px; }
+  .evt.now .name { font-size:19px; font-weight:700; }
+  .evt.now .arrow {
+    flex:none; width:15px; height:18px; background:var(--ink);
+    clip-path:polygon(0 0,100% 50%,0 100%);
+  }
+  .evt.now .now-tag {
+    margin-left:auto;
+    background:var(--ink); color:var(--white);
+    font-size:11px; letter-spacing:2.5px; font-weight:700;
+    padding:3px 8px 4px;
+  }
+
+  .marker {
+    display:inline-block;
+    border:2px dashed rgba(16,16,16,.55);
+    font-size:11px; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; color:rgba(16,16,16,.65);
+    padding:1px 8px 2px; margin:6px 0 4px;
+    background:transparent;
+  }
+  .marker-row { border-bottom:none !important; padding:2px; min-height:0; }
+
+  .agenda .side { display:flex; flex-direction:column; }
+  .agenda .side .day-block { margin-bottom:12px; }
+
+  /* ---------- footer ticker ---------- */
+  .ticker {
+    grid-column:1 / -1; grid-row:3;
+    background:var(--ink); color:var(--white);
+    border:4px solid var(--ink);
+    box-shadow:7px 7px 0 var(--coral);
+    display:flex; align-items:center; overflow:hidden;
+    font-size:14px; font-weight:600; letter-spacing:2.5px;
+    text-transform:uppercase; white-space:nowrap;
+  }
+  .ticker .seq { display:flex; align-items:center; gap:22px; padding:0 11px; flex:none; }
+  .ticker .dot {
+    width:11px; height:11px; background:var(--mint);
+    border:2px solid var(--white); display:inline-block; margin-right:8px;
+    vertical-align:-1px;
+  }
+  .ticker .sep { color:var(--coral); letter-spacing:0; font-weight:700; }
+  .ticker .upd { color:var(--mustard); }
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <!-- ===== CLOCK ===== -->
+  <section class="clock">
+    <div class="time-row">
+      <div class="time af">2:46</div>
+      <div class="meridiem af">PM</div>
+    </div>
+    <div class="date-strip af">Saturday, July 11</div>
+  </section>
+
+  <!-- ===== CURRENT CONDITIONS ===== -->
+  <section class="panel current">
+    <div class="headline">
+      <!-- partly cloudy (day) -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g stroke="#101010" stroke-width="3" stroke-linecap="square">
+          <line x1="41" y1="4"  x2="41" y2="10"/>
+          <line x1="57" y1="20" x2="63" y2="20"/>
+          <line x1="52.5" y1="8.5" x2="48.5" y2="12.5"/>
+          <line x1="52.5" y1="31.5" x2="48.5" y2="27.5"/>
+          <line x1="29.5" y1="8.5" x2="33.5" y2="12.5"/>
+        </g>
+        <circle cx="41" cy="20" r="9.5" fill="#FFC53D" stroke="#101010" stroke-width="3"/>
+        <path d="M44.5 52.5H16a9.5 9.5 0 0 1-1.6-18.86 14.5 14.5 0 0 1 28.2-3.4A11 11 0 0 1 44.5 52.5Z"
+              fill="#FFFDF4" stroke="#101010" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <div class="big-temp af">82°</div>
+    </div>
+    <div class="cond-strip af">Partly Cloudy</div>
+    <div class="hl-row">
+      <span class="chip hi"><span class="lbl">H</span>88°</span>
+      <span class="chip lo"><span class="lbl">L</span>71°</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="k">Feels like</span><span class="v">85°</span></div>
+      <div class="stat"><span class="k">Rain</span><span class="v">15%</span></div>
+      <div class="stat"><span class="k">Humidity</span><span class="v">52%</span></div>
+      <div class="stat"><span class="k">Wind</span><span class="v">7 mph</span></div>
+      <div class="stat sun"><span class="k">Sunrise</span><span class="v">5:47a</span></div>
+      <div class="stat sun"><span class="k">Sunset</span><span class="v">8:29p</span></div>
+    </div>
+  </section>
+
+  <!-- ===== 4-DAY FORECAST ===== -->
+  <section class="forecast">
+
+    <div class="fcard c-mustard">
+      <div class="day af">Sunday</div>
+      <!-- clear -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g stroke="#101010" stroke-width="3.5" stroke-linecap="square">
+          <line x1="32" y1="6"  x2="32" y2="14"/>
+          <line x1="32" y1="50" x2="32" y2="58"/>
+          <line x1="6"  y1="32" x2="14" y2="32"/>
+          <line x1="50" y1="32" x2="58" y2="32"/>
+          <line x1="13.6" y1="13.6" x2="19.3" y2="19.3"/>
+          <line x1="44.7" y1="44.7" x2="50.4" y2="50.4"/>
+          <line x1="13.6" y1="50.4" x2="19.3" y2="44.7"/>
+          <line x1="44.7" y1="19.3" x2="50.4" y2="13.6"/>
+        </g>
+        <circle cx="32" cy="32" r="12.5" fill="#FF5D3A" stroke="#101010" stroke-width="3.5"/>
+      </svg>
+      <div class="temps"><span class="hi-t af">90°</span><span class="lo-t">72°</span></div>
+      <div class="cond">Clear</div>
+    </div>
+
+    <div class="fcard c-cobalt">
+      <div class="day af">Monday</div>
+      <!-- thunderstorm -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M46.5 38.5H17a9.5 9.5 0 0 1-1.6-18.86 14.5 14.5 0 0 1 28.2-3.4A11.5 11.5 0 0 1 46.5 38.5Z"
+              fill="#FFFDF4" stroke="#101010" stroke-width="3" stroke-linejoin="round"/>
+        <polygon points="34,34 23,48 30,48 26,60 41,44 33,44 38,34"
+                 fill="#FFC53D" stroke="#101010" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+      <div class="temps"><span class="hi-t af">84°</span><span class="lo-t">70°</span></div>
+      <div class="cond">Thunderstorm</div>
+      <div class="precip">65% rain</div>
+    </div>
+
+    <div class="fcard c-mint">
+      <div class="day af">Tuesday</div>
+      <!-- light rain -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M46.5 38.5H17a9.5 9.5 0 0 1-1.6-18.86 14.5 14.5 0 0 1 28.2-3.4A11.5 11.5 0 0 1 46.5 38.5Z"
+              fill="#FFFDF4" stroke="#101010" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M21 44c2.4 3.8 3.8 6.2 3.8 8.4a3.8 3.8 0 0 1-7.6 0c0-2.2 1.4-4.6 3.8-8.4z"
+              fill="#2B54E0" stroke="#101010" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M33 46c2.4 3.8 3.8 6.2 3.8 8.4a3.8 3.8 0 0 1-7.6 0c0-2.2 1.4-4.6 3.8-8.4z"
+              fill="#2B54E0" stroke="#101010" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M45 44c2.4 3.8 3.8 6.2 3.8 8.4a3.8 3.8 0 0 1-7.6 0c0-2.2 1.4-4.6 3.8-8.4z"
+              fill="#2B54E0" stroke="#101010" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+      <div class="temps"><span class="hi-t af">78°</span><span class="lo-t">66°</span></div>
+      <div class="cond">Light Rain</div>
+      <div class="precip">45% rain</div>
+    </div>
+
+    <div class="fcard c-white">
+      <div class="day af">Wednesday</div>
+      <!-- partly cloudy -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g stroke="#101010" stroke-width="3" stroke-linecap="square">
+          <line x1="41" y1="4"  x2="41" y2="10"/>
+          <line x1="57" y1="20" x2="63" y2="20"/>
+          <line x1="52.5" y1="8.5" x2="48.5" y2="12.5"/>
+          <line x1="52.5" y1="31.5" x2="48.5" y2="27.5"/>
+          <line x1="29.5" y1="8.5" x2="33.5" y2="12.5"/>
+        </g>
+        <circle cx="41" cy="20" r="9.5" fill="#FFC53D" stroke="#101010" stroke-width="3"/>
+        <path d="M44.5 52.5H16a9.5 9.5 0 0 1-1.6-18.86 14.5 14.5 0 0 1 28.2-3.4A11 11 0 0 1 44.5 52.5Z"
+              fill="#FFFDF4" stroke="#101010" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <div class="temps"><span class="hi-t af">81°</span><span class="lo-t">68°</span></div>
+      <div class="cond">Partly Cloudy</div>
+    </div>
+  </section>
+
+  <!-- ===== AGENDA ===== -->
+  <section class="panel agenda">
+    <div class="agenda-tag af">Upcoming</div>
+
+    <!-- Today column -->
+    <div class="main-col">
+      <div class="day-head">
+        <span class="dname af">Today</span>
+        <span class="dnum">Jul 11</span>
+        <span class="pill">Summer Festival</span>
+      </div>
+
+      <div class="evt"><span class="t allday">All Day</span><span class="name">Cabin trip</span></div>
+      <div class="evt marker-row"><span class="marker">+5 earlier</span></div>
+      <div class="evt now">
+        <span class="arrow"></span>
+        <span class="t">1:30p</span>
+        <span class="name">Focus block</span>
+        <span class="now-tag">NOW</span>
+      </div>
+      <div class="evt"><span class="t">3:30p</span><span class="name">School pickup</span></div>
+      <div class="evt"><span class="t">4:45p</span><span class="name">Vet appointment</span></div>
+      <div class="evt"><span class="t">5:30p</span><span class="name">Swim practice</span></div>
+      <div class="evt"><span class="t">7:00p</span><span class="name">Dinner reservation</span></div>
+      <div class="evt marker-row"><span class="marker">+2 more</span></div>
+    </div>
+
+    <!-- Sunday / Monday column -->
+    <div class="side">
+      <div class="day-block">
+        <div class="day-head">
+          <span class="dname af">Sunday</span>
+          <span class="dnum">Jul 12</span>
+        </div>
+        <div class="evt"><span class="t allday">All Day</span><span class="name">Cabin trip</span></div>
+        <div class="evt"><span class="t">9:00a</span><span class="name">Farmers market</span></div>
+        <div class="evt"><span class="t">2:00p</span><span class="name">Bike ride</span></div>
+      </div>
+
+      <div class="day-block">
+        <div class="day-head">
+          <span class="dname af">Monday</span>
+          <span class="dnum">Jul 13</span>
+          <span class="pill p2">Independence Day</span>
+        </div>
+        <div class="evt"><span class="t">11:00a</span><span class="name">Neighborhood parade</span></div>
+        <div class="evt"><span class="t">8:30p</span><span class="name">Fireworks picnic</span></div>
+        <div class="evt marker-row"><span class="marker">+2 more days</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== STATUS TICKER ===== -->
+  <footer class="ticker">
+    <div class="seq">
+      <span><span class="dot"></span>Weather OK</span>
+      <span class="sep">///</span>
+      <span><span class="dot"></span>Calendar OK</span>
+      <span class="sep">///</span>
+      <span class="upd">Updated 2:46 PM</span>
+      <span class="sep">///</span>
+    </div>
+    <div class="seq">
+      <span><span class="dot"></span>Weather OK</span>
+      <span class="sep">///</span>
+      <span><span class="dot"></span>Calendar OK</span>
+      <span class="sep">///</span>
+      <span class="upd">Updated 2:46 PM</span>
+      <span class="sep">///</span>
+    </div>
+    <div class="seq">
+      <span><span class="dot"></span>Weather OK</span>
+      <span class="sep">///</span>
+      <span><span class="dot"></span>Calendar OK</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

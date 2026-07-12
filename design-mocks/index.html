@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pi-dashboard — design mock gallery</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 40px; background: #16181d; color: #e8e8e8;
+         font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #9aa0aa; margin: 0 0 32px; max-width: 70ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 32px; }
+  .card { background: #1e2128; border: 1px solid #2c3038; border-radius: 10px; overflow: hidden; }
+  .card img { display: block; width: 100%; height: auto; background: #000; }
+  .card .meta { padding: 14px 18px; }
+  .card h2 { font-size: 16px; margin: 0 0 4px; }
+  .card h2 a { color: #7fb4ff; text-decoration: none; }
+  .card h2 a:hover { text-decoration: underline; }
+  .card p { margin: 0; color: #9aa0aa; font-size: 13.5px; }
+  .ref { opacity: .8; }
+</style>
+</head>
+<body>
+  <h1>pi-dashboard — design mock gallery</h1>
+  <p class="sub">The chosen direction (instrument HUD, variant D) with its accepted state
+  references, plus the three unchosen design directions kept for the record. Same information
+  architecture and fixture content throughout (see CONTENT.md), each a self-contained HTML file
+  at the 1280×800 kiosk viewport. Click a title to open the live mock. Local-only — nothing
+  here is wired to the app. (Superseded HUD intermediates and rejected state mocks were
+  deleted 2026-07-12.)</p>
+  <div class="grid">
+    <div class="card">
+      <a href="paper-editorial.html"><img src="paper-editorial.png" alt="Paper editorial mock" /></a>
+      <div class="meta">
+        <h2><a href="paper-editorial.html">Paper editorial — “the daily broadsheet”</a></h2>
+        <p>E-ink/print aesthetic: warm paper, ink-only palette with one oxblood accent,
+        Playfair/Newsreader, newspaper furniture (masthead clock, column rules, almanac table).</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="neo-brutalist.html"><img src="neo-brutalist.png" alt="Neo-brutalist mock" /></a>
+      <div class="meta">
+        <h2><a href="neo-brutalist.html">Neo-brutalist</a></h2>
+        <p>Flat saturated panels, 4px black borders, hard offset shadows, Archivo Black numerals,
+        inverted clock slab, coral “NOW” bar, black ticker footer.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="swiss-mono.html"><img src="swiss-mono.png" alt="Swiss mono grid mock" /></a>
+      <div class="meta">
+        <h2><a href="swiss-mono.html">Swiss / mono exposed grid</a></h2>
+        <p>Engineering-sheet modular grid with indexed cells (01/TIME … 08/STATUS), JetBrains Mono
+        metadata + huge grotesque numerals, single surgical Swiss-red accent.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="instrument-hud-d.html"><img src="instrument-hud-d.png" alt="Instrument HUD variant D (the keeper)" /></a>
+      <div class="meta">
+        <h2><a href="instrument-hud-d.html">HUD variant D — THE KEEPER (everything agreed to date)</a></h2>
+        <p>Green-phosphor instrument cluster: 240° temp dial on a computed data-driven scale
+        window (60°F span snapped to 10s — here 60–120), linear solar day-tape, channel-row
+        forecast on the shared scale, edge-block ACTIVE row, flavor text purged, units declared
+        once in the header, right-aligned status footer with RESYNC.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="instrument-hud-d-winter.html"><img src="instrument-hud-d-winter.png" alt="HUD D winter scale state" /></a>
+      <div class="meta">
+        <h2><a href="instrument-hud-d-winter.html">HUD D state — winter (data-driven scale)</a></h2>
+        <p>Critique should-fix 1: the 50–110°F scale becomes a computed 60° window snapped to 10s
+        (here 10–70 for a 28° January day); dial, ruler, and range bars all derive from it.
+        Adds snow/overcast glyphs and amber crystal precip pills.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="instrument-hud-d-empty.html"><img src="instrument-hud-d-empty.png" alt="HUD D empty agenda state" /></a>
+      <div class="meta">
+        <h2><a href="instrument-hud-d-empty.html">HUD D state — light calendar week</a></h2>
+        <p>Critique should-fix 4: zero-event days render an explicit — NO ENTRIES — line on the
+        event grid, the horizon extends to seven days, and the manifest closes with an
+        END OF SCHEDULE tick rule so emptiness reads intentional.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="soft-scandi.html"><img src="soft-scandi.png" alt="Soft Scandinavian mock" /></a>
+      <div class="meta">
+        <h2><a href="soft-scandi.html">Warm Scandinavian light mode</a></h2>
+        <p>Linen canvas, Fraunces display type, muted sage/terracotta/dusty-blue palette,
+        condition-tinted forecast cards, family wall-planner agenda.</p>
+      </div>
+    </div>
+    <div class="card ref">
+      <img src="../docs/mockup.png" alt="Current production design" />
+      <div class="meta">
+        <h2>Current design (reference)</h2>
+        <p>The production v4 dark bento layout, for comparison.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

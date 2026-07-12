@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi-dashboard mock — instrument HUD D-empty (light calendar week)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#03080a;                 /* near-black, faint green-blue cast */
+    --panel:#04100f;
+    --ph0:#eafff6;                /* white-hot phosphor (loudest numerals) */
+    --ph1:#5cffc5;                /* bright phosphor */
+    --ph2:rgba(92,255,197,.66);   /* mid */
+    --ph3:rgba(92,255,197,.42);   /* dim / labels */
+    --ph4:rgba(92,255,197,.16);   /* rules, baselines */
+    --amb:#ffb454;                /* caution / holiday annunciator */
+    --amb2:rgba(255,180,84,.45);
+    --f1:'Share Tech Mono',monospace;
+    --f2:'IBM Plex Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:#15181b;
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--f1);
+  }
+  /* ---------- framed 1280x800 canvas ---------- */
+  #canvas{
+    width:1280px;height:800px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 50% 40%, rgba(92,255,197,.045), transparent 60%),
+      var(--bg);
+    color:var(--ph1);
+    outline:1px solid #2b2f33;
+    box-shadow:0 0 0 10px #0a0c0d,0 30px 70px rgba(0,0,0,.55);
+    padding:18px 20px;
+    display:flex;flex-direction:column;gap:12px;
+  }
+  /* cheap CRT dressing: scanlines + vignette, one static overlay */
+  #fx{
+    position:absolute;inset:0;pointer-events:none;z-index:9;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px),
+      radial-gradient(140% 110% at 50% 50%, transparent 60%, rgba(0,0,0,.42) 100%);
+  }
+
+  /* ---------- shared instrument vocabulary ---------- */
+  .brk{position:relative;border:1px solid var(--ph4);background:rgba(92,255,197,.025)}
+  .brk::before,.brk::after{content:"";position:absolute;width:14px;height:14px;pointer-events:none}
+  .brk::before{top:-1px;left:-1px;border-top:2px solid var(--ph2);border-left:2px solid var(--ph2)}
+  .brk::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--ph2);border-right:2px solid var(--ph2)}
+  .brk .c2::before,.brk .c2::after{content:"";position:absolute;width:14px;height:14px;pointer-events:none}
+  .brk .c2::before{top:-1px;right:-1px;border-top:2px solid var(--ph2);border-right:2px solid var(--ph2)}
+  .brk .c2::after{bottom:-1px;left:-1px;border-bottom:2px solid var(--ph2);border-left:2px solid var(--ph2)}
+  .mlabel{
+    position:absolute;top:7px;left:12px;font-size:12px;letter-spacing:.22em;
+    color:var(--ph3);white-space:nowrap;
+  }
+  .mlabel-r{left:auto;right:12px;letter-spacing:.16em}
+  .fticks{ /* ruler tick strip (header + footer share it) */
+    height:5px;
+    background:
+      repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 12px),
+      linear-gradient(var(--ph4),var(--ph4)) left center / 100% 1px no-repeat;
+  }
+  .glow{text-shadow:0 0 14px rgba(92,255,197,.4)}
+  .amber{color:var(--amb)}
+
+  /* ---------- header : master chronometer ---------- */
+  header{flex:0 0 auto;display:flex;flex-direction:column;gap:8px}
+  .hrow{display:flex;align-items:baseline;gap:22px}
+  .clock{font-size:64px;line-height:1;color:var(--ph0)}
+  .ampm{font-size:22px;color:var(--ph2);letter-spacing:.1em;margin-left:-10px}
+  .hdiv{width:1px;height:44px;background:var(--ph4);align-self:center}
+  .hdate{font-size:21px;letter-spacing:.28em;color:var(--ph1)}
+  .hmeta{margin-left:auto;text-align:right;font-size:12.5px;line-height:1.65;color:var(--ph3);letter-spacing:.18em;
+         align-self:flex-end;margin-bottom:7px /* bottom line sits on the date's baseline */}
+  .hmeta b{color:var(--ph2);font-weight:400}
+
+  /* ---------- main grid ---------- */
+  main{flex:1;display:flex;gap:14px;min-height:0}
+  #wx{flex:0 0 580px;display:flex;flex-direction:column;gap:12px;min-height:0}
+  #agenda{flex:1;min-width:0}
+
+  /* ---------- primary instrument: temp dial with docked readouts ---------- */
+  #gauge{flex:0 0 326px;position:relative}
+  #gauge svg{position:absolute;left:0;right:0;top:24px;bottom:6px;width:100%;height:calc(100% - 30px);display:block}
+  .dock{position:absolute;z-index:2;display:flex;flex-direction:column;gap:3px;width:120px}
+  .dock .dl{font-size:11.5px;letter-spacing:.22em;color:var(--ph3)}
+  .dock .dv{font-size:28px;line-height:1;color:var(--ph0)}
+  .dock .dv small{font-size:14px;color:var(--ph2)}
+  .dock .ds{font-size:11px;letter-spacing:.14em;color:var(--ph3)}
+  .dock-l{left:16px;align-items:flex-start;border-left:1px solid var(--ph4);padding-left:9px}
+  .dock-r{right:16px;align-items:flex-end;text-align:right;border-right:1px solid var(--ph4);padding-right:9px}
+  .dock-t{top:50px}
+  .dock-b{bottom:22px}
+
+  /* ---------- solar : linear day-progress tape ---------- */
+  #solar{flex:0 0 70px;display:flex;align-items:flex-end;justify-content:center;padding:0 10px 3px}
+  #solar svg{width:100%;height:47px;display:block}
+
+  /* ---------- forecast : four horizontal channel rows, shared 50–110 scale ---------- */
+  #fcst{flex:1;display:flex;flex-direction:column;padding:24px 14px 8px;min-height:0}
+  .fruler,.frow{
+    display:grid;grid-template-columns:48px 40px 128px 1fr 70px;
+    gap:10px;align-items:center;
+  }
+  .fruler{flex:0 0 16px}
+  .frow{flex:1;border-top:1px solid var(--ph4);min-height:0}
+  .frow .dn{font-size:14.5px;letter-spacing:.14em;color:var(--ph2)}
+  .frow svg{width:38px;height:31px;display:block}
+  .frow .cond{font-family:var(--f2);font-weight:500;font-size:13.5px;line-height:1.15;color:var(--ph2)}
+  .frow .pp{justify-self:end;font-size:13px;letter-spacing:.08em}
+  .frow .pp.on{
+    display:inline-flex;align-items:center;gap:5px;
+    color:var(--amb);border:1px solid var(--amb2);padding:1px 8px;line-height:16px;
+    background:rgba(255,180,84,.06);
+  }
+  .frow .pp.on svg{width:8px;height:12px;flex:0 0 auto}
+  .track{position:relative;height:100%;grid-column:4}
+  .track .grid{position:absolute;top:16%;bottom:16%;width:1px;background:var(--ph4)}
+  .track .under{position:absolute;top:50%;height:12px;margin-top:-6px;background:rgba(92,255,197,.16)}
+  .track .core{position:absolute;top:50%;height:3px;margin-top:-1.5px;background:var(--ph1)}
+  .track .cap{position:absolute;top:50%;width:2px;height:14px;margin-top:-7px;background:var(--ph1)}
+  .track .tlo{position:absolute;top:50%;transform:translate(-100%,-50%);
+    padding-right:8px;font-size:15px;color:var(--ph3);line-height:1}
+  .track .thi{position:absolute;top:50%;transform:translateY(-50%);
+    padding-left:8px;font-size:19px;color:var(--ph0);line-height:1;
+    text-shadow:0 0 12px rgba(92,255,197,.35)}
+  .rul{position:relative;height:100%;grid-column:4;
+    background:
+      repeating-linear-gradient(90deg, var(--ph3) 0 1px, transparent 1px calc(100%/12)),
+      linear-gradient(var(--ph4),var(--ph4)) left bottom / 100% 1px no-repeat;
+    background-size:calc(100% + 1px) 5px, 100% 1px;
+    background-position:left bottom, left bottom;
+    background-repeat:no-repeat;
+  }
+  .rul span{position:absolute;bottom:5px;font-size:11px;color:var(--ph3);letter-spacing:.05em}
+
+  /* ---------- agenda manifest ---------- */
+  #agenda{display:flex;flex-direction:column;padding:30px 16px 12px}
+  .arows{flex:1;overflow:hidden;display:flex;flex-direction:column}
+  .dhead{display:flex;align-items:center;gap:10px;margin:11px 0 5px}
+  .dhead:first-child{margin-top:2px}
+  .dhead .dname{font-size:16px;letter-spacing:.2em;color:var(--ph1)}
+  .dhead .ddate{font-size:13px;letter-spacing:.14em;color:var(--ph3)}
+  .dhead .drule{flex:1;height:5px;background:
+      repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 10px),
+      linear-gradient(var(--ph4),var(--ph4)) left bottom / 100% 1px no-repeat}
+  .hol{
+    font-size:12.5px;letter-spacing:.14em;color:var(--amb);
+    border:1px solid var(--amb2);padding:1px 9px;white-space:nowrap;
+    background:rgba(255,180,84,.06);
+  }
+  .hol::before{content:"◆ ";font-size:9px;vertical-align:2px}
+  .ev{display:grid;grid-template-columns:78px 1fr auto;gap:14px;align-items:baseline;
+      padding:4.5px 8px;font-size:16px}
+  .ev .t{text-align:right;color:var(--ph2);font-size:14.5px;letter-spacing:.06em}
+  .ev .n{font-family:var(--f2);font-weight:500;color:var(--ph1);letter-spacing:.04em;
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev.allday .t{color:var(--ph3);font-size:12.5px;letter-spacing:.12em}
+  .ev.active{ /* edge block + faint field — quieter than the temp/clock tier */
+    position:relative;
+    background:rgba(92,255,197,.08);
+  }
+  .ev.active::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+    background:var(--ph1);
+    box-shadow:0 0 10px rgba(92,255,197,.4);
+  }
+  .ev.active .t{color:var(--ph1);font-weight:600}
+  .ev.active .n{color:var(--ph0);font-weight:600}
+  .ev.active .atag{font-size:12px;letter-spacing:.2em;color:var(--ph1);font-weight:600}
+  .more{padding:2px 8px 3px 100px;font-size:13px;letter-spacing:.16em;color:var(--ph3)}
+  .more::before{content:"▸ ";color:var(--ph4)}
+  /* explicit empty-day state: sits on the event-row grid so it occupies the
+     slot an event would — time column stays blank, legend lands in the title
+     column at the faint tier. Reads as data ("nothing scheduled"), not a hole. */
+  .noev{display:grid;grid-template-columns:78px 1fr auto;gap:14px;align-items:baseline;
+        padding:4.5px 8px;font-size:16px}
+  .noev .t{text-align:right;color:var(--ph4);font-size:14.5px;letter-spacing:.06em}
+  .noev .n{font-size:13px;letter-spacing:.24em;color:var(--ph3)}
+  /* end-of-manifest closure: short centered tick-rules (same motif as .drule /
+     .fticks) bracketing a faint terminal legend. Space below is intentionally
+     blank — the manifest is closed, not truncated. */
+  .eom{display:flex;align-items:center;justify-content:center;gap:14px;
+       margin:18px 8px 0;font-size:12px;letter-spacing:.26em;color:var(--ph3);
+       white-space:nowrap}
+  .eom .erule{width:130px;height:5px;background:
+      repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 10px),
+      linear-gradient(var(--ph4),var(--ph4)) left bottom / 100% 1px no-repeat}
+
+  /* ---------- status footer ---------- */
+  footer{flex:0 0 26px;display:flex;align-items:center;gap:18px;
+         font-size:13.5px;letter-spacing:.14em;color:var(--ph3)}
+  footer .ok{color:var(--ph1);border:1px solid var(--ph4);padding:0 8px;line-height:19px;
+             background:rgba(92,255,197,.05)}
+  footer .ok::before{content:"● ";font-size:9px;vertical-align:1px}
+  /* manual refresh control (live UI: ⟳ rides with the "Updated" stamp at the end
+     of the status row → same grouping here). Reads pressable vs the .ok
+     annunciators: full-brightness border, inset phosphor fill, glyph glow. */
+  footer .rfr{color:var(--ph1);border:1px solid var(--ph2);padding:0 10px;line-height:19px;
+              background:rgba(92,255,197,.09);cursor:pointer;user-select:none;
+              box-shadow:inset 0 0 8px rgba(92,255,197,.14);
+              text-shadow:0 0 10px rgba(92,255,197,.45)}
+  footer .rfr::before{content:"⟳ ";color:var(--ph0)}
+  footer .fticks{flex:1}
+</style>
+</head>
+<body>
+<div id="canvas">
+
+  <!-- ============ MASTER CHRONOMETER ============ -->
+  <header>
+    <div class="hrow">
+      <span class="clock glow">02:46</span><span class="ampm">PM</span>
+      <span class="hdiv"></span>
+      <span class="hdate">SATURDAY, JULY 11</span>
+      <div class="hmeta">
+        <div>MODE <b>DAY</b> · UNITS <b>°F / MPH</b></div>
+      </div>
+    </div>
+    <span class="fticks"></span>
+  </header>
+
+  <main>
+    <!-- ============ WEATHER STACK ============ -->
+    <section id="wx">
+
+      <!-- primary instrument: temp dial + docked readouts -->
+      <div id="gauge" class="brk"><span class="c2"></span>
+        <span class="mlabel">PRIMARY · AIR TEMP</span>
+        <span class="mlabel mlabel-r">SCALE 50–110</span>
+        <svg id="gsvg" viewBox="0 0 580 296" preserveAspectRatio="xMidYMid meet"
+             aria-label="Current temperature 82 degrees, partly cloudy, feels like 85, high 88 low 71, rain 15 percent, humidity 52 percent, wind 7 miles per hour"></svg>
+        <div class="dock dock-l dock-t"><span class="dl">FEELS</span>
+          <span class="dv glow">85<small>°</small></span></div>
+        <div class="dock dock-l dock-b"><span class="dl">HUM</span>
+          <span class="dv glow">52<small>%</small></span></div>
+        <div class="dock dock-r dock-t"><span class="dl">RAIN</span>
+          <span class="dv glow">15<small>%</small></span><span class="ds">PRECIP PROB</span></div>
+        <div class="dock dock-r dock-b"><span class="dl">WIND</span>
+          <span class="dv glow">7</span></div>
+      </div>
+
+      <!-- solar linear day-progress tape -->
+      <div id="solar" class="brk"><span class="c2"></span>
+        <span class="mlabel">SOLAR TRACK</span>
+        <svg id="ssvg" viewBox="0 0 552 47" aria-label="Day progress, sunrise 5:47 AM, sunset 8:29 PM, now 2:46 PM"></svg>
+      </div>
+
+      <!-- 4-day forecast : channel rows on shared 50–110 scale -->
+      <div id="fcst" class="brk"><span class="c2"></span>
+        <span class="mlabel">FORECAST · 4 DAY</span>
+        <div class="fruler"><div class="rul" id="rul"></div></div>
+        <div class="frow">
+          <span class="dn">SUN</span>
+          <svg viewBox="0 0 48 40" class="gl" data-g="clear"></svg>
+          <span class="cond">Clear</span>
+          <div class="track" data-lo="72" data-hi="90"></div>
+          <span class="pp"></span>
+        </div>
+        <div class="frow">
+          <span class="dn">MON</span>
+          <svg viewBox="0 0 48 40" class="gl" data-g="storm"></svg>
+          <span class="cond">Thunderstorm</span>
+          <div class="track" data-lo="70" data-hi="84"></div>
+          <span class="pp on"><svg viewBox="0 0 10 14" aria-hidden="true"><path
+            d="M5 1 C5 1 1.6 6.4 1.6 9.2 a3.4 3.4 0 0 0 6.8 0 C8.4 6.4 5 1 5 1 Z"
+            fill="none" stroke="#ffb454" stroke-width="1.6" stroke-linejoin="round"/></svg>65%</span>
+        </div>
+        <div class="frow">
+          <span class="dn">TUE</span>
+          <svg viewBox="0 0 48 40" class="gl" data-g="rain"></svg>
+          <span class="cond">Light rain</span>
+          <div class="track" data-lo="66" data-hi="78"></div>
+          <span class="pp on"><svg viewBox="0 0 10 14" aria-hidden="true"><path
+            d="M5 1 C5 1 1.6 6.4 1.6 9.2 a3.4 3.4 0 0 0 6.8 0 C8.4 6.4 5 1 5 1 Z"
+            fill="none" stroke="#ffb454" stroke-width="1.6" stroke-linejoin="round"/></svg>45%</span>
+        </div>
+        <div class="frow">
+          <span class="dn">WED</span>
+          <svg viewBox="0 0 48 40" class="gl" data-g="pcloudy"></svg>
+          <span class="cond">Partly cloudy</span>
+          <div class="track" data-lo="68" data-hi="81"></div>
+          <span class="pp"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AGENDA MANIFEST ============ -->
+    <section id="agenda" class="brk"><span class="c2"></span>
+      <span class="mlabel">UPCOMING</span>
+      <div class="arows">
+
+        <div class="dhead"><span class="dname">TODAY</span><span class="ddate">JUL 11</span>
+          <span class="drule"></span></div>
+        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+
+        <div class="dhead"><span class="dname">SUNDAY</span><span class="ddate">JUL 12</span>
+          <span class="drule"></span></div>
+        <div class="ev"><span class="t">9:00A</span><span class="n">Farmers market</span></div>
+
+        <div class="dhead"><span class="dname">MONDAY</span><span class="ddate">JUL 13</span>
+          <span class="drule"></span><span class="hol">INDEPENDENCE DAY</span></div>
+        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+
+        <div class="dhead"><span class="dname">TUESDAY</span><span class="ddate">JUL 14</span>
+          <span class="drule"></span></div>
+        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+
+        <div class="dhead"><span class="dname">WEDNESDAY</span><span class="ddate">JUL 15</span>
+          <span class="drule"></span></div>
+        <div class="ev"><span class="t">6:30P</span><span class="n">Book club</span></div>
+
+        <div class="dhead"><span class="dname">THURSDAY</span><span class="ddate">JUL 16</span>
+          <span class="drule"></span></div>
+        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+
+        <div class="dhead"><span class="dname">FRIDAY</span><span class="ddate">JUL 17</span>
+          <span class="drule"></span></div>
+        <div class="ev"><span class="t">5:30P</span><span class="n">Pizza night</span></div>
+
+        <div class="eom"><span class="erule"></span><span>END OF SCHEDULE</span><span class="erule"></span></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ SYSTEM STATUS ============ -->
+  <footer>
+    <span class="fticks"></span>
+    <span class="ok">WEATHER OK</span>
+    <span class="ok">CALENDAR OK</span>
+    <span>UPDATED 2:46 PM</span>
+    <span class="rfr" role="button" title="manual refresh">RESYNC</span>
+  </footer>
+
+  <div id="fx"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var NS="http://www.w3.org/2000/svg";
+  var MIN=50, MAX=110;
+  function el(name,attrs,text){
+    var e=document.createElementNS(NS,name);
+    for(var k in attrs) e.setAttribute(k,attrs[k]);
+    if(text!=null) e.textContent=text;
+    return e;
+  }
+  /* polar helper: deg measured clockwise from 12 o'clock */
+  function pt(cx,cy,r,deg){
+    var a=deg*Math.PI/180;
+    return [cx+r*Math.sin(a), cy-r*Math.cos(a)];
+  }
+  function arcPath(cx,cy,r,a1,a2){
+    var p1=pt(cx,cy,r,a1), p2=pt(cx,cy,r,a2);
+    var large=(a2-a1)>180?1:0;
+    return "M"+p1[0].toFixed(2)+" "+p1[1].toFixed(2)+
+           " A"+r+" "+r+" 0 "+large+" 1 "+p2[0].toFixed(2)+" "+p2[1].toFixed(2);
+  }
+
+  /* ================= PRIMARY TEMP DIAL =================
+     scale 50–110 °F over 240° sweep; value 82 (the arc's end IS the value
+     indicator — no pointer/band/FL clutter). CY chosen so the arc's top edge
+     sits on the dock labels' cap line (FEELS / RAIN), and the H/L baseline
+     sits level with the bottom docks' value row (HUM / WIND). */
+  (function(){
+    var svg=document.getElementById("gsvg");
+    var CX=290, CY=146, R=118, SWEEP=240;
+    var ang=function(v){ return -SWEEP/2 + SWEEP*(v-MIN)/(MAX-MIN); };
+    var VAL=82;
+
+    /* baseline + value arc (fake glow = fat translucent understroke) */
+    svg.appendChild(el("path",{d:arcPath(CX,CY,R,ang(MIN),ang(MAX)),
+      fill:"none",stroke:"rgba(92,255,197,.14)","stroke-width":2}));
+    svg.appendChild(el("path",{d:arcPath(CX,CY,R,ang(MIN),ang(VAL)),
+      fill:"none",stroke:"rgba(92,255,197,.18)","stroke-width":9}));
+    svg.appendChild(el("path",{d:arcPath(CX,CY,R,ang(MIN),ang(VAL)),
+      fill:"none",stroke:"#5cffc5","stroke-width":3}));
+
+    /* ticks + labels */
+    for(var v=MIN; v<=MAX; v+=5){
+      var major=(v%10===0), a=ang(v);
+      var o=pt(CX,CY,112,a), i=pt(CX,CY,major?94:102,a);
+      svg.appendChild(el("line",{x1:o[0],y1:o[1],x2:i[0],y2:i[1],
+        stroke:major?"rgba(92,255,197,.6)":"rgba(92,255,197,.3)",
+        "stroke-width":major?2:1}));
+      if(major){
+        var L=pt(CX,CY,82,a);
+        svg.appendChild(el("text",{x:L[0],y:L[1]+4,fill:"rgba(92,255,197,.5)",
+          "font-size":13,"text-anchor":"middle","font-family":"Share Tech Mono,monospace"},String(v)));
+      }
+    }
+
+    /* center readout — baseline CY+27 puts the digits' optical middle on CY */
+    svg.appendChild(el("text",{x:CX,y:CY+27,fill:"#eafff6","font-size":76,
+      "text-anchor":"middle","font-family":"Share Tech Mono,monospace",
+      style:"text-shadow:0 0 16px rgba(92,255,197,.45)"},"82°"));
+    svg.appendChild(el("text",{x:CX,y:249,fill:"rgba(92,255,197,.85)","font-size":17,
+      "letter-spacing":"4","text-anchor":"middle",
+      "font-family":"IBM Plex Mono,monospace","font-weight":"500"},"PARTLY CLOUDY"));
+    /* today's H/L as a single text line under the condition (28px below it);
+       y=277 puts its baseline on the dock sublabels' baseline */
+    var hl=el("text",{x:CX,y:277,"font-size":18,"letter-spacing":"1",
+      "text-anchor":"middle","font-family":"Share Tech Mono,monospace"});
+    [["H ","rgba(92,255,197,.66)"],["88°","#eafff6"],[" · ","rgba(92,255,197,.66)"],
+     ["L ","rgba(92,255,197,.66)"],["71°","#eafff6"]].forEach(function(s){
+      hl.appendChild(el("tspan",{fill:s[1]},s[0]));
+    });
+    svg.appendChild(hl);
+  })();
+
+  /* ================= SOLAR LINEAR TAPE =================
+     sunrise 5:47a → sunset 8:29p, now 2:46p  →  t = 539/882 ≈ 0.611 */
+  (function(){
+    var svg=document.getElementById("ssvg");
+    /* ty = tape line; ly = bottom label baseline (fixed — the tape moved up
+       4px to clear it, so labels no longer track ty). */
+    var ty=20, ly=42, xr=52, xs=488;
+    var T=(14*60+46 - (5*60+47)) / ((20*60+29)-(5*60+47));
+    var xn=xr+(xs-xr)*T;
+
+    /* full-width baseline with idle ticks */
+    svg.appendChild(el("line",{x1:8,y1:ty,x2:544,y2:ty,
+      stroke:"rgba(92,255,197,.22)","stroke-width":1,"stroke-dasharray":"5 4"}));
+    for(var x=16;x<=540;x+=24)
+      svg.appendChild(el("line",{x1:x,y1:ty,x2:x,y2:ty+4,stroke:"rgba(92,255,197,.3)","stroke-width":1}));
+
+    /* traveled daylight portion */
+    svg.appendChild(el("line",{x1:xr,y1:ty,x2:xn,y2:ty,
+      stroke:"rgba(92,255,197,.2)","stroke-width":7}));
+    svg.appendChild(el("line",{x1:xr,y1:ty,x2:xn,y2:ty,
+      stroke:"#5cffc5","stroke-width":2}));
+
+    /* sunrise / sunset bugs */
+    [xr,xs].forEach(function(x){
+      svg.appendChild(el("line",{x1:x,y1:ty-6,x2:x,y2:ty+6,
+        stroke:"rgba(92,255,197,.7)","stroke-width":2}));
+    });
+
+    /* sun marker: circle + 4 cross ticks (~25% smaller than v1: halo 8→6,
+       ring 5→4, ticks ±11/±7.5→±8/±5.5; stroke stays 2 so it reads crisp) */
+    svg.appendChild(el("circle",{cx:xn,cy:ty,r:6,fill:"rgba(92,255,197,.25)"}));
+    svg.appendChild(el("circle",{cx:xn,cy:ty,r:4,fill:"none",stroke:"#eafff6","stroke-width":2}));
+    [[0,-8,0,-5.5],[0,8,0,5.5],[-8,0,-5.5,0],[8,0,5.5,0]].forEach(function(d){
+      svg.appendChild(el("line",{x1:xn+d[0],y1:ty+d[1],x2:xn+d[2],y2:ty+d[3],
+        stroke:"#eafff6","stroke-width":2}));
+    });
+    svg.appendChild(el("text",{x:xn+16,y:ty-9,fill:"rgba(92,255,197,.6)","font-size":12,
+      "font-family":"Share Tech Mono,monospace"},"NOW"));
+
+    /* labels */
+    svg.appendChild(el("text",{x:8,y:ly,fill:"rgba(92,255,197,.7)","font-size":13,
+      "text-anchor":"start","font-family":"Share Tech Mono,monospace"},"▲ SUNRISE 5:47A"));
+    svg.appendChild(el("text",{x:544,y:ly,fill:"rgba(92,255,197,.7)","font-size":13,
+      "text-anchor":"end","font-family":"Share Tech Mono,monospace"},"SUNSET 8:29P ▼"));
+    svg.appendChild(el("text",{x:(xr+xs)/2,y:ly,fill:"rgba(92,255,197,.38)","font-size":12,
+      "text-anchor":"middle","letter-spacing":"2",
+      "font-family":"Share Tech Mono,monospace"},"DAYLIGHT 14H 42M"));
+  })();
+
+  /* ================= FORECAST RANGE BARS =================
+     lo→hi bars plotted on the shared 50–110 scale */
+  function pct(v){ return (v-MIN)/(MAX-MIN)*100; }
+  (function(){
+    /* ruler labels every 20° */
+    var rul=document.getElementById("rul");
+    [50,70,90,110].forEach(function(v,i,arr){
+      var s=document.createElement("span");
+      s.textContent=String(v);
+      s.style.left=pct(v)+"%";
+      s.style.transform="translateX("+(i===0?"0":(i===arr.length-1?"-100%":"-50%"))+")";
+      rul.appendChild(s);
+    });
+
+    document.querySelectorAll(".track").forEach(function(tr){
+      var lo=+tr.getAttribute("data-lo"), hi=+tr.getAttribute("data-hi");
+      var l=pct(lo), w=pct(hi)-pct(lo);
+      /* gridlines every 10° */
+      for(var v=MIN; v<=MAX; v+=10){
+        var g=document.createElement("div");
+        g.className="grid"; g.style.left=pct(v)+"%";
+        tr.appendChild(g);
+      }
+      var under=document.createElement("div");
+      under.className="under"; under.style.left=l+"%"; under.style.width=w+"%";
+      var core=document.createElement("div");
+      core.className="core"; core.style.left=l+"%"; core.style.width=w+"%";
+      var c1=document.createElement("div");
+      c1.className="cap"; c1.style.left="calc("+l+"% - 1px)";
+      var c2=document.createElement("div");
+      c2.className="cap"; c2.style.left="calc("+(l+w)+"% - 1px)";
+      var tlo=document.createElement("div");
+      tlo.className="tlo"; tlo.style.left=l+"%"; tlo.textContent=lo+"°";
+      var thi=document.createElement("div");
+      thi.className="thi"; thi.style.left=(l+w)+"%"; thi.textContent=hi+"°";
+      [under,core,c1,c2,tlo,thi].forEach(function(n){ tr.appendChild(n); });
+    });
+  })();
+
+  /* ================= FORECAST GLYPHS =================
+     thin phosphor line drawings, 48x40 viewBox */
+  var PH="#5cffc5", AMB="#ffb454";
+  function cloud(g,dx,dy,sc,col){
+    g.appendChild(el("path",{
+      d:"M "+(10*sc+dx)+" "+(30*sc+dy)+
+        " a "+(7*sc)+" "+(7*sc)+" 0 0 1 "+(1.6*sc)+" "+(-13.6*sc)+
+        " a "+(9.5*sc)+" "+(9.5*sc)+" 0 0 1 "+(18.4*sc)+" "+(-1.8*sc)+
+        " a "+(6.2*sc)+" "+(6.2*sc)+" 0 0 1 "+(1.4*sc)+" "+(15.4*sc)+" z",
+      fill:"none",stroke:col||PH,"stroke-width":2,"stroke-linejoin":"round"}));
+  }
+  function sun(g,cx,cy,r,col){
+    g.appendChild(el("circle",{cx:cx,cy:cy,r:r,fill:"none",stroke:col||PH,"stroke-width":2}));
+    for(var i=0;i<8;i++){
+      var a=i*Math.PI/4;
+      g.appendChild(el("line",{
+        x1:cx+Math.cos(a)*(r+3),y1:cy+Math.sin(a)*(r+3),
+        x2:cx+Math.cos(a)*(r+7),y2:cy+Math.sin(a)*(r+7),
+        stroke:col||PH,"stroke-width":2,"stroke-linecap":"round"}));
+    }
+  }
+  document.querySelectorAll(".gl").forEach(function(g){
+    var kind=g.getAttribute("data-g");
+    if(kind==="clear"){ sun(g,24,20,8); }
+    else if(kind==="storm"){
+      cloud(g,2,-2,1,PH);
+      g.appendChild(el("polyline",{points:"24 28 19 35 25 35 21 42",
+        fill:"none",stroke:AMB,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"}));
+    }
+    else if(kind==="rain"){
+      cloud(g,2,-2,1,PH);
+      [[15,31],[22,31],[29,31]].forEach(function(p){
+        g.appendChild(el("line",{x1:p[0],y1:p[1],x2:p[0]-3,y2:p[1]+7,
+          stroke:PH,"stroke-width":2,"stroke-linecap":"round"}));
+      });
+    }
+    else if(kind==="pcloudy"){
+      sun(g,16,13,6);
+      cloud(g,12,4,0.85,PH);
+    }
+  });
+})();
+</script>
+</body>
+</html>
