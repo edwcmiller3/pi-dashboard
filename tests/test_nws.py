@@ -341,6 +341,31 @@ def test_merge_observation_exactly_at_the_gate_still_applies() -> None:
     assert weather.merge_current(model, at_gate, _NOW)["temp_f"] == 82
 
 
+def test_merge_obs_temp_above_model_high_widens_high() -> None:
+    # A measured temp above the forecast high must widen H — the hero never
+    # shows now > H (model = current_weather(75): high 80, low 70).
+    model = current_weather(temp_f=75)
+    merged = weather.merge_current(model, _obs(temp_f=90.4), _NOW)
+    assert merged["temp_f"] == 90
+    assert merged["high_f"] == 90  # widened from 80
+    assert merged["low_f"] == 70  # untouched
+
+
+def test_merge_obs_temp_below_model_low_widens_low() -> None:
+    model = current_weather(temp_f=75)
+    merged = weather.merge_current(model, _obs(temp_f=61.7), _NOW)
+    assert merged["temp_f"] == 62
+    assert merged["low_f"] == 62  # widened from 70
+    assert merged["high_f"] == 80  # untouched
+
+
+def test_merge_obs_temp_within_range_leaves_high_low_alone() -> None:
+    model = current_weather(temp_f=75)
+    merged = weather.merge_current(model, _obs(temp_f=76.2), _NOW)
+    assert merged["high_f"] == 80
+    assert merged["low_f"] == 70
+
+
 def test_merge_feels_like_prefers_heat_index() -> None:
     model = current_weather(temp_f=75)
     merged = weather.merge_current(
@@ -400,11 +425,11 @@ def test_merge_unmappable_condition_keeps_model_triple_but_numbers_merge() -> No
     assert merged["temp_f"] == 82  # numbers still merged
 
 
-@pytest.mark.parametrize(
-    "field", ["precip_prob_pct", "high_f", "low_f", "sunrise", "sunset", "is_day"]
-)
+@pytest.mark.parametrize("field", ["precip_prob_pct", "sunrise", "sunset", "is_day"])
 def test_merge_model_only_fields_never_change(field: str) -> None:
-    # Forecast/astronomical/clock concepts a station can't measure.
+    # Forecast/astronomical/clock concepts a station can't measure. high_f/
+    # low_f are near-model-only — widened only to include the merged temp
+    # (see the widen tests above).
     model = current_weather(temp_f=75)
     merged = weather.merge_current(model, _obs(), _NOW)
     assert merged[field] == model[field]  # type: ignore[literal-required]

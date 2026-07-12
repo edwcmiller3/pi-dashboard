@@ -141,6 +141,31 @@ def test_current_sunrise_sunset_emitted_with_offset() -> None:
     assert cur["sunset"] == "2026-06-29T20:51:00-04:00"
 
 
+# ── normalize_weather: H/L clamped to include the displayed "now" ────────────
+
+
+def test_current_above_forecast_high_widens_high() -> None:
+    # Open-Meteo's `current` and `daily` max are different products and can
+    # disagree; the hero must never show now > H.
+    cur = weather.normalize_weather(with_current(temperature_2m=78.6))["current"]
+    assert cur["temp_f"] == 79
+    assert cur["high_f"] == 79  # widened from the forecast's 75
+    assert cur["low_f"] == 61  # untouched
+
+
+def test_current_below_forecast_low_widens_low() -> None:
+    cur = weather.normalize_weather(with_current(temperature_2m=59.9))["current"]
+    assert cur["temp_f"] == 60
+    assert cur["low_f"] == 60  # widened from the forecast's 61
+    assert cur["high_f"] == 75  # untouched
+
+
+def test_current_within_forecast_range_leaves_high_low_alone() -> None:
+    cur = weather.normalize_weather(RAW)["current"]  # 72 within 61..75
+    assert cur["high_f"] == 75
+    assert cur["low_f"] == 61
+
+
 # ── normalize_weather: forecast (4 future days = daily[1:5]) ─────────────────
 
 

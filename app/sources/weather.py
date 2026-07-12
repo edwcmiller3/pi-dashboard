@@ -128,6 +128,18 @@ def _require(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     return cur, daily
 
 
+def _clamp_high_low(current: CurrentWeather) -> CurrentWeather:
+    """Widen today's H/L to include the displayed "now" (pure). The current
+    temp and the daily forecast max/min are different products — an NWS
+    observation vs. the model, or even Open-Meteo's own current vs. daily —
+    and the hero must never show now outside H/L."""
+    return {
+        **current,
+        "high_f": max(current["high_f"], current["temp_f"]),
+        "low_f": min(current["low_f"], current["temp_f"]),
+    }
+
+
 def normalize_weather(raw: dict[str, Any]) -> WeatherData:
     """Raw Open-Meteo JSON -> the contract's `weather` payload (pure)."""
     cur, daily = _require(raw)
@@ -154,7 +166,7 @@ def normalize_weather(raw: dict[str, Any]) -> WeatherData:
     }
     # Cards = the 4 FUTURE days (daily[1:5]); today (daily[0]) feeds the hero.
     forecast = [_forecast_day(daily, i) for i in range(1, 5)]
-    return {"current": current, "forecast": forecast}
+    return {"current": _clamp_high_low(current), "forecast": forecast}
 
 
 # Discard an observation older than this rather than merge a confidently wrong
@@ -181,7 +193,8 @@ def merge_current(
     (NWS nulls the first two exactly when they don't apply) and never falls
     back to the model's apparent temperature — a model feels-like next to an
     obs temp reads incoherently. Forecast-only concepts (precip probability,
-    high/low, sunrise/sunset) and the clock-derived `is_day` stay the model's.
+    high/low, sunrise/sunset) and the clock-derived `is_day` stay the model's,
+    except H/L are widened to include the merged temp (never show now > H).
 
     A stale observation (older than `_MAX_OBS_AGE` at `now`, which the caller
     supplies so this stays deterministic) is discarded entirely. Condition
@@ -196,16 +209,18 @@ def merge_current(
         None,
     )
     cond = describe(obs.wmo_code, model["is_day"]) if obs.wmo_code is not None else None
-    return {
-        **model,
-        "temp_f": _obs_or(obs.temp_f, model["temp_f"]),
-        "feels_like_f": _obs_or(feels_like, model["feels_like_f"]),
-        "humidity_pct": _obs_or(obs.humidity_pct, model["humidity_pct"]),
-        "wind_mph": _obs_or(obs.wind_mph, model["wind_mph"]),
-        "code": model["code"] if obs.wmo_code is None else obs.wmo_code,
-        "text": model["text"] if cond is None else cond["text"],
-        "icon": model["icon"] if cond is None else cond["icon"],
-    }
+    return _clamp_high_low(
+        {
+            **model,
+            "temp_f": _obs_or(obs.temp_f, model["temp_f"]),
+            "feels_like_f": _obs_or(feels_like, model["feels_like_f"]),
+            "humidity_pct": _obs_or(obs.humidity_pct, model["humidity_pct"]),
+            "wind_mph": _obs_or(obs.wind_mph, model["wind_mph"]),
+            "code": model["code"] if obs.wmo_code is None else obs.wmo_code,
+            "text": model["text"] if cond is None else cond["text"],
+            "icon": model["icon"] if cond is None else cond["icon"],
+        }
+    )
 
 
 def _stamp(utc_offset_seconds: int) -> str:
