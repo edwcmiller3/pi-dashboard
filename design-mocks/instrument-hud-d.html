@@ -106,8 +106,8 @@
   /* ---------- forecast : four horizontal channel rows, shared 50–110 scale ---------- */
   #fcst{flex:1;display:flex;flex-direction:column;padding:24px 14px 8px;min-height:0}
   .fruler,.frow{
-    display:grid;grid-template-columns:48px 40px 128px 1fr 70px;
-    gap:10px;align-items:center;
+    display:grid;grid-template-columns:40px 36px 132px 36px 1fr 44px 70px;
+    gap:8px;align-items:center;
   }
   .fruler{flex:0 0 16px}
   .frow{flex:1;border-top:1px solid var(--ph4);min-height:0}
@@ -121,17 +121,30 @@
     background:rgba(255,180,84,.06);
   }
   .frow .pp.on svg{width:8px;height:12px;flex:0 0 auto}
-  .track{position:relative;height:100%;grid-column:4}
-  .track .grid{position:absolute;top:16%;bottom:16%;width:1px;background:var(--ph4)}
-  .track .under{position:absolute;top:50%;height:12px;margin-top:-6px;background:rgba(92,255,197,.16)}
-  .track .core{position:absolute;top:50%;height:3px;margin-top:-1.5px;background:var(--ph1)}
-  .track .cap{position:absolute;top:50%;width:2px;height:14px;margin-top:-7px;background:var(--ph1)}
-  .track .tlo{position:absolute;top:50%;transform:translate(-100%,-50%);
-    padding-right:8px;font-size:15px;color:var(--ph3);line-height:1}
-  .track .thi{position:absolute;top:50%;transform:translateY(-50%);
-    padding-left:8px;font-size:19px;color:var(--ph0);line-height:1;
+  /* lo/hi numerals live in their own fixed grid columns (.lo/.hi) flanking the
+     track, so the track spans its full cell with no reserved gutters; the ruler
+     below shares the same column + zero margin so pct maps identically and its
+     numerals stay bar-aligned. */
+  .track{position:relative;height:100%;grid-column:5;margin:0}
+  /* range plot — sparse dot-and-hairline markers on the shared scale, echoing
+     the solar tape (dashed baseline + circle marker): a hollow low ring, a
+     white-hot high dot with a soft halo, joined by a thin bright connector. */
+  .track .axis{position:absolute;left:0;right:0;top:50%;height:0;
+    border-top:1px dashed rgba(92,255,197,.22)}
+  .track .link{position:absolute;top:50%;height:2px;margin-top:-1px;
+    background:var(--ph1);box-shadow:0 0 6px rgba(92,255,197,.4)}
+  .track .mlo{position:absolute;top:50%;left:0;width:11px;height:11px;
+    margin:-5.5px 0 0 -5.5px;border:2px solid var(--ph2);border-radius:50%;background:var(--bg)}
+  .track .mhi{position:absolute;top:50%;left:0;width:12px;height:12px;
+    margin:-6px 0 0 -6px;border-radius:50%;background:var(--ph0);
+    box-shadow:0 0 5px rgba(92,255,197,.45),0 0 0 3px rgba(92,255,197,.10)}
+  /* low (dim) and high (white-hot) numerals — fixed columns flanking the track,
+     so they align vertically down the panel instead of floating with each day's
+     markers; the track's dashed axis leads the eye from each into its ring/dot. */
+  .frow .lo{grid-column:4;justify-self:end;font-size:15px;color:var(--ph3);line-height:1}
+  .frow .hi{grid-column:6;justify-self:start;font-size:19px;color:var(--ph0);line-height:1;
     text-shadow:0 0 12px rgba(92,255,197,.35)}
-  .rul{position:relative;height:100%;grid-column:4;
+  .rul{position:relative;height:100%;grid-column:5;margin:0;
     background:
       repeating-linear-gradient(90deg, var(--ph3) 0 1px, transparent 1px calc(100%/12)),
       linear-gradient(var(--ph4),var(--ph4)) left bottom / 100% 1px no-repeat;
@@ -245,14 +258,18 @@
           <span class="dn">SUN</span>
           <svg viewBox="0 0 48 40" class="gl" data-g="clear"></svg>
           <span class="cond">Clear</span>
+          <span class="lo">72°</span>
           <div class="track" data-lo="72" data-hi="90"></div>
+          <span class="hi">90°</span>
           <span class="pp"></span>
         </div>
         <div class="frow">
           <span class="dn">MON</span>
           <svg viewBox="0 0 48 40" class="gl" data-g="storm"></svg>
           <span class="cond">Thunderstorm</span>
+          <span class="lo">70°</span>
           <div class="track" data-lo="70" data-hi="84"></div>
+          <span class="hi">84°</span>
           <span class="pp on"><svg viewBox="0 0 10 14" aria-hidden="true"><path
             d="M5 1 C5 1 1.6 6.4 1.6 9.2 a3.4 3.4 0 0 0 6.8 0 C8.4 6.4 5 1 5 1 Z"
             fill="none" stroke="#ffb454" stroke-width="1.6" stroke-linejoin="round"/></svg>65%</span>
@@ -261,7 +278,9 @@
           <span class="dn">TUE</span>
           <svg viewBox="0 0 48 40" class="gl" data-g="rain"></svg>
           <span class="cond">Light rain</span>
+          <span class="lo">66°</span>
           <div class="track" data-lo="66" data-hi="78"></div>
+          <span class="hi">78°</span>
           <span class="pp on"><svg viewBox="0 0 10 14" aria-hidden="true"><path
             d="M5 1 C5 1 1.6 6.4 1.6 9.2 a3.4 3.4 0 0 0 6.8 0 C8.4 6.4 5 1 5 1 Z"
             fill="none" stroke="#ffb454" stroke-width="1.6" stroke-linejoin="round"/></svg>45%</span>
@@ -270,7 +289,9 @@
           <span class="dn">WED</span>
           <svg viewBox="0 0 48 40" class="gl" data-g="pcloudy"></svg>
           <span class="cond">Partly cloudy</span>
+          <span class="lo">68°</span>
           <div class="track" data-lo="68" data-hi="81"></div>
+          <span class="hi">81°</span>
           <span class="pp"></span>
         </div>
       </div>
@@ -330,7 +351,7 @@
   /* ================= DATA-DRIVEN SCALE WINDOW =================
      A hardcoded window (the old MIN=50/MAX=110) breaks in winter: below MIN the
      dial's arcPath sweeps the wrong way and range bars compute negative pct().
-     Instead, derive the window from the data on screen — a 60 °F span whose
+     Instead, derive the window from the data on screen — a 40 °F span whose
      floor is min(all temps) snapped DOWN to a multiple of `step` (the snap
      itself provides 0–9 °F of headroom; if the coldest reading lands exactly
      on a gridline we drop one more step so it never touches the edge). If a
@@ -338,7 +359,7 @@
      rather than clipping data. Reference implementation — a production port
      can lift computeScaleWindow() as-is. */
   function computeScaleWindow(temps, span, step){
-    span = span || 60;  step = step || 10;
+    span = span || 40;  step = step || 10;
     var lo = Math.min.apply(null, temps);
     var hi = Math.max.apply(null, temps);
     var min = Math.floor(lo/step)*step;   // snap down → headroom below
@@ -360,7 +381,7 @@
   document.querySelectorAll(".track").forEach(function(tr){
     allTemps.push(+tr.getAttribute("data-lo"), +tr.getAttribute("data-hi"));
   });
-  var WIN = computeScaleWindow(allTemps);       // July fixture → {min:60, max:120}
+  var WIN = computeScaleWindow(allTemps);       // July fixture → {min:60, max:100}
   var MIN = WIN.min, MAX = WIN.max;
 
   /* every consumer below (dial ticks/numerals, SCALE label, ruler numerals,
@@ -511,26 +532,16 @@
 
     document.querySelectorAll(".track").forEach(function(tr){
       var lo=+tr.getAttribute("data-lo"), hi=+tr.getAttribute("data-hi");
-      var l=pct(lo), w=pct(hi)-pct(lo);
-      /* gridlines every 10° */
-      for(var v=MIN; v<=MAX; v+=10){
-        var g=document.createElement("div");
-        g.className="grid"; g.style.left=pct(v)+"%";
-        tr.appendChild(g);
-      }
-      var under=document.createElement("div");
-      under.className="under"; under.style.left=l+"%"; under.style.width=w+"%";
-      var core=document.createElement("div");
-      core.className="core"; core.style.left=l+"%"; core.style.width=w+"%";
-      var c1=document.createElement("div");
-      c1.className="cap"; c1.style.left="calc("+l+"% - 1px)";
-      var c2=document.createElement("div");
-      c2.className="cap"; c2.style.left="calc("+(l+w)+"% - 1px)";
-      var tlo=document.createElement("div");
-      tlo.className="tlo"; tlo.style.left=l+"%"; tlo.textContent=lo+"°";
-      var thi=document.createElement("div");
-      thi.className="thi"; thi.style.left=(l+w)+"%"; thi.textContent=hi+"°";
-      [under,core,c1,c2,tlo,thi].forEach(function(n){ tr.appendChild(n); });
+      var l=pct(lo), h=pct(hi);
+      /* dashed baseline (scale context) · bright connector spanning lo→hi ·
+         hollow low ring · white-hot high dot (lo/hi numerals render in the
+         flanking .lo/.hi grid cells, not here) */
+      var axis=document.createElement("div"); axis.className="axis";
+      var link=document.createElement("div"); link.className="link";
+      link.style.left=l+"%"; link.style.width=(h-l)+"%";
+      var mlo=document.createElement("div"); mlo.className="mlo"; mlo.style.left=l+"%";
+      var mhi=document.createElement("div"); mhi.className="mhi"; mhi.style.left=h+"%";
+      [axis,link,mlo,mhi].forEach(function(n){ tr.appendChild(n); });
     });
   })();
 
