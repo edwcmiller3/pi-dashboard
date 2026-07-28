@@ -23,6 +23,7 @@
     "core/machine.js",
     "layouts/classic/index.js",
     "layouts/hud/index.js",
+    "layouts/swiss-mono/index.js",
     "layouts/hud/geometry/scale.js",
     "layouts/hud/geometry/dial.js",
     "layouts/hud/geometry/solar.js",

@@ -1,0 +1,484 @@
+/* swiss-mono layout — the exposed-modular-grid design (design-mocks/swiss-mono.html),
+   ported as a selectable layout. Loads after style.css (base .screen owns the
+   1280x800 sizing + clipping) and before theme.css.
+
+   FIXED LIGHT PALETTE. swiss-mono is a light paper design: its palette lives as
+   LAYOUT-LOCAL vars scoped to the layout root (.swiss-mono), NOT the global
+   :root — so it neither remaps the base vars nor invites dark-THEME re-tinting.
+   A theme's :root override simply has nothing to bind to here.
+
+   The "exposed grid" is pure CSS: background:var(--ink) showing through a 1px
+   gap reads as drafted hairline rules. NO blur/glow — thermal-safe on the Pi.
+
+   The vendored typefaces (self-hosted, no CDN) — @import resolves against
+   /layout.css -> /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
+@import url("vendor/fonts/fonts.css");
+
+.swiss-mono {
+  --paper: #f5f4f0;
+  --paper-dim: #efeee9;
+  --ink: #161613;
+  --ink-60: rgba(22, 22, 19, 0.6);
+  --ink-40: rgba(22, 22, 19, 0.4);
+  --rule: rgba(22, 22, 19, 0.16);
+  --red: #e30613;
+  --surround: #d9d8d2;
+  --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --grot: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --col1: 420px; /* width of the TIME / CURRENT column */
+}
+
+/* ---------- canvas: the exposed modular grid ---------- */
+.screen.swiss-mono {
+  background: var(--ink); /* gaps read as drafted 1px rules */
+  color: var(--ink);
+  font-family: var(--grot);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  grid-template-columns: var(--col1) 1fr;
+  grid-template-rows: 272px 1fr 42px;
+  gap: 1px;
+}
+.swiss-mono .cell {
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+
+/* section label — quiet mono kicker (agenda only) */
+.swiss-mono .tag {
+  position: absolute;
+  top: 18px;
+  left: 24px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink-40);
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+/* ---------- 01 / TIME ---------- */
+.swiss-mono .time {
+  padding: 46px 28px 24px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .clock {
+  display: flex;
+  align-items: baseline;
+}
+.swiss-mono .clock-big {
+  font: 700 138px/0.82 var(--grot);
+  letter-spacing: -0.05em;
+}
+.swiss-mono .clock-mer {
+  font: 500 20px var(--mono);
+  letter-spacing: 0.1em;
+  margin-left: 14px;
+  color: var(--ink-60);
+}
+.swiss-mono .clock-date {
+  margin-top: auto;
+  font: 500 15px var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.swiss-mono .clock-warn {
+  margin-top: 10px;
+  font: 500 12px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+.swiss-mono .clock-warn[hidden] {
+  display: none;
+}
+
+/* ---------- 02 / CURRENT ---------- */
+.swiss-mono .current {
+  padding: 44px 28px 26px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .cur-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.swiss-mono .cur-temp {
+  font: 800 168px/0.8 var(--grot);
+  letter-spacing: -0.055em;
+  margin-left: -6px;
+}
+.swiss-mono .cur-temp .deg {
+  color: var(--red);
+  font: 400 84px var(--grot);
+  vertical-align: 74px;
+  margin-left: 4px;
+}
+.swiss-mono .cur-iconblock {
+  padding-top: 8px;
+}
+.swiss-mono .cur-icon {
+  font-size: 68px;
+  line-height: 1;
+  color: var(--ink);
+}
+.swiss-mono .cur-cond {
+  margin-top: 18px;
+  font: 600 27px/1 var(--grot);
+  letter-spacing: -0.015em;
+}
+.swiss-mono .meta {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.swiss-mono .meta-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--rule);
+  padding: 8px 0 7px;
+}
+.swiss-mono .meta-item:nth-child(odd) {
+  padding-right: 16px;
+}
+.swiss-mono .meta-item:nth-child(even) {
+  padding-left: 16px;
+  border-left: 1px solid var(--rule);
+}
+.swiss-mono .meta-k {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+.swiss-mono .meta-v {
+  font: 600 17px var(--grot);
+  letter-spacing: -0.01em;
+}
+.swiss-mono .cur-unavailable {
+  font: 500 16px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+/* ---------- 03–06 / FORECAST ---------- */
+.swiss-mono .forecast {
+  background: var(--ink);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+}
+.swiss-mono .fc {
+  background: var(--paper);
+  position: relative;
+  padding: 44px 18px 18px 18px;
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .fc-day {
+  font: 700 13px var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.swiss-mono .fc-icon {
+  font-size: 54px;
+  line-height: 1;
+  margin: 18px 0 0 -2px;
+  color: var(--ink);
+}
+.swiss-mono .fc-temps {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 14px;
+}
+.swiss-mono .fc-hi {
+  font: 700 46px/0.9 var(--grot);
+  letter-spacing: -0.035em;
+}
+.swiss-mono .fc-lo {
+  font: 500 15px var(--mono);
+  color: var(--ink-60);
+}
+.swiss-mono .fc-foot {
+  margin-top: auto;
+  min-height: 48px;
+  border-top: 1px solid var(--rule);
+  padding-top: 9px;
+}
+.swiss-mono .fc-cond {
+  font: 500 13px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.swiss-mono .fc-precip {
+  margin-top: 4px;
+  font: 500 12px var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--ink-60);
+}
+.swiss-mono .fc-precip b {
+  color: var(--ink);
+  font-weight: 700;
+}
+/* cold-boot placeholder — spans the four forecast columns so no ink cell is blank */
+.swiss-mono .fc-unavailable {
+  grid-column: 1 / -1;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  font: 500 14px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+/* ---------- 07 / AGENDA ---------- */
+.swiss-mono .agenda {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .agenda-cols {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 50/50 — the divider lands on the 04<->05 forecast gap */
+  gap: 1px;
+  background: var(--ink); /* the 1px gap reads as a drafted rule */
+  min-height: 0;
+}
+/* Column tile: a stretched grid item (fills the cell full-height so the paper
+   reads edge-to-edge with the 1px ink divider), clipping any fit overflow. */
+.swiss-mono .ag-col {
+  min-height: 0;
+  background: var(--paper);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Natural-height body the fit shell measures (flex:0 0 auto = no stretch/shrink).
+   The inset lives HERE, inside the measured box, so the column fit reserves it. */
+.swiss-mono .ag-col-body {
+  flex: 0 0 auto;
+  padding: 42px 24px 18px 24px;
+}
+
+.swiss-mono .ag-block {
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .ag-block + .ag-block {
+  padding-top: 26px;
+}
+.swiss-mono .ag-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+.swiss-mono .ag-day {
+  font: 700 17px var(--grot);
+  letter-spacing: -0.01em;
+}
+.swiss-mono .ag-date {
+  font: 500 12px var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--ink-60);
+  text-transform: uppercase;
+}
+.swiss-mono .pill {
+  margin-left: auto;
+  font: 700 10.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--red);
+  border: 1px solid var(--red);
+  padding: 3px 8px 2px;
+}
+
+.swiss-mono .day-events {
+  display: flex;
+  flex-direction: column;
+}
+.swiss-mono .ev {
+  display: grid;
+  grid-template-columns: 66px 1fr;
+  align-items: baseline;
+  column-gap: 14px;
+  padding: 7.5px 10px 7px;
+  margin: 0 -10px;
+  border-top: 1px solid var(--rule);
+}
+.swiss-mono .ev-t {
+  font: 500 14px var(--mono);
+  color: var(--ink-60);
+  white-space: nowrap;
+}
+.swiss-mono .ev-t.allday {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.swiss-mono .ev-n {
+  font: 600 17px/1.25 var(--grot);
+  letter-spacing: -0.01em;
+}
+.swiss-mono .ev.now {
+  grid-template-columns: 66px 1fr auto;
+  background: var(--red);
+  border-top-color: var(--red);
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.swiss-mono .ev.now + .ev {
+  border-top-color: transparent;
+}
+.swiss-mono .ev.now .ev-t,
+.swiss-mono .ev.now .ev-n {
+  color: #fff;
+}
+.swiss-mono .ev-nowtag {
+  font: 700 10px var(--mono);
+  letter-spacing: 0.18em;
+  color: #fff;
+  align-self: center;
+}
+
+/* muted marker line (info kind) */
+.swiss-mono .marker {
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  padding: 6px 0 5px;
+  border-top: 1px solid var(--rule);
+}
+
+/* "+N earlier" / "+N more" / "+N more days" fit-shell summary lines. Styled
+   like the mock's .marker; the .days modifier (column footer) gets the heavier
+   ink rule the mock draws under the right column's "+N more days". */
+.swiss-mono .agenda-more {
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  padding: 6px 0 5px;
+  border-top: 1px solid var(--rule);
+}
+.swiss-mono .agenda-more.days {
+  margin-top: 26px;
+  border-top: 1px solid var(--ink);
+  padding-top: 10px;
+}
+
+/* quiet-day + cold-boot placeholders */
+.swiss-mono .day-empty {
+  font: 500 12px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  padding: 8px 0 5px;
+  border-top: 1px solid var(--rule);
+}
+.swiss-mono .agenda-empty {
+  font: 500 13px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+/* ---------- STATUS ---------- */
+.swiss-mono .status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* the status group sits on the right */
+  gap: 24px;
+  padding: 0 10px 0 14px;
+  background: var(--paper-dim);
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+.swiss-mono .st-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+.swiss-mono .st-sq {
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+  display: inline-block;
+}
+.swiss-mono .st-sq.stale {
+  background: var(--red);
+}
+.swiss-mono .st-item.stale {
+  color: var(--ink-40);
+}
+.swiss-mono .st-updated {
+  color: var(--ink-40);
+}
+
+/* refresh control — ink-outlined, matching the drafted rule weight */
+.swiss-mono .refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 6px 11px 5px;
+  cursor: pointer;
+}
+.swiss-mono .refresh svg {
+  width: 13px;
+  height: 13px;
+  stroke: var(--ink);
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.swiss-mono .refresh:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.swiss-mono .refresh:hover svg {
+  stroke: var(--paper);
+}
+/* In-flight manual refresh: spin the glyph. Tiny region, cheap on the Pi's
+   software compositor (unlike the shelved backdrop-filter). */
+.swiss-mono .refresh.is-spinning svg {
+  transform-origin: 50% 50%;
+  animation: swiss-refresh-spin 0.8s linear infinite;
+}
+/* Brief feedback when POST /refresh failed (no visible console on the kiosk). */
+.swiss-mono .refresh.is-error {
+  color: var(--red);
+  border-color: var(--red);
+}
+.swiss-mono .refresh.is-error svg {
+  stroke: var(--red);
+}
+@keyframes swiss-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -72,6 +72,10 @@ The mount is wrapped so a layout that throws can't blank the kiosk.
 - `hud` — an instrument-HUD design (240° temperature dial, solar day-tape,
   forecast range plot), using the self-hosted subset mono fonts vendored under
   `static/vendor/fonts/`.
+- `swiss-mono` — a swiss-grotesque "exposed grid" paper design (Inter + JetBrains
+  Mono, self-hosted subsets under `static/vendor/fonts/`). It is a **fixed light**
+  layout: its palette is layout-local, so unlike classic/hud it does not respond
+  to THEME.
 
 Like THEME, it is env-driven and read at startup, so a change needs a backend
 restart to apply. The name is slug-validated and the selection fail-softs to
@@ -84,7 +88,22 @@ retints whatever layout is active through the `base < layout < theme` cascade �
 the HUD deliberately keeps its hot-tier colors in CSS classes so a palette can
 retint it too. `synthwave` is an *effect theme*: it reaches past the palette into
 classic-layout selectors (the hero temp's neon `text-shadow`), so it stays
-classic-coupled.
+classic-coupled. The exception is `swiss-mono`, whose palette is layout-local
+(not a `:root` override), so a THEME has nothing to bind to — it stays fixed light.
+
+Preview a layout against the mockup fixture without touching `.env`:
+
+```sh
+uv run python -m tools.mockup --layout hud          # -> docs/mockup-hud.png
+uv run python -m tools.mockup --layout hud --serve  # browse it live instead
+```
+
+The bundled layouts, rendered by that command from the same fixture data as the
+themes below (`classic` is the mockup at the top — click any image for full size):
+
+| `classic` (default) | `hud` | `swiss-mono` |
+| --- | --- | --- |
+| ![Classic layout](docs/mockup.png) | ![HUD layout](docs/mockup-hud.png) | ![swiss-mono layout](docs/mockup-swiss-mono.png) |
 
 ### Themes
 
@@ -139,7 +158,7 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run mypy             # strict type-check gate (app + tests)
-npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph (core/ + both layouts) against the JSDoc contract
+npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph (core/ + all layouts) against the JSDoc contract
 ```
 
 (JS unit tests run with `node --test` from `static/` — the core and per-layout

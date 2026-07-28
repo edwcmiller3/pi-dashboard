@@ -62,9 +62,10 @@ def test_default_layout_is_classic() -> None:
     assert headers["cache-control"] == "no-cache"
 
 
-# Every layout selectable today: classic (the production UI) and hud (the
-# instrument-HUD, landed in Phase 3 — index.js + layout.css now present).
-_BUNDLED_LAYOUTS = ["classic", "hud"]
+# Every layout selectable today: classic (the production UI), hud (the
+# instrument-HUD, Phase 3), and swiss-mono (the swiss-grotesque paper design) —
+# each an index.js + layout.css under static/layouts/<name>/.
+_BUNDLED_LAYOUTS = ["classic", "hud", "swiss-mono"]
 
 
 @pytest.mark.parametrize("name", _BUNDLED_LAYOUTS)

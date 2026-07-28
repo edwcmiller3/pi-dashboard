@@ -49,3 +49,68 @@
   font-style: normal;
   font-display: block;
 }
+
+/* ---------------------------------------------------------------------------
+ * swiss-mono LAYOUT typefaces — self-hosted, subset. NO CDN (index.html:7).
+ * Both families are SIL OFL 1.1:
+ *   Inter            — The Inter Project Authors  (OFL-Inter.txt)
+ *   JetBrains Mono   — JetBrains Mono Authors      (OFL-JetBrains-Mono.txt)
+ *
+ * VENDORED SUBSET: cut with pyftsubset to exactly the codepoints in
+ * subset-manifest-swiss-mono.txt (mono digits, basic Latin, ° · and the marks
+ * ↑ ↓ ● the design renders). A separate manifest from the HUD's because the two
+ * layouts need different unicode sets; the swiss-mono pin lives in
+ * tests/test_swiss_fonts.py. Do NOT reference a codepoint outside that set.
+ *
+ * Inter is instanced from the upstream variable font to static weights at
+ * opsz=14 (the text optical master). Family names match design-mocks/
+ * swiss-mono.html (--grot / --mono).
+ * ------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Inter";
+  src: url(inter-400.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url(inter-600.woff2) format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url(inter-700.woff2) format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url(inter-800.woff2) format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url(jetbrains-mono-500.woff2) format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url(jetbrains-mono-700.woff2) format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}

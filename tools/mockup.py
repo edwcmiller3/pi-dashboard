@@ -390,10 +390,16 @@ def main() -> int:
                 # all-day span, and the "+N more days" footer — not the classic
                 # two-column roll-off vocabulary (.is-next / a trimmed today).
                 "hud": ("active", "Cabin trip", " more day"),
+                # swiss-mono is a two-column layout like classic (today alone in
+                # col1 with the roll-off vocabulary; upcoming days in col2 dropping
+                # from the end into a "+N more days" footer), plus its own "● NOW"
+                # tag on the next-up row. Guards the fit shell: a regressed column
+                # fit would drop the "+N more day" footer and this would warn.
+                "swiss-mono": (" earlier", " more day", "● NOW", "Cabin trip", "Independence Day"),
             }
-            # An unknown/future layout (e.g. swiss-mono) has no marker profile;
-            # running classic's set against it would emit spurious WARNINGs, so
-            # skip the check entirely rather than defaulting to classic's markers.
+            # An unknown/future layout has no marker profile; running classic's set
+            # against it would emit spurious WARNINGs, so skip the check entirely
+            # rather than defaulting to classic's markers.
             layout = args.layout or "classic"
             markers = layout_markers.get(layout)
             if markers is None:

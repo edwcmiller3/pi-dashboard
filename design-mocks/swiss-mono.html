@@ -19,6 +19,7 @@
     --surround: #D9D8D2;
     --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
     --grot: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --col1: 420px;                    /* width of 01/TIME + 02/CURRENT column */
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -39,43 +40,7 @@
     padding: 48px 0;
   }
 
-  /* ---------- frame + crop marks ---------- */
-
   .frame { position: relative; }
-
-  .crop { position: absolute; width: 18px; height: 18px; pointer-events: none; }
-  .crop::before, .crop::after { content: ""; position: absolute; background: rgba(22,22,19,0.55); }
-  .crop::before { width: 18px; height: 1px; }
-  .crop::after  { width: 1px;  height: 18px; }
-  .crop.tl { top: -26px; left: -26px; }
-  .crop.tl::before { bottom: 0; left: 0; }
-  .crop.tl::after  { right: 0;  top: 0; }
-  .crop.tr { top: -26px; right: -26px; }
-  .crop.tr::before { bottom: 0; right: 0; }
-  .crop.tr::after  { left: 0;   top: 0; }
-  .crop.bl { bottom: -26px; left: -26px; }
-  .crop.bl::before { top: 0;   left: 0; }
-  .crop.bl::after  { right: 0; bottom: 0; }
-  .crop.br { bottom: -26px; right: -26px; }
-  .crop.br::before { top: 0;  right: 0; }
-  .crop.br::after  { left: 0; bottom: 0; }
-
-  .frame-note {
-    position: absolute;
-    top: -26px; left: 0;
-    font: 500 10px/18px var(--mono);
-    letter-spacing: 0.14em;
-    color: rgba(22,22,19,0.45);
-    text-transform: uppercase;
-  }
-  .frame-note-r {
-    position: absolute;
-    top: -26px; right: 0;
-    font: 500 10px/18px var(--mono);
-    letter-spacing: 0.14em;
-    color: rgba(22,22,19,0.45);
-    text-transform: uppercase;
-  }
 
   /* ---------- canvas: the exposed modular grid ---------- */
 
@@ -85,7 +50,7 @@
     background: var(--ink);           /* gaps read as drafted 1px rules */
     border: 1px solid var(--ink);
     display: grid;
-    grid-template-columns: 466px 1fr;
+    grid-template-columns: var(--col1) 1fr;
     grid-template-rows: 272px 1fr 42px;
     gap: 1px;
     box-shadow: 0 24px 60px rgba(22,22,19,0.18);
@@ -93,23 +58,15 @@
 
   .cell { background: var(--paper); position: relative; overflow: hidden; }
 
-  /* index tags — engineering-drawing corner labels */
+  /* section label — quiet mono kicker (agenda only) */
   .tag {
     position: absolute;
-    top: 10px; left: 14px;
-    font: 500 10px var(--mono);
-    letter-spacing: 0.16em;
+    top: 18px; left: 24px;
+    font: 500 11px var(--mono);
+    letter-spacing: 0.2em;
     color: var(--ink-40);
     text-transform: uppercase;
     white-space: nowrap;
-  }
-  .tag-r {
-    position: absolute;
-    top: 10px; right: 14px;
-    font: 500 10px var(--mono);
-    letter-spacing: 0.16em;
-    color: var(--ink-40);
-    text-transform: uppercase;
   }
 
   svg.icon { display: block; stroke: var(--ink); stroke-width: 1.7; fill: none;
@@ -227,11 +184,12 @@
   .agenda-cols {
     flex: 1;
     display: grid;
-    grid-template-columns: 1.18fr 1fr;
+    grid-template-columns: 1fr 1fr;   /* 50/50 → divider lands on the 04↔05 forecast gap */
+    gap: 1px;
+    background: var(--ink);           /* 1px gap reads as a drafted rule, like the forecast */
     min-height: 0;
   }
-  .ag-col { padding: 42px 24px 18px 24px; min-height: 0; }
-  .ag-col.rt { border-left: 1px solid var(--ink); }
+  .ag-col { padding: 42px 24px 18px 24px; min-height: 0; background: var(--paper); }
 
   .ag-head {
     display: flex;
@@ -300,26 +258,43 @@
   .ag-block + .ag-block { margin-top: 26px; }
   .ag-col.rt .marker.days { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 10px; }
 
-  /* ---------- 08 / STATUS ---------- */
+  /* ---------- STATUS ---------- */
 
   .status {
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 28px;
-    padding: 0 16px 0 14px;
+    justify-content: flex-end;   /* status group sits on the right */
+    gap: 24px;
+    padding: 0 10px 0 14px;
     background: var(--paper-dim);
     font: 500 11.5px var(--mono);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--ink-60);
   }
-  .st-idx { color: var(--ink-40); }
   .st-item { display: flex; align-items: center; gap: 8px; color: var(--ink); }
   .st-sq { width: 7px; height: 7px; background: var(--ink); display: inline-block; }
-  .st-right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--ink-40); }
-  .reg { width: 14px; height: 14px; }
-  .reg circle, .reg line { stroke: var(--ink-40); stroke-width: 1; fill: none; }
+  .st-updated { color: var(--ink-40); }
+
+  /* refresh control — ink-outlined, matching the drafted rule weight */
+  .refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 700 11.5px var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    padding: 6px 11px 5px;
+    cursor: pointer;
+  }
+  .refresh svg { width: 13px; height: 13px; stroke: var(--ink); stroke-width: 1.7;
+                 fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .refresh:hover { background: var(--ink); color: var(--paper); }
+  .refresh:hover svg { stroke: var(--paper); }
 </style>
 </head>
 <body>
@@ -356,20 +331,19 @@
       <line x1="24" y1="31" x2="22" y2="38"/>
       <line x1="31" y1="31" x2="29" y2="38"/>
     </symbol>
+    <!-- refresh: near-closed circular arrow with a drafted arrowhead -->
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M19.5 12 A7.5 7.5 0 1 1 16.6 6.2"/>
+      <polyline points="16.9 2.6 16.9 6.5 13 6.5"/>
+    </symbol>
   </defs>
 </svg>
 
 <div class="frame">
-  <div class="crop tl"></div><div class="crop tr"></div>
-  <div class="crop bl"></div><div class="crop br"></div>
-  <span class="frame-note">PI-DASHBOARD / KIOSK PANEL — SWISS-MONO</span>
-  <span class="frame-note-r">SHEET 1 / 1 · SCALE 1:1</span>
-
   <div class="canvas">
 
-    <!-- 01 / TIME -->
+    <!-- TIME -->
     <section class="cell time">
-      <span class="tag">01 / TIME</span>
       <div class="clock">
         <span class="clock-big">2:46</span>
         <span class="clock-mer">PM</span>
@@ -377,10 +351,9 @@
       <div class="clock-date">Saturday, July 11</div>
     </section>
 
-    <!-- 03–06 / FORECAST -->
+    <!-- FORECAST -->
     <section class="cell forecast" style="background:var(--ink)">
       <div class="fc">
-        <span class="tag">03 / SUN</span><span class="tag-r">WMO 00</span>
         <div class="fc-day">Sunday</div>
         <svg class="icon" width="54" height="54"><use href="#i-sun"/></svg>
         <div class="fc-temps"><span class="fc-hi">90°</span><span class="fc-lo">/ 72°</span></div>
@@ -389,7 +362,6 @@
         </div>
       </div>
       <div class="fc">
-        <span class="tag">04 / MON</span><span class="tag-r">WMO 95</span>
         <div class="fc-day">Monday</div>
         <svg class="icon" width="54" height="54"><use href="#i-storm"/></svg>
         <div class="fc-temps"><span class="fc-hi">84°</span><span class="fc-lo">/ 70°</span></div>
@@ -399,7 +371,6 @@
         </div>
       </div>
       <div class="fc">
-        <span class="tag">05 / TUE</span><span class="tag-r">WMO 61</span>
         <div class="fc-day">Tuesday</div>
         <svg class="icon" width="54" height="54"><use href="#i-rain"/></svg>
         <div class="fc-temps"><span class="fc-hi">78°</span><span class="fc-lo">/ 66°</span></div>
@@ -409,7 +380,6 @@
         </div>
       </div>
       <div class="fc">
-        <span class="tag">06 / WED</span><span class="tag-r">WMO 02</span>
         <div class="fc-day">Wednesday</div>
         <svg class="icon" width="54" height="54"><use href="#i-partly"/></svg>
         <div class="fc-temps"><span class="fc-hi">81°</span><span class="fc-lo">/ 68°</span></div>
@@ -419,14 +389,12 @@
       </div>
     </section>
 
-    <!-- 02 / CURRENT -->
+    <!-- CURRENT -->
     <section class="cell current">
-      <span class="tag">02 / CURRENT</span>
       <div class="cur-top">
         <div class="cur-temp">82<span class="deg">°</span></div>
         <div class="cur-iconblock">
           <svg class="icon" width="68" height="68"><use href="#i-partly"/></svg>
-          <div class="cur-wmo">WMO 02 / DAY</div>
         </div>
       </div>
       <div class="cur-cond">Partly cloudy</div>
@@ -442,9 +410,9 @@
       </div>
     </section>
 
-    <!-- 07 / AGENDA -->
+    <!-- AGENDA -->
     <section class="cell agenda">
-      <span class="tag">07 / AGENDA — UPCOMING</span>
+      <span class="tag">Upcoming</span>
       <div class="agenda-cols">
 
         <div class="ag-col">
@@ -492,20 +460,14 @@
       </div>
     </section>
 
-    <!-- 08 / STATUS -->
+    <!-- STATUS -->
     <footer class="cell status">
-      <span class="st-idx">08 / STATUS</span>
       <span class="st-item"><span class="st-sq"></span>Weather ok</span>
       <span class="st-item"><span class="st-sq"></span>Calendar ok</span>
-      <span>Updated 2:46 PM</span>
-      <span class="st-right">
-        <span>MOD-GRID 1280 × 800</span>
-        <svg class="reg" viewBox="0 0 14 14">
-          <circle cx="7" cy="7" r="5"/>
-          <line x1="7" y1="0" x2="7" y2="14"/>
-          <line x1="0" y1="7" x2="14" y2="7"/>
-        </svg>
-      </span>
+      <span class="st-updated">Updated 2:46 PM</span>
+      <button class="refresh" type="button">
+        <svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg>Refresh
+      </button>
     </footer>
 
   </div>
