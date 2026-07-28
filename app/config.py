@@ -51,5 +51,11 @@ class Settings(BaseSettings):
     # /theme.css to override the :root palette vars. Empty = built-in palette.
     theme: str = ""
 
+    # --- Layout (which UI design renders) ---
+    # Name of a directory under static/layouts/ whose index.js/layout.css the
+    # server exposes at /layout.js and /layout.css. "classic" = the production
+    # UI; an invalid name fail-softs to classic (the kiosk must never blank).
+    layout: str = "classic"
+
 
 settings = Settings()

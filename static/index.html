@@ -6,40 +6,24 @@
 <title>Pi Dashboard</title>
 <!-- Self-hosted, subset weather-icons font (no CDN — prod requirement). -->
 <link rel="stylesheet" href="vendor/weather-icons/weather-icons.css" />
+<!-- TRUE base: reset, :root palette vars, canvas sizing. -->
 <link rel="stylesheet" href="style.css" />
+<!-- Layout CSS: the selected layout's own rules, served by the /layout.css
+     route (LAYOUT setting; classic by default). Loaded BETWEEN style.css and
+     theme.css so the cascade is base < layout < theme — a layout overrides/
+     extends the base (e.g. .screen), a theme's :root block still wins. -->
+<link rel="stylesheet" href="layout.css" />
 <!-- Palette override (THEME setting): the server serves the configured
-     static/themes/<name>.css here, or empty CSS when unset. Loaded after
-     style.css so its :root block wins the cascade. -->
+     static/themes/<name>.css here, or empty CSS when unset. Loaded LAST so its
+     :root block wins the cascade (base < layout < theme). -->
 <link rel="stylesheet" href="theme.css" />
 </head>
 <body>
-  <!-- v4 layout (bento over ambient glow, no-blur safe build). Designed for the
-       1280x800 effective viewport (scale 1.5). app.js fills every region from
-       data.json; only the shell + the "Upcoming" heading are static. -->
-  <div class="screen">
-
-    <div class="top">
-      <section class="glass clock-card">
-        <div class="clock" id="clock"></div>
-        <div class="date" id="date"></div>
-        <!-- Shown only while the Pi clock is NOT NTP-synced (clock_synced=false),
-             since the big clock ticks from the browser and would be wrong. -->
-        <div class="clock-warn" id="clock-warn" hidden>clock not yet synced</div>
-      </section>
-      <section class="glass current-card" id="current-card"></section>
-    </div>
-
-    <!-- Forecast = 4 FUTURE days only (today's H/L lives in the hero). -->
-    <div class="forecast" id="forecast"></div>
-
-    <section class="glass agenda-card">
-      <h1>Upcoming</h1>
-      <div class="agenda-body" id="agenda-body"></div>
-      <div class="status" id="status"></div>
-    </section>
-
-  </div>
-
+  <!-- The layout owns its whole DOM: app.js imports the core state machine + the
+       classic layout, whose mount() builds the shell into #app and whose render
+       hooks fill every region from /api/data. Designed for the 1280x800
+       effective viewport (scale 1.5). -->
+  <div id="app"></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

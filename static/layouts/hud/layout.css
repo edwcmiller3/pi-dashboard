@@ -1,0 +1,830 @@
+/* HUD layout — the instrument-HUD design (design-mocks/instrument-hud-d.html),
+   ported as a selectable layout. Loads after style.css (base) and before
+   theme.css (a theme's :root palette override still wins last).
+
+   PALETTE — the phosphor ramp is mapped ONTO the shared base :root var names
+   (see static/style.css): the dominant phosphor green is --cool, white-hot is
+   --text, the amber annunciator is --accent. Every phosphor tint below is a
+   color-mix() alpha of those base vars, so a hue theme (nord, gruvbox, …)
+   retints the whole HUD through the unchanged cascade — exactly like classic's
+   glow tints. --ph0..--ph4 / --amb / --amb2 are convenience aliases derived
+   from the base vars, keeping the ported rules close to the mock.
+
+   NO backdrop-filter (Pi thermal constraint, style.css). The glow text-shadows
+   are additive and trivially reducible if the panel runs hot (plan Phase 4).
+
+   The vendored HUD typefaces (self-hosted, no CDN) — @import resolves against
+   /layout.css → /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
+@import url("vendor/fonts/fonts.css");
+
+:root {
+  /* base-palette remap (phosphor) — a theme's :root override retints these */
+  --text: #eafff6; /* ph0 — white-hot numerals */
+  --cool: #5cffc5; /* phosphor green — the HUD's primary hue */
+  --accent: #ffb454; /* amber — caution / holiday annunciator */
+  --bg: #03080a; /* near-black canvas, faint green-blue cast */
+  --canvas: #03080a;
+
+  /* phosphor ramp, all derived from the base vars above */
+  --ph0: var(--text);
+  --ph1: var(--cool);
+  --ph2: color-mix(in srgb, var(--cool) 66%, transparent);
+  --ph3: color-mix(in srgb, var(--cool) 42%, transparent);
+  --ph4: color-mix(in srgb, var(--cool) 16%, transparent);
+  --amb: var(--accent);
+  --amb2: color-mix(in srgb, var(--accent) 45%, transparent);
+
+  --f1: "Share Tech Mono", monospace;
+  --f2: "IBM Plex Mono", monospace;
+}
+
+/* ---------- framed 1280x800 canvas (base .screen owns sizing + clipping) ---- */
+.screen.hud {
+  background:
+    radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--cool) 4.5%, transparent), transparent 60%),
+    var(--bg);
+  color: var(--ph1);
+  font-family: var(--f1);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* cheap CRT dressing: scanlines + vignette, one static overlay */
+.hud .fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(140% 110% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+/* ---------- shared instrument vocabulary ---------- */
+.hud .brk {
+  position: relative;
+  border: 1px solid var(--ph4);
+  background: color-mix(in srgb, var(--cool) 2.5%, transparent);
+}
+.hud .brk::before,
+.hud .brk::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.hud .brk::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--ph2);
+  border-left: 2px solid var(--ph2);
+}
+.hud .brk::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid var(--ph2);
+  border-right: 2px solid var(--ph2);
+}
+.hud .brk .c2::before,
+.hud .brk .c2::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.hud .brk .c2::before {
+  top: -1px;
+  right: -1px;
+  border-top: 2px solid var(--ph2);
+  border-right: 2px solid var(--ph2);
+}
+.hud .brk .c2::after {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 2px solid var(--ph2);
+  border-left: 2px solid var(--ph2);
+}
+.hud .mlabel {
+  position: absolute;
+  top: 7px;
+  left: 12px;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: var(--ph3);
+  white-space: nowrap;
+  z-index: 3;
+}
+.hud .mlabel-r {
+  left: auto;
+  right: 12px;
+  letter-spacing: 0.16em;
+}
+.hud .fticks {
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 12px),
+    linear-gradient(var(--ph4), var(--ph4)) left center / 100% 1px no-repeat;
+}
+.hud .glow {
+  text-shadow: 0 0 14px color-mix(in srgb, var(--cool) 40%, transparent);
+}
+
+/* ---------- header : master chronometer ---------- */
+.hud-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hud .hrow {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+}
+.hud .clock {
+  font-size: 64px;
+  line-height: 1;
+  color: var(--ph0);
+}
+.hud .ampm {
+  font-size: 22px;
+  color: var(--ph2);
+  letter-spacing: 0.1em;
+  margin-left: -10px;
+}
+.hud .hdiv {
+  width: 1px;
+  height: 44px;
+  background: var(--ph4);
+  align-self: center;
+}
+.hud .hdate {
+  font-size: 21px;
+  letter-spacing: 0.28em;
+  color: var(--ph1);
+}
+.hud .hmeta {
+  margin-left: auto;
+  text-align: right;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ph3);
+  letter-spacing: 0.18em;
+  align-self: flex-end;
+  margin-bottom: 7px;
+}
+.hud .hmeta b {
+  color: var(--ph2);
+  font-weight: 400;
+}
+.hud .clock-warn {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--amb);
+}
+.hud .clock-warn[hidden] {
+  display: none;
+}
+
+/* ---------- main grid ---------- */
+.hud-main {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  min-height: 0;
+}
+.hud .wx {
+  flex: 0 0 580px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.hud #agenda {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- primary instrument: temp dial with docked readouts ---------- */
+.hud #gauge {
+  flex: 0 0 326px;
+  position: relative;
+}
+.hud #gsvg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 24px;
+  bottom: 6px;
+  width: 100%;
+  height: calc(100% - 30px);
+  display: block;
+}
+.hud .dock {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 120px;
+}
+.hud .dock .dl {
+  font-size: 11.5px;
+  letter-spacing: 0.22em;
+  color: var(--ph3);
+}
+.hud .dock .dv {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ph0);
+}
+.hud .dock .dv small {
+  font-size: 14px;
+  color: var(--ph2);
+}
+.hud .dock .ds {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ph3);
+}
+.hud .dock-l {
+  left: 16px;
+  align-items: flex-start;
+  border-left: 1px solid var(--ph4);
+  padding-left: 9px;
+}
+.hud .dock-r {
+  right: 16px;
+  align-items: flex-end;
+  text-align: right;
+  border-right: 1px solid var(--ph4);
+  padding-right: 9px;
+}
+.hud .dock-t {
+  top: 50px;
+}
+.hud .dock-b {
+  bottom: 22px;
+}
+
+/* dial SVG elements — colors in CLASSES so the palette cascade retints them */
+.hud .g-arc-base {
+  fill: none;
+  stroke: color-mix(in srgb, var(--cool) 14%, transparent);
+  stroke-width: 2;
+}
+.hud .g-arc-glow {
+  fill: none;
+  stroke: color-mix(in srgb, var(--cool) 18%, transparent);
+  stroke-width: 9;
+}
+.hud .g-arc-val {
+  fill: none;
+  stroke: var(--ph1);
+  stroke-width: 3;
+}
+.hud .g-tick {
+  stroke: var(--ph3);
+  stroke-width: 1;
+}
+.hud .g-tick-major {
+  stroke: var(--ph2);
+  stroke-width: 2;
+}
+.hud .g-num {
+  fill: color-mix(in srgb, var(--cool) 50%, transparent);
+  font-family: var(--f1);
+  font-size: 13px;
+}
+.hud .g-center {
+  fill: var(--ph0);
+  font-family: var(--f1);
+  font-size: 76px;
+  text-shadow: 0 0 16px color-mix(in srgb, var(--cool) 45%, transparent);
+}
+.hud .g-cond {
+  fill: color-mix(in srgb, var(--cool) 85%, transparent);
+  font-family: var(--f2);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: 4px;
+}
+.hud .g-hl {
+  font-family: var(--f1);
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+.hud .g-hl-k {
+  fill: var(--ph2);
+}
+.hud .g-hl-v {
+  fill: var(--ph0);
+}
+
+/* ---------- solar : linear day-progress tape ---------- */
+.hud #solar {
+  flex: 0 0 70px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 10px 3px;
+}
+.hud #ssvg {
+  width: 100%;
+  height: 47px;
+  display: block;
+}
+.hud .s-baseline {
+  stroke: color-mix(in srgb, var(--cool) 22%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+.hud .s-idle {
+  stroke: color-mix(in srgb, var(--cool) 30%, transparent);
+  stroke-width: 1;
+}
+.hud .s-travel-glow {
+  stroke: color-mix(in srgb, var(--cool) 20%, transparent);
+  stroke-width: 7;
+}
+.hud .s-travel {
+  stroke: var(--ph1);
+  stroke-width: 2;
+}
+.hud .s-bug {
+  stroke: color-mix(in srgb, var(--cool) 70%, transparent);
+  stroke-width: 2;
+}
+.hud .s-halo {
+  fill: color-mix(in srgb, var(--cool) 25%, transparent);
+}
+.hud .s-ring {
+  fill: none;
+  stroke: var(--ph0);
+  stroke-width: 2;
+}
+.hud .s-cross {
+  stroke: var(--ph0);
+  stroke-width: 2;
+}
+.hud .s-now {
+  fill: color-mix(in srgb, var(--cool) 60%, transparent);
+  font-family: var(--f1);
+  font-size: 12px;
+}
+.hud .s-tri {
+  fill: color-mix(in srgb, var(--cool) 70%, transparent);
+}
+.hud .s-label {
+  fill: color-mix(in srgb, var(--cool) 70%, transparent);
+  font-family: var(--f1);
+  font-size: 13px;
+}
+.hud .s-daylight {
+  fill: color-mix(in srgb, var(--cool) 38%, transparent);
+  font-family: var(--f1);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+/* ---------- forecast : four horizontal channel rows, shared scale ---------- */
+.hud #fcst {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 14px 8px;
+  min-height: 0;
+}
+.hud .frows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.hud .fruler,
+.hud .frow {
+  display: grid;
+  grid-template-columns: 40px 36px 132px 36px 1fr 44px 70px;
+  gap: 8px;
+  align-items: center;
+}
+.hud .fruler {
+  flex: 0 0 16px;
+}
+.hud .frow {
+  flex: 1;
+  border-top: 1px solid var(--ph4);
+  min-height: 0;
+}
+.hud .frow .dn {
+  font-size: 14.5px;
+  letter-spacing: 0.14em;
+  color: var(--ph2);
+}
+.hud .frow .wi.gl {
+  grid-column: 2;
+  font-size: 27px;
+  line-height: 1;
+  color: var(--ph1);
+  justify-self: center;
+}
+.hud .frow .cond {
+  grid-column: 3;
+  font-family: var(--f2);
+  font-weight: 500;
+  font-size: 13.5px;
+  line-height: 1.15;
+  color: var(--ph2);
+  /* wraps to 2 lines, NO ellipsis (worst case: "Heavy freezing drizzle") */
+}
+.hud .frow .pp {
+  grid-column: 7;
+  justify-self: end;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+.hud .frow .pp.on {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--amb);
+  border: 1px solid var(--amb2);
+  padding: 1px 8px;
+  line-height: 16px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.hud .pp-drop {
+  width: 8px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.hud .pp-drop path {
+  fill: none;
+  stroke: var(--amb);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.hud .track {
+  position: relative;
+  height: 100%;
+  grid-column: 5;
+  margin: 0;
+}
+.hud .track .axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--cool) 22%, transparent);
+}
+.hud .track .link {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--ph1);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--cool) 40%, transparent);
+}
+.hud .track .mlo {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border: 2px solid var(--ph2);
+  border-radius: 50%;
+  background: var(--bg);
+}
+.hud .track .mhi {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--ph0);
+  box-shadow:
+    0 0 5px color-mix(in srgb, var(--cool) 45%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--cool) 10%, transparent);
+}
+.hud .frow .lo {
+  grid-column: 4;
+  justify-self: end;
+  font-size: 15px;
+  color: var(--ph3);
+  line-height: 1;
+}
+.hud .frow .hi {
+  grid-column: 6;
+  justify-self: start;
+  font-size: 19px;
+  color: var(--ph0);
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cool) 35%, transparent);
+}
+.hud .rul {
+  --divs: 8;
+  position: relative;
+  height: 100%;
+  grid-column: 5;
+  margin: 0;
+  background:
+    repeating-linear-gradient(90deg, var(--ph3) 0 1px, transparent 1px calc(100% / var(--divs))),
+    linear-gradient(var(--ph4), var(--ph4)) left bottom / 100% 1px no-repeat;
+  background-size: calc(100% + 1px) 5px, 100% 1px;
+  background-position: left bottom, left bottom;
+  background-repeat: no-repeat;
+}
+.hud .rul span {
+  position: absolute;
+  bottom: 5px;
+  font-size: 11px;
+  color: var(--ph3);
+  letter-spacing: 0.05em;
+}
+
+/* ---------- agenda manifest (single column, day headers) ---------- */
+.hud #agenda {
+  display: flex;
+  flex-direction: column;
+  padding: 30px 16px 12px;
+}
+.hud .arows {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* the measured content column — flex:0 0 auto so it keeps its natural content
+   height (never shrunk to the container) and overflows into .arows's clip. */
+.hud .acol {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+/* no-gap flex column + padding-only spacing so getBoundingClientRect heights
+   compose linearly (the fit invariant the classic shell documents). */
+.hud .dsection {
+  display: flex;
+  flex-direction: column;
+}
+.hud .day-events {
+  display: flex;
+  flex-direction: column;
+}
+.hud .dhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0 5px;
+}
+.hud .dsection:first-child .dhead {
+  padding-top: 2px;
+}
+.hud .dhead .dname {
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  color: var(--ph1);
+}
+.hud .dhead .ddate {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--ph3);
+}
+.hud .dhead .drule {
+  flex: 1;
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 10px),
+    linear-gradient(var(--ph4), var(--ph4)) left bottom / 100% 1px no-repeat;
+}
+.hud .hol {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  color: var(--amb);
+  border: 1px solid var(--amb2);
+  padding: 1px 9px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.hud .ev {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  gap: 14px;
+  align-items: baseline;
+  padding: 4.5px 8px;
+  font-size: 16px;
+}
+.hud .ev .t {
+  text-align: right;
+  color: var(--ph2);
+  font-size: 14.5px;
+  letter-spacing: 0.06em;
+}
+.hud .ev .n {
+  font-family: var(--f2);
+  font-weight: 500;
+  color: var(--ph1);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud .ev.allday .t {
+  color: var(--ph3);
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+}
+.hud .ev.marker .n {
+  color: var(--ph3);
+  font-weight: 400;
+}
+.hud .ev.active {
+  position: relative;
+  background: color-mix(in srgb, var(--cool) 8%, transparent);
+}
+.hud .ev.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--ph1);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--cool) 40%, transparent);
+}
+.hud .ev.active .t {
+  color: var(--ph1);
+  font-weight: 600;
+}
+.hud .ev.active .n {
+  color: var(--ph0);
+  font-weight: 600;
+}
+.hud .ev.active .atag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--ph1);
+  font-weight: 600;
+}
+.hud .noev {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  gap: 14px;
+  align-items: baseline;
+  padding: 4.5px 8px;
+  font-size: 16px;
+}
+.hud .noev .t {
+  text-align: right;
+  color: var(--ph4);
+}
+.hud .noev .n {
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  color: var(--ph3);
+}
+.hud .more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 3px 100px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--ph3);
+  text-transform: uppercase;
+}
+.hud .eom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-top: 18px;
+  font-size: 12px;
+  letter-spacing: 0.26em;
+  color: var(--ph3);
+  white-space: nowrap;
+}
+.hud .eom .erule {
+  width: 130px;
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 10px),
+    linear-gradient(var(--ph4), var(--ph4)) left bottom / 100% 1px no-repeat;
+}
+
+/* ---------- status footer ---------- */
+.hud-footer {
+  flex: 0 0 26px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 13.5px;
+  letter-spacing: 0.14em;
+  color: var(--ph3);
+}
+.hud-footer .fticks {
+  flex: 1;
+}
+.hud-footer .ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ph1);
+  border: 1px solid var(--ph4);
+  padding: 0 8px;
+  line-height: 19px;
+  background: color-mix(in srgb, var(--cool) 5%, transparent);
+}
+.hud-footer .ok::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ph1);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--cool) 60%, transparent);
+}
+.hud-footer .ok.stale {
+  color: var(--amb);
+  border-color: var(--amb2);
+}
+.hud-footer .ok.stale::before {
+  background: var(--amb);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+/* manual refresh control — reads pressable vs the .ok annunciators */
+.hud-footer .rfr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ph1);
+  border: 1px solid var(--ph2);
+  padding: 0 10px;
+  line-height: 19px;
+  background: color-mix(in srgb, var(--cool) 9%, transparent);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--cool) 14%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--cool) 45%, transparent);
+}
+.hud-footer .rfr.is-error {
+  color: var(--amb);
+  border-color: var(--amb2);
+}
+
+/* ---------- inline symbol marks (drawn as SVG, never font glyphs) ---------- */
+.hud .sym {
+  display: inline-block;
+  flex: 0 0 auto;
+  fill: currentColor;
+  vertical-align: middle;
+}
+.hud .sym-diamond {
+  width: 8px;
+  height: 8px;
+  fill: var(--amb);
+}
+.hud .sym-right {
+  width: 8px;
+  height: 8px;
+  fill: var(--ph4);
+}
+.hud .sym-left {
+  width: 9px;
+  height: 9px;
+  fill: var(--ph1);
+}
+.hud .sym-resync {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--ph0);
+  stroke-width: 2.4;
+}
+/* In-flight manual refresh: spin the ⟳ glyph (tiny region — cheap on the Pi's
+   software compositor, unlike the shelved backdrop-filter). */
+.hud-footer .rfr.is-spinning .sym-resync {
+  transform-origin: 50% 50%;
+  animation: hud-resync-spin 0.8s linear infinite;
+}
+.hud-footer .rfr.is-error .sym-resync {
+  stroke: var(--amb);
+}
+@keyframes hud-resync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

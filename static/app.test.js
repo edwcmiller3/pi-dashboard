@@ -1,16 +1,17 @@
-// Unit tests for the pure JS transforms in app.js.
+// Unit tests for the pure JS transforms in static/core/.
 // Run with Node's built-in runner (no deps):  node --test  (from static/)
 //
-// app.js is an ES module whose bootstrap is guarded by `typeof document`, so
-// importing it here runs no DOM/init side effects — only the pure exports load.
+// The core modules are DOM-structure-agnostic and side-effect-free, so importing
+// them here runs no DOM/init: only the pure exports load. (The state machine and
+// the layouts hold all the DOM/render/fetch code — they need a DOM and are out of
+// scope for this dep-free suite.)
 //
 // Typing: JSDoc @typedefs below document the fixture shapes so a mistyped key
 // (e.g. `fetch_at`) shows up as a type mismatch on hover in an editor. `// @ts-check`
 // is intentionally NOT enabled: this package ships zero dependencies (no
 // node_modules / @types/node), so TS couldn't resolve the `node:*` builtins and
 // would flag spurious "cannot find module" errors. The typedefs still give hover
-// types without that noise. The DOM/render/fetch half of app.js needs a DOM to
-// test and is deliberately out of scope for this dep-free suite.
+// types without that noise.
 //
 // Clock-dependent tests (dayLabel "Today") freeze time via `t.mock.timers` so
 // they can't flake when the run crosses local midnight.
@@ -27,19 +28,20 @@ import {
   isSameDay,
   localDayKey,
   dayRolledOver,
+  localInstant,
+  dayLabel,
+} from "./core/time.js";
+import {
   groupByDay,
   splitColumns,
   withTodayGroup,
   hasPersonalEvents,
-  localInstant,
   nextUp,
   pastIndexes,
-  dayLabel,
-  pickUpdated,
-  fmtHiLo,
   planDayFit,
   planColumnFit,
-} from "./app.js";
+} from "./core/agenda.js";
+import { pickUpdated, fmtHiLo } from "./core/format.js";
 
 /**
  * @typedef {{ start: string, title?: string, kind?: string, all_day?: boolean }} AgendaEvent

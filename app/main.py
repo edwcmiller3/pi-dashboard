@@ -394,36 +394,117 @@ class _NoCacheStaticFiles(StaticFiles):
 
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 
-# A theme name is interpolated into a filesystem path, so it must be a bare
-# slug — anything with a separator (or any other oddity) is rejected outright.
-_THEME_NAME_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
+# THEME/LAYOUT are user config interpolated into a filesystem path, so each must
+# be a bare slug — anything with a separator (or any other oddity) is rejected.
+_SLUG_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
+
+# Every slug-selected asset carries the same deploy-freshness contract as the
+# static bundle: keep the browser copy but MUST revalidate on each load.
+_NO_CACHE: Final = {"Cache-Control": "no-cache"}
+
+
+def _valid_slug(name: str) -> bool:
+    """A bare slug is safe to interpolate into a filesystem path. Warn on a
+    non-empty non-slug (a config typo worth surfacing); an empty/unset value is
+    the benign default and stays quiet."""
+    if _SLUG_RE.fullmatch(name):
+        return True
+    if name:
+        log.warning("%r is not a bare slug; ignoring", name)
+    return False
+
+
+def _classic_layout_css() -> str:
+    """/layout.css's fail-soft body: the classic layout's stylesheet. Mirrors
+    /layout.js's fail-soft to the classic MODULE, so a bad/ghost LAYOUT renders
+    classic's region styling (28 selectors) rather than the classic DOM naked.
+    Last-resort empty if classic's own file is somehow missing (never a 500)."""
+    try:
+        return (_static_dir / "layouts" / "classic" / "layout.css").read_text(encoding="utf-8")
+    except OSError:
+        log.warning("classic layout.css is missing; serving empty layout css")
+        return ""
+
+
+def _serve_slug_css(
+    name: str,
+    subdir: str,
+    *,
+    leaf: str | None = None,
+    fallback: Callable[[], str] = lambda: "",
+) -> Response:
+    """Serve a slug-selected .css file, fail-soft to `fallback()`, always no-cache.
+
+    Shared by /theme.css and /layout.css. `name` is a user-controlled setting
+    interpolated into a filesystem path, so it must be a bare slug — validate
+    BEFORE touching disk. Path shape is the only per-route difference: flat
+    (theme) at static/<subdir>/<name>.css, or nested (layout) at
+    static/<subdir>/<name>/<leaf>.css. A non-slug name, or a valid name whose
+    file is absent/unreadable, degrades to `fallback()` — empty CSS for a theme
+    (the built-in palette wins), classic's stylesheet for a layout — because the
+    kiosk must never lose the dashboard over a bad config value. Read per request
+    (like the no-cache static bundle) so editing the file shows on next reload.
+    """
+    if _valid_slug(name):
+        rel = f"{name}.css" if leaf is None else f"{name}/{leaf}.css"
+        path = _static_dir / subdir / rel
+        try:
+            body = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            log.info("%s not found; ignoring", path)
+            body = fallback()
+        except OSError:
+            log.warning("%s is unreadable; ignoring", path)
+            body = fallback()
+    else:
+        body = fallback()
+    return Response(body, media_type="text/css", headers=_NO_CACHE)
+
+
+def _serve_layout_module(name: str) -> Response:
+    """/layout.js's body: a generated one-line ES module re-exporting the
+    selected layout — a layout SELECTS a module rather than serving a stored
+    file, so it fail-softs to the valid "classic" name, not to an empty body.
+    Both a bad slug AND a valid-slug-but-absent module fall back to classic: a
+    re-export of a missing module would 404 the ES-module graph at LOAD time
+    (which app.js's usage-level try/catch can't catch → blank kiosk). Shares
+    only _SLUG_RE and the no-cache header with the css reader."""
+    slug = name if _valid_slug(name) else "classic"
+    if slug != "classic" and not (_static_dir / "layouts" / slug / "index.js").is_file():
+        log.warning("layout %r has no index.js module; falling back to classic", slug)
+        slug = "classic"
+    body = f'export {{layout}} from "./layouts/{slug}/index.js";\n'
+    return Response(body, media_type="text/javascript", headers=_NO_CACHE)
 
 
 @app.get("/theme.css")
 def theme_css() -> Response:
-    """The configured palette override (THEME setting), or empty CSS when unset.
+    """The configured palette override (THEME setting). index.html links this
+    after style.css so the theme's `:root` block wins the cascade; the default
+    empty-CSS fail-soft correctly means "keep the built-in palette"."""
+    return _serve_slug_css(settings.theme, "themes")
 
-    index.html links this after style.css, so the theme's `:root` block wins
-    the cascade over the built-in palette. Any invalid THEME — a non-slug name
-    or a stylesheet that doesn't exist under static/themes/ — degrades to the
-    built-in palette with a logged warning; the kiosk must never lose the
-    dashboard over a bad theme value. Read per request (like the no-cache
-    static bundle) so editing a theme file shows on the next reload.
-    """
-    css = ""
-    if settings.theme:
-        path = _static_dir / "themes" / f"{settings.theme}.css"
-        if not _THEME_NAME_RE.fullmatch(settings.theme):
-            log.warning("THEME %r is not a bare theme name; ignoring", settings.theme)
-        else:
-            try:
-                css = path.read_text(encoding="utf-8")
-            except OSError:
-                log.warning("THEME stylesheet %s is unreadable; ignoring", path)
-    return Response(css, media_type="text/css", headers={"Cache-Control": "no-cache"})
+
+@app.get("/layout.css")
+def layout_css() -> Response:
+    """The selected layout's stylesheet (LAYOUT setting), linked BETWEEN
+    style.css and theme.css so the cascade is base < layout < theme. Fail-softs
+    to classic's stylesheet (see _classic_layout_css), NOT empty."""
+    return _serve_slug_css(
+        settings.layout, "layouts", leaf="layout", fallback=_classic_layout_css
+    )
+
+
+@app.get("/layout.js")
+def layout_js() -> Response:
+    """The generated ES module selecting the layout (see _serve_layout_module);
+    app.js does `import {layout} from "/layout.js"` — no fetch race, no HTML
+    templating. MUST be served as text/javascript: a wrong JS MIME is silently
+    refused under strict ES-module loading and would blank the kiosk."""
+    return _serve_layout_module(settings.layout)
 
 
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz, /api/*, and /theme.css take precedence over the catch-all
-# static mount.
+# so /healthz, /api/*, /theme.css, /layout.css, and /layout.js take precedence
+# over the catch-all static mount.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

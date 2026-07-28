@@ -39,6 +39,53 @@ load rather than a stale cached copy), and `/api/data` serves the normalized
 weather/calendar contract the dashboard polls (a background loop refreshes it).
 The JS unit tests run with `node --test` from `static/`.
 
+### Frontend architecture
+
+The dashboard is a small ES-module graph, not one script — three layers, each
+with one job:
+
+- **Server routes** (`app/main.py`) pick the skin from config and serve it:
+  `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), and the no-cache
+  static mount.
+- **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js`
+  is the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
+  machine; `contract.js` mirrors the backend data contract as JSDoc typedefs;
+  `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
+- **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all of
+  their own DOM/CSS. A layout is an ES module exporting a `layout` object that
+  implements the seven-hook `Layout` interface (`static/core/contract.js`):
+  `mount`, `renderClock`, `renderCurrent`, `renderForecast`, `renderAgenda`,
+  `renderStatus`, `renderUnavailable`.
+
+`static/app.js` is now just a thin bootstrap: it imports the core state machine
+and the layout (from the server's `/layout.js` route — a generated re-export of
+the LAYOUT-selected module) and calls `createApp(layout).init()`, guarded by
+`typeof document` so the pure core still imports cleanly under `node --test`.
+The mount is wrapped so a layout that throws can't blank the kiosk.
+
+### Layouts
+
+`LAYOUT=<name>` selects which UI renders — the name of a directory under
+`static/layouts/`. Built-in layouts:
+
+- `classic` (default) — the production bento-over-ambient-glow UI.
+- `hud` — an instrument-HUD design (240° temperature dial, solar day-tape,
+  forecast range plot), using the self-hosted subset mono fonts vendored under
+  `static/vendor/fonts/`.
+
+Like THEME, it is env-driven and read at startup, so a change needs a backend
+restart to apply. The name is slug-validated and the selection fail-softs to
+`classic`: both a non-slug value and a valid-but-absent module serve the classic
+module (the kiosk must never blank, and a typo must not 404 the ES-module graph
+at load time); `/layout.css` for a bad slug degrades to empty CSS.
+
+LAYOUT and THEME are orthogonal. A hue theme (`nord` / `gruvbox` / `catppuccin`)
+retints whatever layout is active through the `base < layout < theme` cascade —
+the HUD deliberately keeps its hot-tier colors in CSS classes so a palette can
+retint it too. `synthwave` is an *effect theme*: it reaches past the palette into
+classic-layout selectors (the hero temp's neon `text-shadow`), so it stays
+classic-coupled.
+
 ### Themes
 
 The palette is centralized in `:root` custom properties in `static/style.css`
@@ -92,10 +139,11 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run mypy             # strict type-check gate (app + tests)
-npx -y -p typescript tsc -p static/jsconfig.json   # type-check app.js against the JSDoc contract
+npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph (core/ + both layouts) against the JSDoc contract
 ```
 
-(JS unit tests run with `node --test` from `static/`, as above.)
+(JS unit tests run with `node --test` from `static/` — the core and per-layout
+`*.test.js` suites, `app.test.js` plus the HUD's `hud.test.js` / geometry tests.)
 
 ## Secrets & data handling
 

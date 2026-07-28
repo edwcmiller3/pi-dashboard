@@ -1,0 +1,41 @@
+HUD FONT SUBSET MANIFEST
+========================
+
+Source of the requested set: plan-pi-dashboard-layout-refactor.md, "Fonts"
+bullet under HUD specifics ("mono digits, basic Latin, the handful of glyphs the
+HUD uses: °◆▸◂▲▼⟳·%"). This file is the source of truth the test pins against
+(tests/test_hud_fonts.py); the vendored woff2 cmaps must match it exactly.
+
+Fonts (both SIL OFL 1.1, self-hosted, no CDN):
+  Share Tech Mono  400          -> share-tech-mono.woff2
+  IBM Plex Mono    400/500/600  -> ibm-plex-mono-{400,500,600}.woff2
+(IBM Plex weights 400/500/600 are the weights instrument-hud-d.html actually
+uses: body 400, .cond/.ev .n 500, .ev.active 600.)
+
+Upstream / provenance: both families are published on Google Fonts under the
+SIL OFL 1.1; the license texts are vendored alongside the woff2 here
+(OFL-Share-Tech-Mono.txt, OFL-IBM-Plex-Mono.txt). The .woff2 files in this dir
+are pyftsubset cuts of those upstreams (per the request below) — NOT the full
+fonts. @font-face wiring lives in fonts.css; the HUD layout is the only consumer.
+
+pyftsubset request (identical for every face):
+  --unicodes=U+0020-007E,U+00B0,U+00B7,U+25B2,U+25BC,U+25C6,U+25B8,U+25C2,U+27F3
+  --flavor=woff2 --layout-features='*' --no-hinting --desubroutinize
+
+REQUESTED characters
+  - Basic Latin  U+0020-U+007E  (printable ASCII: includes mono digits 0-9 and %)
+  - U+00B0  °  DEGREE SIGN
+  - U+00B7  ·  MIDDLE DOT
+
+SELF_HOSTED_SYMBOLS (non-ASCII marks that ARE present in every vendored subset):
+  ° · %
+(% is U+0025, inside Basic Latin; listed here because it is a HUD-emitted mark.)
+
+FALLBACK_SYMBOLS (requested, but ABSENT from both source fonts — NOT vendored):
+  ◆ ▸ ◂ ▲ ▼ ⟳
+  U+25C6 U+25B8 U+25C2 U+25B2 U+25BC U+27F3
+  Neither Share Tech Mono nor IBM Plex Mono contains these geometric marks, so
+  pyftsubset could not include them. In instrument-hud-d.html they render only
+  via the browser's `monospace` system fallback. Under the no-CDN / self-host
+  rule this is a Phase 3 decision: draw them as SVG/CSS shapes, or vendor a
+  dedicated glyph font. They must NOT be assumed to ship in these two fonts.

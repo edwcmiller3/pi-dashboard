@@ -28,7 +28,34 @@ from app.main import app
 # Keep these bare so the static-asset checks stay hermetic.
 
 
-@pytest.mark.parametrize("path", ["/", "/index.html", "/app.js", "/style.css"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/",
+        "/index.html",
+        "/app.js",
+        "/style.css",
+        # The layout refactor split the monolith into a core module graph plus
+        # per-layout modules; each must carry the same no-cache freshness
+        # contract or a stale cached copy could survive a `git pull` on the wall.
+        "/core/contract.js",
+        "/core/time.js",
+        "/core/agenda.js",
+        "/core/format.js",
+        "/core/dom.js",
+        "/core/machine.js",
+        "/layouts/classic/index.js",
+        "/layouts/classic/layout.css",
+        # The HUD layout (Phase 3): its entry module, stylesheet, and the four
+        # pure geometry modules it consumes all carry the same freshness contract.
+        "/layouts/hud/index.js",
+        "/layouts/hud/layout.css",
+        "/layouts/hud/geometry/scale.js",
+        "/layouts/hud/geometry/dial.js",
+        "/layouts/hud/geometry/solar.js",
+        "/layouts/hud/geometry/forecast.js",
+    ],
+)
 def test_static_assets_send_no_cache(path: str) -> None:
     resp = TestClient(app).get(path)
     assert resp.status_code == 200

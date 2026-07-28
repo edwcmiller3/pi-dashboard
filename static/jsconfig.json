@@ -1,5 +1,6 @@
 {
   "//": "Type-checks app.js against the JSDoc contract typedefs (no build step, no emit). Run: npx -y typescript tsc -p static/jsconfig.json",
+  "//paths": "app.js imports the server's runtime /layout.js route (a generated re-export of the LAYOUT-selected module), which has no file on disk — so map it to classic's index.js, the reference layout, for type-checking. classic and any future layout export the same `layout` shape (core/contract.js Layout). paths resolve relative to this file's dir under moduleResolution:bundler.",
   "compilerOptions": {
     "checkJs": true,
     "noEmit": true,
@@ -7,7 +8,24 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "lib": ["es2022", "dom", "dom.iterable"],
-    "strict": true
+    "strict": true,
+    "paths": {
+      "/layout.js": ["./layouts/classic/index.js"]
+    }
   },
-  "include": ["app.js"]
+  "include": [
+    "app.js",
+    "core/contract.js",
+    "core/time.js",
+    "core/agenda.js",
+    "core/format.js",
+    "core/dom.js",
+    "core/machine.js",
+    "layouts/classic/index.js",
+    "layouts/hud/index.js",
+    "layouts/hud/geometry/scale.js",
+    "layouts/hud/geometry/dial.js",
+    "layouts/hud/geometry/solar.js",
+    "layouts/hud/geometry/forecast.js"
+  ]
 }

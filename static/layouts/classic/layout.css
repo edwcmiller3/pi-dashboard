@@ -1,0 +1,494 @@
+/* Classic layout — v4 design (bento over ambient glow, no-blur "safe" build).
+   The extracted look of today's production UI. Loads after style.css (base) and
+   before theme.css (palette override wins last).
+
+   Deliberately NO backdrop-filter: .glass cards are a semi-transparent dark
+   fill so the ambient glow tints through. A frosted-glass backdrop-filter
+   enhancement shipped 2026-07-01 and was reverted 2026-07-11 — the GPU
+   compositing it forced ran the Pi hot even with an active cooler. Don't
+   reintroduce blur without checking panel temps. Hairline borders kept at 1px
+   on purpose. */
+
+/* ambient canvas — extends the base .screen (which owns sizing + clipping) with
+   this layout's corner-glow background and bento grid. Glow intensity comes
+   from the --glow-* palette vars. */
+.screen {
+  background:
+    radial-gradient(60% 55% at 8% -8%, var(--glow-cyan) 0%, transparent 60%),
+    radial-gradient(55% 50% at 70% -10%, var(--glow-amber) 0%, transparent 60%),
+    radial-gradient(70% 60% at 105% 108%, var(--glow-violet) 0%, transparent 60%),
+    radial-gradient(60% 50% at -5% 110%, var(--glow-teal) 0%, transparent 60%),
+    var(--canvas);
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 1.1rem;
+  padding: 1.3rem;
+}
+
+/* SAFE surface — semi-transparent dark fill, no blur; glow tints through, text stays legible */
+.glass {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-hi) 70%, transparent) 0%,
+    color-mix(in srgb, var(--card-lo) 78%, transparent) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--edge) 9%, transparent);
+  border-radius: 1.2rem;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--edge) 6%, transparent) inset,
+    0 16px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* ───────────── top: clock + current hero ───────────── */
+/* Vertical rebalance: the agenda card is the grid's elastic `1fr` row, so a
+   `min-height` floor on the two weather rows gives the hero + forecast a bit
+   more height and the agenda shrinks to match. Final proportions are validated
+   on the panel. */
+.top {
+  display: grid;
+  grid-template-columns: 0.95fr 2.05fr;
+  gap: 1.1rem;
+  /* the hero cedes height to the taller forecast card (2026-07-01) — the two
+     floors sum the same as before, so the agenda's 1fr row is unchanged. */
+  min-height: 9.5rem;
+}
+.clock-card {
+  padding: 1.5rem 1.7rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.clock {
+  font-size: 4rem;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+.clock .ampm {
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 0.4rem;
+  letter-spacing: 0;
+}
+.date {
+  font-size: 1.3rem;
+  color: var(--muted);
+  margin-top: 0.6rem;
+}
+.clock-warn {
+  font-size: 0.85rem;
+  color: var(--stale);
+  margin-top: 0.5rem;
+  letter-spacing: 0.01em;
+}
+.clock-warn[hidden] {
+  display: none;
+}
+
+.current-card {
+  padding: 1.4rem 1.7rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.cur-icon {
+  font-size: 4.6rem;
+  color: var(--accent);
+  line-height: 1;
+  flex: none;
+  filter: drop-shadow(0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent));
+}
+.cur-main {
+  flex: none;
+}
+.cur-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.cur-temp {
+  font-size: 4.6rem;
+  font-weight: 680;
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+}
+.cur-temp .deg {
+  font-weight: 400;
+  color: var(--muted);
+}
+.cur-hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1;
+}
+/* Shared H/L glyphs: hero stack (.cur-hilo) and forecast cards (.ftemp). */
+.cur-hilo .glyph,
+.ftemp .glyph {
+  font-size: 1.25em;
+  line-height: 1;
+  margin-right: 0.28rem;
+}
+.cur-hilo .hi .glyph,
+.ftemp .hi .glyph {
+  color: var(--accent);
+}
+.cur-hilo .lo .glyph,
+.ftemp .lo .glyph {
+  color: var(--cool);
+}
+.cur-cond {
+  color: var(--text);
+  font-size: 1.4rem;
+  margin-top: 0.55rem;
+}
+.cur-div {
+  width: 1px;
+  align-self: stretch;
+  background: color-mix(in srgb, var(--edge) 12%, transparent);
+  margin: 0.3rem 0;
+  flex: none;
+}
+.cur-stats {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.7rem 1.3rem;
+  align-content: center;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.stat .k {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--faint);
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.stat .k .wi {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.stat .v {
+  font-size: 1.45rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────── forecast: 4 glass cards ───────────── */
+.forecast {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.1rem;
+  /* taller than the hero now — holds day · icon+temps · precip · condition text
+     (2026-07-01). The hero (.top) gave up the matching height; agenda unchanged. */
+  min-height: 11rem;
+}
+.fcard {
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* day pinned to the top, condition text to the bottom (mirroring it), the
+     icon+temps band centered between — the three zones the layout is built on. */
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.fcard .fday {
+  color: var(--muted);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+/* middle band: bigger icon on the left, temps + precip on the right, grouped
+   and centered as a unit (not edge-justified). */
+.fcard .fmid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+.fcard .fcard-icon {
+  font-size: 2.9rem;
+  color: var(--cool);
+  line-height: 1;
+}
+.fcard .fright {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+.fcard .ftemp {
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem; /* the space between H and L — replaces the old " / " */
+}
+.fcard .ftemp .lo {
+  color: var(--muted);
+  font-weight: 400;
+}
+/* precip-chance line beneath the temps — only rendered on wet codes (is_wet). */
+.fcard .fprecip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--cool);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.fcard .fprecip .wi {
+  font-size: 1rem;
+}
+/* de-emphasized to match the day label (muted, same size) — the icon carries
+   the condition; the text is a glance-confirm, not the focal point. */
+.fcard .fdesc {
+  color: var(--muted);
+  font-size: 1.05rem;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+/* Forecast row is future-only (today lives in the hero), so there is no "today"
+   card to highlight — the .fcard.today treatment was removed (2026-06-28). */
+
+/* ───────────── agenda: two-column timeline ───────────── */
+.agenda-card {
+  /* bottom padding reserves the absolutely-positioned status row's zone so
+     agenda content can never slide under "Updated …". */
+  padding: 1.4rem 1.8rem 2.6rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.agenda-card h1 {
+  font-size: 0.85rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 680;
+  margin-bottom: 1.1rem;
+}
+.agenda-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2.4rem;
+  align-content: start;
+  overflow: hidden;
+  /* flex child of .agenda-card: fill the remaining card height and allow
+     shrink (min-height:0) so clientHeight is the true fit budget the layout's
+     fit shell measures columns against. */
+  flex: 1;
+  min-height: 0;
+}
+.agenda-col {
+  display: flex;
+  flex-direction: column;
+}
+/* "+N more" / "+N more days" truncation indicator (the layout measure-and-fit). */
+.agenda-more {
+  align-self: flex-start;
+  color: var(--faint);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0;
+}
+.day-row {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 1.2rem;
+  align-items: start;
+  padding: 0.55rem 0;
+}
+.day-row + .day-row {
+  border-top: 1px solid color-mix(in srgb, var(--edge) 8%, transparent);
+}
+.day-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding-top: 0.15rem;
+}
+.day-label .dname {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.day-label .ddate {
+  font-size: 0.9rem;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.day-row.is-today .dname {
+  color: var(--cool);
+}
+.day-row.is-today .day-label::before {
+  content: "";
+  display: block;
+  width: 1.5rem;
+  height: 0.17rem;
+  border-radius: 1px;
+  background: var(--cool);
+  margin-bottom: 0.35rem;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--cool) 60%, transparent);
+}
+.day-events {
+  display: flex;
+  flex-direction: column;
+}
+.event {
+  display: grid;
+  grid-template-columns: 4.7rem 1fr;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.26rem 0;
+}
+.event .etime {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+.event .etime.allday {
+  color: var(--faint);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.event .etitle {
+  color: var(--text);
+  font-size: 1.2rem;
+}
+
+/* "Next up" emphasis (the layout nextUp): the current/next timed event today
+   reads at eye level. Subtle rounded cool tint (matching today's --cool identity);
+   symmetric negative margins cancel the padding so the time column stays aligned
+   with the rows above/below — the tint bleeds into the gutter, no content shift. */
+.event.is-next {
+  background: color-mix(in srgb, var(--cool) 8%, transparent);
+  border-radius: 8px;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  margin-left: -0.6rem;
+  margin-right: -0.6rem;
+}
+.event.is-next .etitle {
+  font-weight: 600;
+}
+
+/* Day markers above a day's events. holiday = federal AND observance =
+   lesser/unofficial — both render identically (gold pill). info = DST etc.
+   (plain muted line). */
+.holiday {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  color: var(--gold);
+  font-size: 1.02rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 32%, transparent);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  margin: 0.1rem 0 0.45rem;
+}
+.marker {
+  align-self: flex-start;
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  margin: 0.1rem 0 0.4rem;
+}
+
+/* quiet-day line inside today's column when there are no personal events —
+   friendly and unobtrusive; a holiday pill (if any) sits above it. */
+.day-empty {
+  color: var(--faint);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  padding: 0.26rem 0;
+}
+
+/* shown when the initial fetch fails — glanceable, in-theme, unobtrusive */
+.agenda-empty {
+  color: var(--faint);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0;
+}
+
+/* weather hero placeholder on cold-boot failure (matches .agenda-empty tone) */
+.cur-unavailable {
+  color: var(--faint);
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+}
+
+/* status */
+.status {
+  position: absolute;
+  right: 1.8rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--faint);
+  font-size: 1rem;
+}
+.status .src {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.status .src .lbl {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.status .dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 60%, transparent);
+}
+.status .dot.stale {
+  background: var(--stale);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--stale) 60%, transparent);
+}
+.status .sep {
+  opacity: 0.4;
+}
+.status .refresh svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 2;
+}
+/* In-flight manual refresh: spin the glyph. Tiny region, so the rotate is cheap
+   even on a software compositor (unlike the shelved backdrop-filter). */
+.status .refresh.is-spinning svg {
+  transform-origin: 50% 50%;
+  animation: refresh-spin 0.8s linear infinite;
+}
+/* Brief feedback when POST /refresh failed (no visible console on the kiosk). */
+.status .refresh.is-error svg {
+  stroke: var(--stale);
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

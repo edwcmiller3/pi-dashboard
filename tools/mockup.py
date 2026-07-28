@@ -241,10 +241,14 @@ def parse_args() -> argparse.Namespace:
         help="palette override: a stylesheet name from static/themes/ (no .css)",
     )
     parser.add_argument(
+        "--layout",
+        help="UI layout: a directory name under static/layouts/ (default classic)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
-        help="screenshot path (default docs/mockup.png, "
-        "or docs/mockup-<theme>.png with --theme)",
+        help="screenshot path (default docs/mockup.png; a non-default --layout "
+        "and/or --theme add a -<layout>-<theme> suffix so renders don't clobber)",
     )
     parser.add_argument(
         "--port",
@@ -260,6 +264,14 @@ def parse_args() -> argparse.Namespace:
         "instead of screenshotting (fixture built in the LOCAL zone, so which "
         "marquee states show depends on the time of day)",
     )
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=2,
+        help="device scale factor for the screenshot (default 2 -> a 2560x1600 "
+        "png from the 1280x800 canvas); raise for a denser pixel-regression "
+        "baseline",
+    )
     return parser.parse_args()
 
 
@@ -274,14 +286,33 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
+    if args.layout:
+        layouts_dir = REPO / "static" / "layouts"
+        if not (layouts_dir / args.layout).is_dir():
+            names = ", ".join(
+                sorted(p.name for p in layouts_dir.iterdir() if p.is_dir())
+            )
+            print(
+                f"unknown layout {args.layout!r} — available: {names or '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
     if not args.serve and not Path(CHROME).exists():
         print(f"Chrome not found at {CHROME!r} — set CHROME_BIN", file=sys.stderr)
         return 1
-    # A themed frame defaults to its own file so a palette experiment can never
-    # silently clobber the README image.
-    out: Path = args.out or (
-        OUT.with_name(f"mockup-{args.theme}.png") if args.theme else OUT
+    # A non-default layout and/or a theme each default to their own file so a
+    # layout×theme experiment can never silently clobber the README image (nor
+    # can a HUD render clobber the classic PNG). classic is the default layout,
+    # so it adds no suffix — an unthemed classic render stays docs/mockup.png.
+    suffix = "-".join(
+        part
+        for part in (
+            args.layout if args.layout and args.layout != "classic" else None,
+            args.theme,
+        )
+        if part
     )
+    out: Path = args.out or (OUT.with_name(f"mockup-{suffix}.png") if suffix else OUT)
     if args.serve:
         # Interactive browsing: the viewer's browser runs on real local time, so
         # build the fixture in the local zone to keep event times aligned.
@@ -295,6 +326,8 @@ def main() -> int:
         server_env = {**os.environ, "CACHE_DIR": cache_dir}
         if args.theme:
             server_env["THEME"] = args.theme
+        if args.layout:
+            server_env["LAYOUT"] = args.layout
         server = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(args.port)],
             cwd=REPO,
@@ -305,7 +338,12 @@ def main() -> int:
         try:
             wait_healthy(f"http://127.0.0.1:{args.port}/healthz", server)
             if args.serve:
-                note = f" (theme: {args.theme})" if args.theme else ""
+                bits = [
+                    f"{k}: {v}"
+                    for k, v in (("layout", args.layout), ("theme", args.theme))
+                    if v
+                ]
+                note = f" ({', '.join(bits)})" if bits else ""
                 print(f"serving http://127.0.0.1:{args.port}/{note} — Ctrl-C to stop")
                 try:
                     server.wait()
@@ -318,7 +356,8 @@ def main() -> int:
                 "--headless",
                 "--disable-gpu",
                 "--window-size=1280,800",
-                "--force-device-scale-factor=2",  # 2560x1600 png: crisp in the README
+                # crisp in the README; --scale raises it for a denser baseline
+                f"--force-device-scale-factor={args.scale}",
                 "--virtual-time-budget=6000",
             ]
             url = f"http://127.0.0.1:{args.port}/"
@@ -338,24 +377,42 @@ def main() -> int:
                 capture_output=True,
                 text=True,
             ).stdout
-            markers = (
-                " earlier",
-                " more<",
-                "is-next",
-                "Cabin trip",
-                "Independence Day",
-            )
-            for marker in markers:
-                if marker not in dom:
-                    print(
-                        f"WARNING: {marker!r} missing from the rendered frame",
-                        file=sys.stderr,
-                    )
-            if " earlier" in dom and dom.index(" earlier") < dom.index("Cabin trip"):
+            # Per-layout marquee markers: the DOM strings each layout is expected
+            # to render for this fixture. The classic-specific class names (e.g.
+            # .event.is-next) don't exist in the HUD DOM, so a hardcoded classic
+            # set emits spurious WARNINGs against a HUD render — give each layout
+            # its own set. Non-blocking prints, not test failures. Both layouts
+            # place the roll-off ("+N earlier") BELOW the all-day block.
+            layout_markers = {
+                "classic": (" earlier", " more<", "is-next", "Cabin trip", "Independence Day"),
+                # HUD is a single column that protects today and drops later days
+                # from the end, so its marquee is the next-up row (.ev.active), the
+                # all-day span, and the "+N more days" footer — not the classic
+                # two-column roll-off vocabulary (.is-next / a trimmed today).
+                "hud": ("active", "Cabin trip", " more day"),
+            }
+            # An unknown/future layout (e.g. swiss-mono) has no marker profile;
+            # running classic's set against it would emit spurious WARNINGs, so
+            # skip the check entirely rather than defaulting to classic's markers.
+            layout = args.layout or "classic"
+            markers = layout_markers.get(layout)
+            if markers is None:
                 print(
-                    "WARNING: '+N earlier' rendered ABOVE the all-day block",
+                    f"note: no marker profile for layout {layout!r}, skipping frame check",
                     file=sys.stderr,
                 )
+            else:
+                for marker in markers:
+                    if marker not in dom:
+                        print(
+                            f"WARNING: {marker!r} missing from the rendered frame",
+                            file=sys.stderr,
+                        )
+                if " earlier" in dom and dom.index(" earlier") < dom.index("Cabin trip"):
+                    print(
+                        "WARNING: '+N earlier' rendered ABOVE the all-day block",
+                        file=sys.stderr,
+                    )
         finally:
             server.terminate()
             server.wait(timeout=10)

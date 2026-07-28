@@ -15,6 +15,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "brotli>=1.2.0",
+    "fonttools>=4.63.0",
     "httpx>=0.28.1",
     "mypy>=1.13",
     "pytest>=9.1.1",
@@ -32,6 +34,10 @@ files = ["app", "tests", "tools"]
 
 [[tool.mypy.overrides]]
 module = ["recurring_ical_events.*"]   # ships no py.typed (used in Phase 5)
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["fontTools.*"]   # dev-only; ships no py.typed (HUD font subset test)
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

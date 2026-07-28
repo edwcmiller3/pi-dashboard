@@ -232,8 +232,15 @@ These are NOT in git, so a fresh box needs them before the steps below:
   # then edit .env: set PROTON_ICS_URL to a Proton Calendar "Full view" link
   # and WEATHER_LAT/WEATHER_LON to your location. Optional: NWS_STATION for
   # real current-conditions observations (US-only — .env.example shows how
-  # to find your station) and WEATHER_MODEL to pin a forecast model.
+  # to find your station), WEATHER_MODEL to pin a forecast model, THEME to
+  # override the palette, and LAYOUT to pick the UI (classic default, or hud).
   ```
+
+Both THEME and LAYOUT are read from `.env` at backend startup, so changing
+either needs a `systemctl --user restart pi-dashboard.service` (or the daily
+06:00 cold boot) to take effect — a browser reload alone won't repaint them.
+Invalid values fail-soft (THEME → built-in palette, LAYOUT → classic), so a
+typo degrades rather than blanking the panel.
 
 ### 1. App + backend service
 
@@ -366,4 +373,10 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   (`systemctl --user start chromium-reload.service`), and confirm the new bundle
   renders (no-cache static headers + reload — no manual hard refresh needed).
 - **Thermals under load:** `vcgencmd get_throttled` stays `0x0` with the kiosk
-  running.
+  running. This is the check the *classic* layout (the production default) is
+  held to. The `hud` layout adds glow `text-shadow` layers and large SVG
+  instrument repaints whose on-Pi thermal cost is **not yet verified** — that's
+  the open question deferred to the HUD device burn-in. To verify when HUD is
+  deployed: run it on the panel and confirm `get_throttled` still holds `0x0`
+  over a sustained watch; if not, the mitigation is dimming/dropping the glow
+  layers in `static/layouts/hud/layout.css` (a CSS-only tweak, no redesign).
