@@ -1,4 +1,4 @@
-// HUD geometry — solar linear day-progress tape.
+// HUD geometry - solar linear day-progress tape.
 //
 // Pure, DOM-free: maps sunrise/sunset/now (as minutes-of-day) to the daylight
 // fraction, the "now" x position on the tape, and the marker/tick element
@@ -69,7 +69,7 @@ const CROSS_TICK_OFFSETS = [
 /**
  * @typedef {object} SolarGeometry
  * @property {number} fraction daylight fraction (now-sunrise)/(sunset-sunrise);
- *   RAW like the mock — NOT clamped, so it is <0 before sunrise and >1 after
+ *   RAW like the mock - NOT clamped, so it is <0 before sunrise and >1 after
  *   sunset (see module note)
  * @property {number} daylightMinutes sunset − sunrise, in minutes
  * @property {number} ty tape line y
@@ -86,7 +86,7 @@ const CROSS_TICK_OFFSETS = [
  * Solar tape geometry for a moment in the day.
  *
  * Note: `fraction`/`nowX` are the mock's raw values and are intentionally NOT
- * clamped to the daylight span — at night (now before sunrise or after sunset)
+ * clamped to the daylight span - at night (now before sunrise or after sunset)
  * `nowX` falls outside [sunriseX, sunsetX]. Night handling is out of scope for
  * the layout (plan: night mode not desired); the renderer can clamp or hide the
  * marker if desired. Flagged so the caller decides, rather than baking a policy.

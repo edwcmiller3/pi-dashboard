@@ -1,4 +1,4 @@
-# Manual Chromium reload — restarts ONLY the browser unit (not labwc, not the
+# Manual Chromium reload - restarts ONLY the browser unit (not labwc, not the
 # backend). systemd USER service. Installs to ~/.config/systemd/user/.
 #
 # No timer: nightly browser hygiene is owned by the power-off window (the smart

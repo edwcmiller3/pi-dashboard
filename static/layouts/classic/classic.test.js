@@ -3,12 +3,12 @@
 //
 // The classic layout is the only piece of the module graph that touches the DOM,
 // so app.test.js (the pure-core suite) can't cover it. This file drives the layout
-// against a tiny, dependency-free DOM stub defined locally below — just enough of
+// against a tiny, dependency-free DOM stub defined locally below - just enough of
 // the surface classic/index.js uses (createElement/getElementById, append/
 // replaceChildren/remove/before, classList, textContent, getBoundingClientRect,
 // clientHeight). It is deliberately NOT a shared module: it exists to prove a
 // classic behavior regression fails `node --test`, not only the out-of-band pixel
-// mockup. The pure fit PLANNERS (planDayFit/planColumnFit) are already unit-tested
+// mockup. The pure fit PLANNERS (planDayFit/planColumnFit) are unit-tested
 // in ../../app.test.js; here we prove the imperative SHELL wires real measurements
 // into the plan and applies it to the DOM (inserts "+N earlier"/"+N more"/"+N more
 // days", removes children).
@@ -25,7 +25,7 @@ import assert from "node:assert/strict";
 
 // Leaf render height (px) every element with no ELEMENT children reports; a
 // container's height is the sum of its element children's heights, so removals
-// compose linearly — the invariant the fit planners assume (see core/agenda.js).
+// compose linearly - the invariant the fit planners assume (see core/agenda.js).
 const LEAF_H = 10;
 
 /** A stub Element: only the surface classic/index.js exercises. */
@@ -187,7 +187,7 @@ const doc = {
 // wire the stub in before any test runs (module top level runs before tests).
 globalThis.document = /** @type {any} */ (doc);
 
-// The layout under test — imported AFTER the global is set (its functions only
+// The layout under test - imported AFTER the global is set (its functions only
 // touch document at call time, but keep the ordering obvious).
 const { layout } = await import("./index.js");
 
@@ -269,7 +269,7 @@ test("mount: builds the five region containers + the 'Upcoming' heading", () => 
     assert.ok(doc.getElementById(id), `#${id} exists after mount`);
   }
   assert.ok(app.textContent.includes("Upcoming"), "the hardcoded agenda heading renders");
-  // The clock warning starts hidden — shown only when the Pi clock is unsynced.
+  // The clock warning starts hidden - shown only when the Pi clock is unsynced.
   assert.equal(doc.getElementById("clock-warn").hidden, true);
 });
 

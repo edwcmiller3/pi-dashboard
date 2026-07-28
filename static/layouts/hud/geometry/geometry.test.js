@@ -1,7 +1,7 @@
 // Unit tests for the pure HUD geometry modules.
 // Run standalone:  node --test static/layouts/hud/geometry/geometry.test.js
 //
-// These modules are DOM-free, so importing them runs no side effects — only
+// These modules are DOM-free, so importing them runs no side effects - only
 // the pure exports load. Assertions are EXACT hand-computed values, cross-
 // checked against design-mocks/instrument-hud-d.html (July fixture) and
 // instrument-hud-d-winter.html (SCALE 10–50). Following app.test.js, `// @ts-check`

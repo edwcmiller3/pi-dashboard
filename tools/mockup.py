@@ -9,22 +9,21 @@ Palette preview: `--theme <name>` runs the server with THEME=<name> (a
 stylesheet in static/themes/), screenshotting to docs/mockup-<name>.png so the
 README image is never clobbered by a theme experiment (override with --out).
 `--serve` skips Chrome and keeps the fixture-backed server running to browse
-interactively — in that mode the fixture is built in the machine's LOCAL zone
+interactively - in that mode the fixture is built in the machine's LOCAL zone
 so event times line up with the real browser clock, which means which marquee
 states appear (next-up, roll-off) depends on the time of day you run it.
 
 Every stamp in the fixture is fresh, so the server's boot refresh tick sees
-both sources within TTL and serves the fixture verbatim — no live fetch, no
+both sources within TTL and serves the fixture verbatim - no live fetch, no
 .env / PROTON_ICS_URL needed, and nothing personal on screen (all event titles
 and weather values are made up; icons/labels/precip gating come from the real
 `weather_codes` module so they stay contract-true).
 
 The one moving part is the clock: the page's big clock and the "today
-awareness" logic (next-up highlight, roll-off) key off the BROWSER's local
-time. So
-Chrome runs under a fixed-offset TZ (Etc/GMT±N) chosen so its local hour reads
-14 (2 PM) whenever this is regenerated, and the fixture's event times are
-written in that same zone — mid-afternoon, deterministic modulo the minute.
+awareness" logic (next-up highlight, roll-off) key off the BROWSER's local time,
+so Chrome runs under a fixed-offset TZ (Etc/GMT±N) chosen so its local hour reads
+14 (2 PM) whenever this is regenerated, and the fixture's event times are written
+in that same zone - mid-afternoon, deterministic modulo the minute.
 
 The frame deliberately exercises: current-weather hero; forecast cards with
 wet (precip line) and dry days; today's column with an observance pill, a
@@ -35,7 +34,7 @@ span repeating, a holiday pill, further days, and the "+N more days" footer;
 fresh status dots + Updated stamp. Mutually-exclusive states (quiet day, stale
 dots, clock warning, cold boot) can't share the frame and are not shown; nor
 can a PARTIALLY-rolled day (a visible past event), which the bottom "+N more"
-precludes by design — the trim only runs once every past row has rolled.
+precludes by design - the trim only runs once every past row has rolled.
 """
 
 from __future__ import annotations
@@ -79,7 +78,7 @@ def fake_zone() -> tuple[str, timezone]:
 
 
 def build_doc(tz: tzinfo) -> DashboardDoc:
-    """The fixture DashboardDoc — fabricated values, contract-true shapes."""
+    """The fixture DashboardDoc - fabricated values, contract-true shapes."""
     now = datetime.now(tz)
 
     def day(n: int) -> str:
@@ -116,7 +115,7 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         return {"start": day(on), "all_day": True, "title": title, "kind": kind}
 
     events: list[AgendaItem] = [
-        # Today — enough morning events that the fit pass rolls the oldest off.
+        # Today - enough morning events that the fit pass rolls the oldest off.
         pill("Summer Festival", 0, kind="observance"),
         all_day("Cabin trip", 0),
         timed("Morning run", 7, 0, 45),
@@ -126,7 +125,7 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         timed("Water the garden", 11, 45, 30),
         timed("Focus block", 13, 30, 90),  # in progress at 2 PM -> next-up tint
         # Enough upcoming that, after every past row rolls, the bottom "+N more"
-        # trim still has to hide the last couple — both indicators in one frame.
+        # trim still has to hide the last couple - both indicators in one frame.
         timed("School pickup", 15, 30, 15),
         timed("Vet appointment", 16, 45, 45),
         timed("Swim practice", 17, 30, 45),
@@ -144,7 +143,7 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         # A fourth upcoming day so column 2 genuinely overflows and the "+N more
         # days" footer fires. (It used to fire with three days only because the
         # old fit pass measured with its probe footer attached, which could push
-        # an exactly-fitting column over budget — planColumnFit fixed that, so
+        # an exactly-fitting column over budget - planColumnFit fixed that, so
         # the frame needs real overflow to show the footer.)
         timed("Library returns", 15, 0, 30, plus_days=4),
     ]
@@ -187,7 +186,7 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
 
     # Two zones on purpose. generated_at must be in the server's display zone:
     # `_date_rolled` compares its DATE against NY-now, and the fake zone can sit
-    # on a different calendar day — which would force a live refetch. fetched_at
+    # on a different calendar day - which would force a live refetch. fetched_at
     # must be in the FAKE zone: the frontend renders its literal wall-clock as
     # the "Updated" stamp, which has to agree with the pinned page clock. Both
     # are aware stamps, so the freshness *age* math is epoch-correct either way.
@@ -209,10 +208,10 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
 
 
 def wait_healthy(url: str, server: subprocess.Popen[bytes], tries: int = 50) -> None:
-    """Poll `url` until the fixture server answers — watching the CHILD too.
+    """Poll `url` until the fixture server answers - watching the CHILD too.
 
     If the child exits while we poll (typically a bind failure because another
-    server — e.g. a lingering `--serve` session — already holds the port), fail
+    server - e.g. a lingering `--serve` session - already holds the port), fail
     loudly. Without that check a foreign server on the same port answers the
     health probe and the screenshot silently captures the WRONG app state.
     """
@@ -303,7 +302,7 @@ def main() -> int:
     # A non-default layout and/or a theme each default to their own file so a
     # layout×theme experiment can never silently clobber the README image (nor
     # can a HUD render clobber the classic PNG). classic is the default layout,
-    # so it adds no suffix — an unthemed classic render stays docs/mockup.png.
+    # so it adds no suffix - an unthemed classic render stays docs/mockup.png.
     suffix = "-".join(
         part
         for part in (
@@ -380,14 +379,14 @@ def main() -> int:
             # Per-layout marquee markers: the DOM strings each layout is expected
             # to render for this fixture. The classic-specific class names (e.g.
             # .event.is-next) don't exist in the HUD DOM, so a hardcoded classic
-            # set emits spurious WARNINGs against a HUD render — give each layout
+            # set emits spurious WARNINGs against a HUD render - give each layout
             # its own set. Non-blocking prints, not test failures. Both layouts
             # place the roll-off ("+N earlier") BELOW the all-day block.
             layout_markers = {
                 "classic": (" earlier", " more<", "is-next", "Cabin trip", "Independence Day"),
                 # HUD is a single column that protects today and drops later days
                 # from the end, so its marquee is the next-up row (.ev.active), the
-                # all-day span, and the "+N more days" footer — not the classic
+                # all-day span, and the "+N more days" footer - not the classic
                 # two-column roll-off vocabulary (.is-next / a trimmed today).
                 "hud": ("active", "Cabin trip", " more day"),
                 # swiss-mono is a two-column layout like classic (today alone in

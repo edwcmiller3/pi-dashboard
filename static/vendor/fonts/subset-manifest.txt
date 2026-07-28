@@ -15,7 +15,7 @@ uses: body 400, .cond/.ev .n 500, .ev.active 600.)
 Upstream / provenance: both families are published on Google Fonts under the
 SIL OFL 1.1; the license texts are vendored alongside the woff2 here
 (OFL-Share-Tech-Mono.txt, OFL-IBM-Plex-Mono.txt). The .woff2 files in this dir
-are pyftsubset cuts of those upstreams (per the request below) — NOT the full
+are pyftsubset cuts of those upstreams (per the request below) - NOT the full
 fonts. @font-face wiring lives in fonts.css; the HUD layout is the only consumer.
 
 pyftsubset request (identical for every face):
@@ -31,7 +31,7 @@ SELF_HOSTED_SYMBOLS (non-ASCII marks that ARE present in every vendored subset):
   ° · %
 (% is U+0025, inside Basic Latin; listed here because it is a HUD-emitted mark.)
 
-FALLBACK_SYMBOLS (requested, but ABSENT from both source fonts — NOT vendored):
+FALLBACK_SYMBOLS (requested, but ABSENT from both source fonts - NOT vendored):
   ◆ ▸ ◂ ▲ ▼ ⟳
   U+25C6 U+25B8 U+25C2 U+25B2 U+25BC U+27F3
   Neither Share Tech Mono nor IBM Plex Mono contains these geometric marks, so

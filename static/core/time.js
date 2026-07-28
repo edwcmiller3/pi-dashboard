@@ -1,8 +1,8 @@
-// Core time helpers — pure, DOM-free, unit-testable without a browser.
+// Core time helpers - pure, DOM-free, unit-testable without a browser.
 //
 // Time policy: event/sunrise/sunset times are rendered from the wall-clock
 // encoded in each ISO string's local part (render from the API offset, not the
-// Pi clock). The big clock is the deliberate exception — it ticks live from the
+// Pi clock). The big clock is the deliberate exception - it ticks live from the
 // browser (see the layout's renderClock hook).
 
 /**
@@ -47,14 +47,19 @@ export function to12(hh) {
 /** @param {number} n @returns {string} */
 export const pad2 = (n) => String(n).padStart(2, "0");
 
-// "8:30a" / "12:00p" — compact, for events and sunrise/sunset.
+// "8:30a" / "12:00p" - compact, for events and sunrise/sunset.
 /** @param {LocalTime} time @returns {string} */
 export function fmtCompact({ hh, mm }) {
   const { h, ampm } = to12(hh);
   return `${h}:${pad2(mm)}${ampm[0].toLowerCase()}`;
 }
 
-// "9:40 AM" — for the status "Updated" stamp.
+// Compact time, or an em-dash when the time is null - a date-only ISO string is
+// contract drift for sunrise/sunset/updated stamps, so render "—" rather than crash.
+/** @param {LocalTime | null} time @returns {string} */
+export const fmtCompactOr = (time) => (time ? fmtCompact(time) : "—");
+
+// "9:40 AM" - for the status "Updated" stamp.
 /** @param {LocalTime} time @returns {string} */
 export function fmtLong({ hh, mm }) {
   const { h, ampm } = to12(hh);
@@ -77,7 +82,7 @@ export function isSameDay(a, b) {
   );
 }
 
-// Local calendar day as "YYYY-MM-DD" — the date half of an event's local `start`,
+// Local calendar day as "YYYY-MM-DD" - the date half of an event's local `start`,
 // so it compares directly. Used to detect the midnight rollover.
 /** @param {Date} [d] @returns {string} */
 export function localDayKey(d = new Date()) {
@@ -86,15 +91,15 @@ export function localDayKey(d = new Date()) {
 
 // Whether the local calendar day has changed since `prevDay` (a localDayKey, or
 // null on first run). At midnight this flips, driving a data reload so the agenda
-// re-groups — "Today" moves to the new day and a holiday/event entering the
-// window appears — instead of waiting for the next 15-min poll.
+// re-groups - "Today" moves to the new day and a holiday/event entering the
+// window appears - instead of waiting for the next 15-min poll.
 /** @param {string | null} prevDay @param {string} nowDay @returns {boolean} */
 export function dayRolledOver(prevDay, nowDay) {
   return prevDay !== null && nowDay !== prevDay;
 }
 
 // A Date in the browser's LOCAL zone built from an ISO string's encoded
-// wall-clock parts (date + optional time), WITHOUT re-zoning — the same "render
+// wall-clock parts (date + optional time), WITHOUT re-zoning - the same "render
 // the local part, don't reinterpret the offset" policy the event times use. So
 // "2026-07-01T14:00:00-04:00" -> local 14:00 on 2026-07-01; a date-only string
 // -> local midnight. Used to compare event times against "now". Pure.

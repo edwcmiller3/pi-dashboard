@@ -7,7 +7,7 @@ cache redirected to a tmp dir (autouse `_tmp_cache` fixture), so the suite makes
 no network call and writes only under `tmp_path`.
 
 Source fakes are built through the typed `weather_block`/`calendar_block`
-factories (real `WeatherBlock`/`CalendarBlock`, not `dict[str, Any]` — shared in
+factories (real `WeatherBlock`/`CalendarBlock`, not `dict[str, Any]` - shared in
 conftest.py) so a fake that drifts from the contract fails the type-check.
 `Recorder` replaces the old hand-rolled `calls = {...}` mutable-dict counting
 with a declarative call count.
@@ -40,7 +40,7 @@ def _stamp(dt: datetime) -> str:
 
 
 class Recorder(Generic[T]):
-    """A callable that returns a fixed typed result and counts its invocations —
+    """A callable that returns a fixed typed result and counts its invocations - 
     the declarative stand-in for the old `calls = {"weather": 0}` mutable-dict
     counting (like `unittest.mock.Mock.call_count`, but strongly typed)."""
 
@@ -60,7 +60,7 @@ def _patch_sources(
     calendar: Callable[..., CalendarBlock],
 ) -> None:
     """Replace the two source coroutines. `weather`/`calendar` are callables
-    returning the block (or raising) — invoked with no args / the kwargs main
+    returning the block (or raising) - invoked with no args / the kwargs main
     passes."""
 
     async def fake_weather() -> WeatherBlock:
@@ -127,7 +127,7 @@ def test_is_due_true_when_fetched_at_missing_or_unparseable() -> None:
 
 def test_is_due_failed_source_not_due_within_retry_floor() -> None:
     # The no-hammer guard: a source that failed 10s ago must NOT be retried while
-    # the loop is in fast backoff — only once retry_floor has elapsed.
+    # the loop is in fast backoff - only once retry_floor has elapsed.
     failed: SourceBlock = {
         "ok": False,
         "fetched_at": None,
@@ -201,7 +201,7 @@ def test_seconds_to_next_local_midnight() -> None:
 def test_seconds_to_next_local_midnight_across_spring_forward() -> None:
     # 2026-03-08 is US spring-forward (02:00 EST -> 03:00 EDT), so that local day
     # is only 23h long. From 00:30 EST the next local midnight (03-09 00:00 EDT)
-    # is 22.5h away, NOT the 23.5h a naive wall-clock delta would give — the lost
+    # is 22.5h away, NOT the 23.5h a naive wall-clock delta would give - the lost
     # hour must be accounted for. Guards the DST correctness of the .replace()
     # arithmetic, which the single-instant EDT case above can't exercise.
     now = datetime(2026, 3, 8, 0, 30, tzinfo=TZ)
@@ -339,7 +339,7 @@ def test_refresh_once_cold_boot_weather_failure_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # No prior cache + weather fetch fails -> nothing to fall back on; the tick
-    # raises (the loop catches it; the route stays 503 — honest cold-boot state).
+    # raises (the loop catches it; the route stays 503 - honest cold-boot state).
     def boom() -> WeatherBlock:
         raise RuntimeError("down")
 
@@ -384,7 +384,7 @@ def test_refresh_lock_serializes_concurrent_refreshes(
 ) -> None:
     # The app's central concurrency guarantee: POST /refresh can't race a
     # scheduled tick into overlapping _refresh_once runs. Fire two forced
-    # refreshes concurrently and assert _refresh_once never runs re-entrantly —
+    # refreshes concurrently and assert _refresh_once never runs re-entrantly - 
     # the shared `_refresh_lock` serializes them (peak concurrency stays 1).
     state = {"active": 0, "peak": 0}
 
@@ -406,8 +406,8 @@ def test_refresh_lock_serializes_concurrent_refreshes(
 
 # ── _refresh_loop: the composition of tick → base/backoff → midnight clamp ────
 # The pure pieces (_backoff_delay, _seconds_to_next_local_midnight) are pinned
-# above; these exercise the loop that WIRES them — healthy polarity, the failure
-# counter's growth AND reset, exception containment, and the midnight clamp —
+# above; these exercise the loop that WIRES them - healthy polarity, the failure
+# counter's growth AND reset, exception containment, and the midnight clamp - 
 # with `_refresh_once` and `asyncio.sleep` faked so no tick does real work and
 # the requested delays are observable.
 
@@ -423,7 +423,7 @@ def _run_loop(
     """Run `_refresh_loop` for `len(outcomes)` ticks and return the sleep delays
     it requested. Each outcome is the healthy flag the faked `_refresh_once`
     returns (or an exception it raises). The loop's wall-clock is frozen at
-    `now` — a real `datetime.now()` within 15 min of local midnight would let
+    `now` - a real `datetime.now()` within 15 min of local midnight would let
     the midnight clamp swallow the cadence under test (a once-a-day flake). The
     final sleep cancels the otherwise-unkillable loop."""
     monkeypatch.setattr(settings, "weather_ttl_seconds", weather_ttl)
@@ -475,7 +475,7 @@ def test_refresh_loop_backs_off_on_failure_and_resets_on_recovery(
 ) -> None:
     # Consecutive failures walk the 30-60-120 backoff; a healthy tick returns to
     # the base cadence. The trailing 30 is the load-bearing assertion: it proves
-    # the failure counter RESET on recovery — a counter that never reset would
+    # the failure counter RESET on recovery - a counter that never reset would
     # request 240 for the fifth tick, and today's suite wouldn't notice.
     delays = _run_loop(monkeypatch, [False, False, False, True, False])
     assert delays == [30.0, 60.0, 120.0, 900.0, 30.0]
@@ -493,7 +493,7 @@ def test_refresh_loop_survives_a_raising_tick_and_backs_off(
 def test_refresh_loop_clamps_sleep_to_just_past_local_midnight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # At 23:59 the next local midnight is 60s out, sooner than the 900s base —
+    # At 23:59 the next local midnight is 60s out, sooner than the 900s base - 
     # the healthy delay must clamp to midnight + 1s so the day-rollover refresh
     # fires at the boundary, not up to a full interval late.
     near_midnight = datetime(2026, 7, 1, 23, 59, 0, tzinfo=TZ)

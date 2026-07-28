@@ -1,4 +1,4 @@
-/* Pi Dashboard — TRUE BASE (layout-agnostic).
+/* Pi Dashboard - TRUE BASE (layout-agnostic).
    Reset, the :root palette that every layout and theme builds on, and the
    fixed canvas sizing. Layout-specific look (the bento cards, ambient glow,
    region styling) lives in the selected layout's CSS (layouts/<name>/layout.css),
@@ -6,11 +6,11 @@
    Layout surface sized in rem against the 1280x800 effective viewport
    (root 16px -> 80rem x 50rem). */
 
-/* PALETTE — the single source of truth. Every color a layout draws is either
+/* PALETTE - the single source of truth. Every color a layout draws is either
    one of these vars or a color-mix() alpha derivation of one, so an alternate
    palette is a pure `:root { … }` override block (see static/themes/ and the
    THEME setting; /theme.css loads last and wins the cascade). Themes should
-   override only these base colors — the glows/tints follow. */
+   override only these base colors - the glows/tints follow. */
 :root {
   --text: #eef2f7;
   --muted: #93a1b1;
@@ -20,13 +20,13 @@
   --gold: #ffd166;
   --ok: #4ec9a6;
   --stale: #e0796b;
-  --violet: #8c6eff; /* ambient-glow only — no foreground element uses it */
+  --violet: #8c6eff; /* ambient-glow only - no foreground element uses it */
   --bg: #000; /* backdrop behind .screen (visible when viewport > 80x50rem) */
   --canvas: #070a0f; /* ambient canvas base under the corner glows */
   --card-hi: #161e29; /* .glass gradient top (alpha applied via color-mix) */
   --card-lo: #0e141c; /* .glass gradient bottom */
   --edge: #fff; /* hairline borders / inset highlights */
-  /* Ambient corner glows — muted alphas: with no blur to diffuse them, full
+  /* Ambient corner glows - muted alphas: with no blur to diffuse them, full
      intensity would read as harsh color blobs. */
   --glow-cyan: color-mix(in srgb, var(--cool) 18%, transparent);
   --glow-amber: color-mix(in srgb, var(--accent) 12%, transparent);
@@ -55,7 +55,7 @@ body {
 }
 
 /* The layout mounts its .screen into this bare wrapper; keep #app layout-
-   transparent (display:contents) so .screen is body's flex item directly — the
+   transparent (display:contents) so .screen is body's flex item directly - the
    pre-refactor structure was body>.screen, and an unstyled block #app would
    otherwise become body's flex item and change .screen's shrink/overflow below
    80rem. It generates no box, so the ambient-glow .screen rules are unaffected. */
@@ -63,7 +63,7 @@ body {
   display: contents;
 }
 
-/* The fixed 1280x800 canvas — sizing + clipping only. The layout paints its
+/* The fixed 1280x800 canvas - sizing + clipping only. The layout paints its
    own background/structure onto this surface (see layouts/<name>/layout.css). */
 .screen {
   width: 80rem;

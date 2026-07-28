@@ -1,7 +1,7 @@
-// Core state machine — the layout-agnostic fetch/poll/refresh/rollover/clock
+// Core state machine - the layout-agnostic fetch/poll/refresh/rollover/clock
 // engine. It reads the live JSON API (/api/data), which the backend refresh
 // loop keeps warm, and drives a layout's render hooks; it owns WHEN to render,
-// the layout owns WHAT renders. Importing this module runs no side effects — the
+// the layout owns WHAT renders. Importing this module runs no side effects - the
 // browser-only bootstrap lives in the entry module (static/app.js), guarded by
 // `typeof document`, so `node --test` can import the pure core without a DOM.
 
@@ -12,11 +12,11 @@ import { localDayKey, dayRolledOver } from "./time.js";
 
 const DATA_URL = "/api/data";
 
-// How often the page re-fetches the API — a fixed poll matching the backend's
+// How often the page re-fetches the API - a fixed poll matching the backend's
 // fetch cadence.
 const POLL_INTERVAL_MS = 15 * 60 * 1000;
 
-// After a FAILED load, retry soon rather than waiting the full poll — so the
+// After a FAILED load, retry soon rather than waiting the full poll - so the
 // cold-boot 503 window (cache not yet warm) and transient blips clear in
 // seconds, not up to 15 minutes.
 const RETRY_INTERVAL_MS = 30 * 1000;
@@ -32,13 +32,13 @@ export function createApp(layout) {
   // degrade: BEFORE the first success (the cold-boot 503 window) we show honest
   // "unavailable" placeholders in EVERY data region; AFTER it, a failed poll
   // leaves the last-good render on screen and only flips the freshness dots
-  // stale — so weather and the agenda degrade alike, never one wiped while the
+  // stale - so weather and the agenda degrade alike, never one wiped while the
   // other stays.
   let hasRendered = false;
 
   // Last clock_synced value the API reported (true/false/undefined). When the
-  // backend explicitly says false — the Pi clock isn't NTP-synced yet, e.g. the
-  // ~1-min post-boot window before timesyncd lands — `tick` polls at the short
+  // backend explicitly says false - the Pi clock isn't NTP-synced yet, e.g. the
+  // ~1-min post-boot window before timesyncd lands - `tick` polls at the short
   // retry cadence instead of the 15-min one, so the "clock not synced" warning
   // clears promptly after sync rather than at the next slow poll. undefined/true
   // (dev host, older cache) is treated as fine.
@@ -52,7 +52,7 @@ export function createApp(layout) {
   let currentDay = null;
 
   // Live wall-clock tick + clock-sync honesty in one hook. `synced` is a plain
-  // boolean: true when the Pi clock is trustworthy (or its state is unknown —
+  // boolean: true when the Pi clock is trustworthy (or its state is unknown -
   // dev host / older cache), false only when the backend explicitly reports
   // clock_synced === false, which is when the layout surfaces its warning.
   function renderClockNow() {
@@ -73,14 +73,14 @@ export function createApp(layout) {
 
   // Fetch the contract and repaint every data region. Returns true on success.
   // On any failure (including the 503 the API returns before its first refresh
-  // tick) degrade visibly — stale dots, "Updated —", honest placeholders on cold
-  // boot, last-good kept otherwise — never a blank panel.
+  // tick) degrade visibly - stale dots, dashed "Updated", honest placeholders on
+  // cold boot, last-good kept otherwise - never a blank panel.
   /** @returns {Promise<boolean>} */
   async function load() {
     try {
       const res = await fetch(DATA_URL, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // The untyped JSON boundary — assert the contract so the render pipeline
+      // The untyped JSON boundary - assert the contract so the render pipeline
       // downstream is checked against DashboardDoc (mirrors the backend typing).
       /** @type {DashboardDoc} */
       const data = await res.json();

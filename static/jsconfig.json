@@ -1,6 +1,6 @@
 {
-  "//": "Type-checks app.js against the JSDoc contract typedefs (no build step, no emit). Run: npx -y typescript tsc -p static/jsconfig.json",
-  "//paths": "app.js imports the server's runtime /layout.js route (a generated re-export of the LAYOUT-selected module), which has no file on disk — so map it to classic's index.js, the reference layout, for type-checking. classic and any future layout export the same `layout` shape (core/contract.js Layout). paths resolve relative to this file's dir under moduleResolution:bundler.",
+  "//": "Type-checks app.js against the JSDoc contract typedefs (no build step, no emit). Run: npx -y -p typescript tsc -p static/jsconfig.json",
+  "//paths": "app.js imports the server's runtime /layout.js route (a generated re-export of the LAYOUT-selected module), which has no file on disk - so map it to classic's index.js, the reference layout, for type-checking. classic and any future layout export the same `layout` shape (core/contract.js Layout). paths resolve relative to this file's dir under moduleResolution:bundler.",
   "compilerOptions": {
     "checkJs": true,
     "noEmit": true,

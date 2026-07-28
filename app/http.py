@@ -1,7 +1,7 @@
 """Shared HTTP session factory for the outbound source fetches.
 
 A long-lived `requests.Session` (vs. a fresh `requests.get` per call) reuses the
-pooled TCP/TLS connection across refresh ticks — on a wall-mounted kiosk that's
+pooled TCP/TLS connection across refresh ticks - on a wall-mounted kiosk that's
 one handshake per host instead of one every 15 min, which matters most on flaky
 Wi-Fi where connection setup is exactly where transient failures cluster. A
 small bounded `Retry` on idempotent GETs rides out a single dropped packet
@@ -10,7 +10,7 @@ without burning a whole refresh tick.
 Each source owns its own module-level session (see `weather`/`calendar`). The
 refresh loop serializes every fetch under `_refresh_lock` and awaits the two
 sources in turn, so a given session is only ever touched by one worker thread at
-a time — well within what `requests.Session` supports.
+a time - well within what `requests.Session` supports.
 """
 
 from __future__ import annotations

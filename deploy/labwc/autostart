@@ -1,9 +1,9 @@
-# labwc autostart — runs once when the labwc session starts.
+# labwc autostart - runs once when the labwc session starts.
 # Installs to ~/.config/labwc/autostart (user). labwc executes it with /bin/sh.
 #
 # Initial-cursor hide. With <touch mouseEmulation="no"/> (rc.xml) and no physical
 # mouse, no pointer-motion event ever fires, so the page never gets pointer focus
-# and its CSS `cursor:none` never applies — labwc's default pointer just sits at
+# and its CSS `cursor:none` never applies - labwc's default pointer just sits at
 # screen center until the first touch. This nudges the virtual pointer so that,
 # once the fullscreen Chromium surface has mapped, a motion event reaches it and
 # `cursor:none` takes effect with no human touch required. Requires wlrctl (apt).

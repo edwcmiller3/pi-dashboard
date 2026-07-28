@@ -3,9 +3,9 @@
 The palette is centralized in style.css `:root` custom properties; a theme is a
 pure `:root` override block in static/themes/<name>.css that the server exposes
 at the fixed /theme.css URL index.html links after style.css. The contract
-under test: the configured theme's CSS is served verbatim; anything invalid —
+under test: the configured theme's CSS is served verbatim; anything invalid - 
 unset, a non-slug name (the name is interpolated into a filesystem path), or a
-missing file — degrades to EMPTY css with a 200, because the kiosk must never
+missing file - degrades to EMPTY css with a 200, because the kiosk must never
 lose the dashboard over a bad THEME value. Like test_static, every request uses
 a bare `TestClient(app).get(...)` (no `with`) so the lifespan's network-touching
 refresh loop never starts.
@@ -48,7 +48,7 @@ def test_configured_theme_is_served_verbatim(
     assert status == 200
     assert body == (_static_dir / "themes" / f"{name}.css").read_text(encoding="utf-8")
     # Every theme overrides the :root palette. Hue-only themes stop there;
-    # an effect theme (synthwave) may add documented effect rules on top —
+    # an effect theme (synthwave) may add documented effect rules on top - 
     # see the contract note in nord.css.
     assert ":root {" in body
 

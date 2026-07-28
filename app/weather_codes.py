@@ -5,12 +5,12 @@ Single source of truth for (a) the vendored weather-icons font subset and
 (b) the weather transform that resolves `icon`/`text` for the data contract.
 The frontend never sees raw WMO codes.
 
-Granularity: "Detailed" — one entry per WMO interpretation code, not coarse
-buckets. Day/night variants come from
-Open-Meteo's free `is_day` field; neutral buckets (overcast/fog/mix/storm)
-use one glyph for both. NOTE: these are Open-Meteo WMO *interpretation* codes,
-deliberately mapped by hand from Open-Meteo's documented list -- NOT the
-weather-icons `wi-wmo4680-*` set, which encodes different WMO 4680 codes.
+Granularity: "Detailed" - one entry per WMO interpretation code, not coarse
+buckets. Day/night variants come from Open-Meteo's free `is_day` field; neutral
+buckets (overcast/fog/mix/storm) use one glyph for both. NOTE: these are
+Open-Meteo WMO *interpretation* codes, deliberately mapped by hand from
+Open-Meteo's documented list -- NOT the weather-icons `wi-wmo4680-*` set, which
+encodes different WMO 4680 codes.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Final, Literal, TypedDict
 
 # The closed set of weather-icons classes this module can emit. Making it a
 # Literal (not a bare `str`) means the contract's `icon` fields carry a real,
-# checkable vocabulary end to end, and a new glyph MUST be added here — which is
+# checkable vocabulary end to end, and a new glyph MUST be added here - which is
 # exactly the prompt to also vendor it into the font subset (see `glyphs`). Keep
 # in sync with `_WMO` + `_UNKNOWN`; mypy flags any drift.
 WiIcon = Literal[
@@ -107,12 +107,12 @@ def describe(code: int, is_day: bool = True) -> Condition:
 # overcast (3), fog (45), rime fog (48). Every other documented code is a
 # drizzle/rain/snow/showers/thunderstorm family and DOES precipitate. Kept as the
 # small dry set (not a large wet set) so a precip code added to `_WMO` later is
-# wet by default — the mapping stays the single source of truth.
+# wet by default - the mapping stays the single source of truth.
 _DRY: Final[frozenset[int]] = frozenset({0, 1, 2, 3, 45, 48})
 
 
 def is_wet(code: int) -> bool:
-    """Whether a WMO code precipitates (rain OR snow) — gates the forecast card's
+    """Whether a WMO code precipitates (rain OR snow) - gates the forecast card's
     precip-chance line. An unmapped code is treated as dry: we can't assert it
     precipitates, so we don't show a precip line for it.
     """

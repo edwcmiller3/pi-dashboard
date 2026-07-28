@@ -1,17 +1,17 @@
-# deploy/ — Pi system configuration
+# deploy/ - Pi system configuration
 
 Version-controlled home for the Pi's system-config files, so production setup is
 `git pull` + a documented install step rather than hand-editing files on the box.
 
 ## Storage / root model
 
-**SD card, normal read-write root** — SD-wear risk accepted and mitigated below.
+**SD card, normal read-write root** - SD-wear risk accepted and mitigated below.
 (An NVMe read-write root is lower-wear if your Pi has one; this config targets an
 SD build.) The two biggest continuous writers are addressed directly: journald is
 kept in RAM (`journald.conf`, `Storage=volatile`) and Chromium's cache/profile are
 routed to tmpfs (flags in `chromium-kiosk.service`).
 
-**Swap — disable only the SD-backed swapfile, keep zram.** The wear concern is
+**Swap - disable only the SD-backed swapfile, keep zram.** The wear concern is
 `dphys-swapfile`, a swap *file on the SD card*. Disable it if present:
 
 ```sh
@@ -20,34 +20,34 @@ sudo dphys-swapfile uninstall 2>/dev/null || true
 ```
 
 If the first command reports **`Unit dphys-swapfile.service does not exist`**,
-that's fine — newer Pi OS images don't install it, so there's no SD-backed swap to
+that's fine - newer Pi OS images don't install it, so there's no SD-backed swap to
 turn off. The goal is already met; continue.
 
 Do **not** disable zram swap (`swapon --show` listing `/dev/zram0`). zram is
-*compressed swap in RAM* — it never writes to the SD card, so it costs zero wear
+*compressed swap in RAM* - it never writes to the SD card, so it costs zero wear
 and gives a useful OOM cushion under a memory spike. Leave it enabled.
 
 A read-write root (not read-only overlayfs) is what makes `unattended-upgrades`
-viable — on an overlayfs RO root, apt installs land in the tmpfs upper layer and
+viable - on an overlayfs RO root, apt installs land in the tmpfs upper layer and
 vanish on reboot, so that build would update by re-imaging instead.
 
-## Network — Wi-Fi reliability
+## Network - Wi-Fi reliability
 
 Pi OS (Bookworm/Trixie) manages Wi-Fi with NetworkManager. Two distinct failure
-modes bit this build — a boot-time join race and a mid-run drop. Both were
+modes bit this build - a boot-time join race and a mid-run drop. Both were
 config, not hardware; it's worth ruling those out before blaming the Pi's radio.
-Nothing app-side is involved either way — the backend's refresh loop self-heals
+Nothing app-side is involved either way - the backend's refresh loop self-heals
 the moment the link is up.
 
 ### Joining a hidden SSID (boot-time)
 
 **A hidden (non-broadcasting) SSID needs `802-11-wireless.hidden yes` on the
-profile — without it the Pi joins only intermittently.** A hidden AP suppresses
+profile - without it the Pi joins only intermittently.** A hidden AP suppresses
 its SSID in beacons, so the client can only find it by sending a *directed probe
 request*, which NM sends only when the profile is flagged hidden. Unflagged, NM
 falls back to passive beacon scans and association becomes a boot-time race it
 loses on some reboots: the box comes up with no network (host unreachable, weather
-and calendar unsynced, "Updated —"). The flag makes the join deterministic.
+and calendar unsynced, "Updated -"). The flag makes the join deterministic.
 
 Run once on the Pi (Imager often doesn't set the hidden flag even when "hidden"
 is ticked):
@@ -69,24 +69,24 @@ Consider **un-hiding the SSID** instead: a hidden name adds negligible security
 interacts badly with the mid-run drops below.
 
 **Where the change persists (and a netplan gotcha).** `nmcli connection modify`
-writes through to whatever store backs the profile and persists across reboot —
+writes through to whatever store backs the profile and persists across reboot -
 but *which* store varies by image:
 
 - Classic NM keyfile: `/etc/NetworkManager/system-connections/*.nmconnection`.
 - netplan-backed images (profile named `netplan-*`): netplan YAML at
   `/etc/netplan/90-NM-*.yaml`, rendered to `/run/NetworkManager/system-connections/`
-  at boot — the `/run` copy is regenerated each boot, so don't hand-edit it; edit
+  at boot - the `/run` copy is regenerated each boot, so don't hand-edit it; edit
   via `nmcli` (which writes back to the YAML) or the YAML itself.
 
 Check yours with `nmcli -g connection.filename connection show "$CN"` (or
 `sudo netplan get`). Either store holds the Wi-Fi PSK, so both are root-only
-(`0600`) and stay **out of git** — a re-image wipes them, which is why this is
+(`0600`) and stay **out of git** - a re-image wipes them, which is why this is
 documented here rather than shipped as a file.
 
 ### Dropping *while running* (not just at boot)
 
 If an already-established link drops mid-session, **diagnose before buying
-hardware — a mid-run drop is almost never weak signal.** First gather the basics:
+hardware - a mid-run drop is almost never weak signal.** First gather the basics:
 
 ```sh
 iw dev wlan0 link                              # signal: > -67 dBm good, < -75 weak
@@ -94,7 +94,7 @@ iw dev wlan0 get power_save                    # must read "off"
 nmcli -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list   # channel; is the SSID on 2.4 AND 5 GHz / multiple BSSIDs?
 ```
 
-Then capture *why* it dropped — this is the load-bearing step:
+Then capture *why* it dropped - this is the load-bearing step:
 
 ```sh
 sudo iw event -t                               # live: prints deauth/disassoc with reason + source
@@ -103,11 +103,11 @@ journalctl -b | grep -iE "CTRL-EVENT-DISCONNECTED|reason=|deauth"
 
 The reason line splits the two root causes:
 
-- **`disconnected (by AP) reason: N`** — the *access point* is kicking you. On a
+- **`disconnected (by AP) reason: N`** - the *access point* is kicking you. On a
   multi-AP / mesh network with one SSID spanning several nodes (or 2.4 + 5 GHz),
   this is typically **band/AP steering**: the AP repeatedly deauths a *stationary*
   device to "optimize" which node/band it's on, and occasionally the
-  re-association stalls for minutes — the visible outage. Fixes, best first:
+  re-association stalls for minutes - the visible outage. Fixes, best first:
   (1) disable band steering / "Smart Connect" / 802.11k/v/r roaming assist on the
   router, or give each band/node its own SSID; (2) if you can't touch the AP,
   **pin the client to the strongest node's BSSID** so it snaps back to the same
@@ -117,16 +117,16 @@ The reason line splits the two root causes:
   sudo nmcli connection modify "$CN" 802-11-wireless.bssid AA:BB:CC:DD:EE:FF
   sudo nmcli connection down "$CN" && sudo nmcli connection up "$CN"
   ```
-  A wall panel never roams, so pinning costs nothing — the one trade-off is that
+  A wall panel never roams, so pinning costs nothing - the one trade-off is that
   if that node dies the Pi won't fail over. Verify persistence as above, then
   **reboot to confirm the pin survived** (boot is exactly where this stack fails).
-- **client-initiated (`locally_generated=1`), or a radar event** — the Pi left on
+- **client-initiated (`locally_generated=1`), or a radar event** - the Pi left on
   its own. Usual causes: power-save re-enabling (re-check `iw ... get power_save`),
   aggressive background-scan roaming, or DFS (below).
 
 **DFS / passive-scan channel caveat.** A hidden SSID can't be found on a
 **passive-scan** channel, and on 5 GHz **DFS** channels (52–144, US regdomain) the
-AP must vacate the channel for 60+ s on any radar detection — dropping every
+AP must vacate the channel for 60+ s on any radar detection - dropping every
 client mid-session. If the AP sits on DFS, move it to an active-scan channel:
 2.4 GHz (1–11) or 5 GHz UNII-1 (36–48) / UNII-3 (149–165). Check with
 `nmcli -f SSID,CHAN,FREQ device wifi list`.
@@ -134,16 +134,16 @@ client mid-session. If the AP sits on DFS, move it to an active-scan channel:
 ### Reconnect watchdog (when autoconnect doesn't recover)
 
 `autoconnect-retries 0` (retry forever) keeps NM trying, but its internal backoff
-can leave the interface stuck in "disconnected" for minutes — long enough to look
-permanently broken after a reboot. A simple watchdog service polls every 30 seconds
-and calls `nmcli device connect wlan0` whenever the device isn't connected, which
-forces NM out of any backoff state. It runs as a persistent system service and
-covers both boot-time failures and mid-session drops.
+can leave the interface stuck in "disconnected" for minutes - long enough to look
+permanently broken after a reboot. A watchdog service polls every 30 s
+and calls `nmcli device connect wlan0` whenever the device isn't connected, forcing
+NM out of any backoff state. As a persistent system service it covers both
+boot-time failures and mid-session drops.
 
-`wifi-watchdog.service` in this repo handles this — see [Install § 2](#2-system-files-root).
+`wifi-watchdog.service` in this repo handles this - see [Install § 2](#2-system-files-root).
 
-The service uses the device name (`wlan0`) rather than a connection profile name, so
-it works regardless of what the profile is called and survives profile renames.
+The service targets the device name (`wlan0`), not a connection profile name, so
+it works regardless of the profile name and survives renames.
 
 **When hardware *is* warranted.** Only if `iw dev wlan0 link` shows genuinely weak
 signal (below ~-72 dBm) at the mount. Then, best first: wired Ethernet (the Pi 5
@@ -151,7 +151,7 @@ has gigabit built in) → powerline/MoCA → a wireless bridge (a small router i
 client mode with real antennas, feeding the Pi over Ethernet) → a USB Wi-Fi
 adapter with an external antenna (pick an in-kernel chipset, e.g. MediaTek
 `mt76`, so it survives unattended kernel upgrades). A Wi-Fi HAT is rarely worth
-it. At a healthy signal no adapter helps — the problem is association, not radio.
+it. At a healthy signal no adapter helps - the problem is association, not radio.
 
 ## Files
 
@@ -160,11 +160,11 @@ it. At a healthy signal no adapter helps — the problem is association, not rad
 | `pi-dashboard.service` | `~/.config/systemd/user/` | user | FastAPI backend (uvicorn) on `127.0.0.1:8000`. |
 | `kiosk.service` | `~/.config/systemd/user/` | user | labwc compositor (the Wayland session). |
 | `chromium-kiosk.service` | `~/.config/systemd/user/` | user | Chromium kiosk, pinned flag set, `Restart=always`. |
-| `chromium-reload.service` | `~/.config/systemd/user/` | user | Manual browser reload for same-day deploy pickup (no timer — the daily 06:00 cold boot owns nightly hygiene). |
+| `chromium-reload.service` | `~/.config/systemd/user/` | user | Manual browser reload for same-day deploy pickup (no timer - the daily 06:00 cold boot owns nightly hygiene). |
 | `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor`. |
 | `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
 | `wifi-watchdog.service` | `/etc/systemd/system/` | system | Polls `wlan0` every 30 s; calls `nmcli device connect` if not connected. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
-| `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only — zero SD wear. |
+| `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only - zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
 | `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades; no auto-reboot (the daily 06:00 cold boot covers reboot-required). |
 | `20auto-upgrades` | `/etc/apt/apt.conf.d/` | system | Enables the apt periodic timers that run the above. |
@@ -179,28 +179,28 @@ wall side of the 12 V brick plus a pre-halt on the Pi:
 | Time | Actor | Action |
 |------|-------|--------|
 | 01:00 | Pi (`nightly-halt.timer`) | Guard hour ∈ [1,6) → set RTC wakealarm 06:00 → clean `poweroff` |
-| 01:05 | Smart plug (on-device schedule) | OFF — monitor + Pi fully dark, true 0 W |
-| 06:00 | Smart plug (on-device schedule) | ON — panel powers up, USB-C 5 V returns, Pi 5 auto-boots on power-apply |
+| 01:05 | Smart plug (on-device schedule) | OFF - monitor + Pi fully dark, true 0 W |
+| 06:00 | Smart plug (on-device schedule) | ON - panel powers up, USB-C 5 V returns, Pi 5 auto-boots on power-apply |
 | ~06:01 | Pi | Normal boot → kiosk → dashboard (wifi-watchdog covers the boot-join flake) |
 
 The pre-halt is what makes a nightly wall cut filesystem-safe: the plug only ever
 hard-cuts a board that already shut down cleanly. The two wake paths are
-complementary — power-apply boot on the normal night, the RTC wakealarm if the
+complementary - power-apply boot on the normal night, the RTC wakealarm if the
 plug ever fails to cut. The daily 06:00 **cold boot** replaces both of the old
 nightly mechanisms (03:00 upgrade reboot, 04:00 Chromium reload): every day starts
 with a fresh kernel, backend, and browser by construction. (The former app-side
-CSS blackout overlay is gone for the same reason — and it would actively fight a
+CSS blackout overlay is gone for the same reason - and it would actively fight a
 deliberate mid-window manual plug override by blacking out the dashboard you just
 turned on.)
 
 **Plug config lives on the plug, not in git.** Requirements, chosen deliberately:
 
-- Schedule stored **on the device**, executing without cloud or Wi-Fi — given this
+- Schedule stored **on the device**, executing without cloud or Wi-Fi - given this
   site's Wi-Fi flakiness (above), the 06:00 power-on must not depend on the router.
-- Power-restore behavior = **last state** — after an outage inside the window the
+- Power-restore behavior = **last state** - after an outage inside the window the
   panel stays dark until the 06:00 ON; after a daytime outage everything comes
   straight back.
-- Physical on/off button — manual override, and a bypass path if the plug dies
+- Physical on/off button - manual override, and a bypass path if the plug dies
   (pull the plug body out of the socket, connect the brick directly).
 - Schedule: **OFF 01:05, ON 06:00**, matching the table above. If the plug is
   replaced, reconfigure these three things and nothing else changes.
@@ -224,21 +224,21 @@ These are NOT in git, so a fresh box needs them before the steps below:
   `sudo apt install -y wlrctl`
 - **The repo cloned to `~/pi-dashboard`** (the unit files hardcode this path):
   `git clone <repo-url> ~/pi-dashboard` (the "first pull" is really a clone).
-- **`.env` created** — it is git-ignored (holds the secret, PII-bearing
+- **`.env` created** - it is git-ignored (holds the secret, PII-bearing
   `PROTON_ICS_URL`) so it never arrives via `git pull`. Without it the app still
   runs (weather on defaults + holidays), but shows **no personal calendar events**:
   ```sh
   cp ~/pi-dashboard/.env.example ~/pi-dashboard/.env
   # then edit .env: set PROTON_ICS_URL to a Proton Calendar "Full view" link
   # and WEATHER_LAT/WEATHER_LON to your location. Optional: NWS_STATION for
-  # real current-conditions observations (US-only — .env.example shows how
+  # real current-conditions observations (US-only - .env.example shows how
   # to find your station), WEATHER_MODEL to pin a forecast model, THEME to
   # override the palette, and LAYOUT to pick the UI (classic default, or hud).
   ```
 
 Both THEME and LAYOUT are read from `.env` at backend startup, so changing
 either needs a `systemctl --user restart pi-dashboard.service` (or the daily
-06:00 cold boot) to take effect — a browser reload alone won't repaint them.
+06:00 cold boot) to take effect - a browser reload alone won't repaint them.
 Invalid values fail-soft (THEME → built-in palette, LAYOUT → classic), so a
 typo degrades rather than blanking the panel.
 
@@ -266,7 +266,7 @@ sudo install -m644 deploy/wifi-watchdog.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now wifi-watchdog.service
 
-# Autologin + quiet boot — substitutes the current login user into the drop-in:
+# Autologin + quiet boot - substitutes the current login user into the drop-in:
 sudo install -Dm644 deploy/getty-autologin.conf \
   /etc/systemd/system/getty@tty1.service.d/autologin.conf
 sudo sed -i "s/KIOSK_USER/$USER/" /etc/systemd/system/getty@tty1.service.d/autologin.conf
@@ -276,7 +276,7 @@ sudo install -Dm644 deploy/journald.conf \
   /etc/systemd/journald.conf.d/00-kiosk-volatile.conf
 
 # Unattended security upgrades (no auto-reboot; the 06:00 cold boot covers it).
-# The package is NOT preinstalled on Raspberry Pi OS — without it the config
+# The package is NOT preinstalled on Raspberry Pi OS - without it the config
 # below is inert (apt's daily timers run but silently skip upgrades). Install
 # it first so our conffiles below overwrite the package's defaults:
 sudo apt install -y unattended-upgrades
@@ -293,7 +293,7 @@ sudo systemctl enable --now nightly-halt.timer
 sudo systemctl restart systemd-journald
 ```
 
-### 3. Quiet boot — kernel cmdline (manual, box-specific)
+### 3. Quiet boot - kernel cmdline (manual, box-specific)
 
 `/boot/firmware/cmdline.txt` is a single line with a box-specific `PARTUUID`, so
 it can't be shipped wholesale. Append these tokens to the existing line (don't
@@ -309,7 +309,7 @@ And in `/boot/firmware/config.txt`, suppress the rainbow splash:
 disable_splash=1
 ```
 
-Also empty the Pi OS IP banner drop-in — `agetty --noissue` (in
+Also empty the Pi OS IP banner drop-in - `agetty --noissue` (in
 `getty-autologin.conf`) suppresses `/etc/issue` but NOT the `issue.d` drop-in that
 prints "My IP address is ..." on recent Pi OS (Trixie):
 
@@ -325,12 +325,12 @@ kept across `apt`/unattended upgrades, and a reinstall restores it cleanly.)
 Pi OS `/usr/bin/chromium` injects `/etc/chromium.d/*` flags, which can include a
 stale `--js-flags=--no-decommit-pooled-pages` that V8 logs as "unrecognized flag"
 (cosmetic, harmless). To silence it, clear or edit the offending file under
-`/etc/chromium.d/` — left as-is by default so the distro's other defaults aren't
+`/etc/chromium.d/` - left as-is by default so the distro's other defaults aren't
 masked.
 
 ## Updating after a deploy (`git pull`)
 
-Install (above) is one-time. To ship later changes, `git pull` on the Pi — but a
+Install (above) is one-time. To ship later changes, `git pull` on the Pi - but a
 pull only updates files on disk; the **running processes pick up changes on their
 next restart/reload**, which is what to nudge:
 
@@ -340,13 +340,13 @@ cd ~/pi-dashboard && git pull
 
 | What changed | To see it on the Pi |
 |--------------|---------------------|
-| **Frontend** (`static/` — HTML/JS/CSS) | A browser reload: `systemctl --user start chromium-reload.service`. The `no-cache` static headers guarantee the reload fetches the NEW bundle (no stale `app.js`). |
-| **Backend** (`app/` — Python) | `systemctl --user restart pi-dashboard.service` (production uvicorn has no `--reload`, so a pull won't repaint a running server). |
+| **Frontend** (`static/` - HTML/JS/CSS) | A browser reload: `systemctl --user start chromium-reload.service`. The `no-cache` static headers guarantee the reload fetches the NEW bundle (no stale `app.js`). |
+| **Backend** (`app/` - Python) | `systemctl --user restart pi-dashboard.service` (production uvicorn has no `--reload`, so a pull won't repaint a running server). |
 | **New/changed dependency** (`pyproject.toml`/`uv.lock`) | `uv sync`, then restart the backend. |
 | **A `deploy/` unit or config file** | Re-run the relevant install step, then `systemctl --user daemon-reload` (user) / `sudo systemctl daemon-reload` (system). |
 
 **Nothing to nudge = within a day anyway:** the nightly power-off window ends in a
-06:00 cold boot, which starts a fresh backend and browser and so picks up
+06:00 cold boot, which starts a fresh backend and browser, picking up
 everything. The commands above are just for *instant* pickup after a same-day pull.
 
 ## Verifying the install (on the panel)
@@ -358,7 +358,7 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   stray cursor in the bare-compositor gap.
 - **Legibility:** eyeball the layout at standing distance. If sizing is off it's a
   type-scale tweak in `static/style.css`, not a redesign.
-- **Nightly power-off window:** simulate one cycle — `sudo systemctl start
+- **Nightly power-off window:** simulate one cycle - `sudo systemctl start
   nightly-halt.service` during the window (a daytime start is a guard no-op by
   design; off-hours, test the halt path with `sudo poweroff` instead), cut the
   plug via its button/app, wait a few minutes, restore → dashboard back
@@ -371,11 +371,11 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   comes back fullscreen on its own (`Restart=always`).
 - **Deploy pickup:** `git pull` a visible change, trigger the reload
   (`systemctl --user start chromium-reload.service`), and confirm the new bundle
-  renders (no-cache static headers + reload — no manual hard refresh needed).
+  renders (no-cache static headers + reload - no manual hard refresh needed).
 - **Thermals under load:** `vcgencmd get_throttled` stays `0x0` with the kiosk
   running. This is the check the *classic* layout (the production default) is
   held to. The `hud` layout adds glow `text-shadow` layers and large SVG
-  instrument repaints whose on-Pi thermal cost is **not yet verified** — that's
+  instrument repaints whose on-Pi thermal cost is **not yet verified** - that's
   the open question deferred to the HUD device burn-in. To verify when HUD is
   deployed: run it on the panel and confirm `get_throttled` still holds `0x0`
   over a sustained watch; if not, the mitigation is dimming/dropping the glow

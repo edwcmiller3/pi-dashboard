@@ -15,7 +15,7 @@ import pytest
 
 from app import weather_codes as wc
 
-# The vendored, subset weather-icons CSS — the real source of truth for which
+# The vendored, subset weather-icons CSS - the real source of truth for which
 # glyphs actually ship in the font. Parsed live so the test fails if the module
 # can emit a glyph that wasn't subset into static/vendor/.
 _VENDOR_CSS = (
@@ -46,7 +46,7 @@ ALL_CODES = [
     77, 80, 81, 82, 85, 86, 95, 96, 99,
 ]  # fmt: skip
 
-# Codes outside the documented set — must still resolve (to the wi-na fallback).
+# Codes outside the documented set - must still resolve (to the wi-na fallback).
 UNKNOWN_CODES = [123, -1, 9999]
 
 
@@ -123,7 +123,7 @@ def test_is_wet_false_for_clear_cloud_and_fog(code: int) -> None:
 
 @pytest.mark.parametrize("code", WET_CODES)
 def test_is_wet_true_for_every_precip_family(code: int) -> None:
-    # drizzle/rain/snow/showers/thunderstorm all precipitate (rain OR snow) — the
+    # drizzle/rain/snow/showers/thunderstorm all precipitate (rain OR snow) - the
     # user's gate is "any precip", not "rain only" (2026-07-01).
     assert wc.is_wet(code) is True
 
@@ -135,7 +135,7 @@ def test_is_wet_false_for_unknown_codes(code: int) -> None:
 
 
 def test_is_wet_partitions_the_documented_codes() -> None:
-    # Every documented code is either wet or dry, never both / neither — so the
+    # Every documented code is either wet or dry, never both / neither - so the
     # predicate can't silently drop a code as the mapping grows.
     assert {c for c in ALL_CODES if wc.is_wet(c)} == set(WET_CODES)
 

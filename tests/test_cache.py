@@ -51,7 +51,7 @@ def test_read_corrupt_json_returns_none(
 ) -> None:
     # A truncated/garbage cache file (realistically only power-loss mid-write,
     # which the atomic os.replace already rules out for torn reads) must degrade
-    # to a cold cache (None -> 503), NOT bubble a JSONDecodeError to a 500 — and
+    # to a cold cache (None -> 503), NOT bubble a JSONDecodeError to a 500 - and
     # it must WARN, since that log is the only signal an operator gets on the Pi.
     (tmp_path / "doc.json").write_text('{"weather": {"ok": tru', encoding="utf-8")
     with caplog.at_level(logging.WARNING, logger="pi_dashboard.cache"):
@@ -63,7 +63,7 @@ def test_read_corrupt_json_returns_none(
 def test_read_empty_file_returns_none(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # An empty file also fails json.load — treat it like a cold cache, and warn.
+    # An empty file also fails json.load - treat it like a cold cache, and warn.
     (tmp_path / "doc.json").write_text("", encoding="utf-8")
     with caplog.at_level(logging.WARNING, logger="pi_dashboard.cache"):
         assert cache.read("doc") is None
@@ -76,7 +76,7 @@ def test_write_fsyncs_file_and_dir_for_power_loss_durability(
     # The atomic os.replace is torn-read-safe but NOT power-loss-durable on its
     # own; BOTH the data file AND the containing directory must be fsync'd so a
     # crash can't lose or corrupt the last-good doc, or lose the rename. Assert
-    # both fsyncs happen — a regression dropping the directory fsync would still
+    # both fsyncs happen - a regression dropping the directory fsync would still
     # leave the file fsync behind and slip past a mere "fsync was called" check.
     calls: list[int] = []
     real_fsync = os.fsync

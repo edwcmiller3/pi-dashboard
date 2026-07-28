@@ -42,7 +42,7 @@ from app.sources.weather import get_weather
 log = logging.getLogger("pi_dashboard.refresh")
 
 _CACHE_KEY: Final = "dashboard"
-# The dashboard's display zone — stamps generated_at independent of any source.
+# The dashboard's display zone - stamps generated_at independent of any source.
 _DISPLAY_TZ: Final = "America/New_York"
 
 # After a failed tick, retry sooner than the full base cadence so a transient
@@ -65,7 +65,7 @@ def _clock_synced() -> bool:
     """Whether the system clock is NTP-synced (so the live clock is honest).
 
     On a non-systemd host (the dev Mac) the timesyncd runtime dir is absent and
-    we can't tell — assume synced rather than show a false "not synced" warning.
+    we can't tell - assume synced rather than show a false "not synced" warning.
     On the Pi the runtime dir exists from boot and the marker file appears once
     `systemd-timesyncd` syncs; absent-but-runtime-present means not-yet-synced.
     """
@@ -99,8 +99,8 @@ def _is_due(
 
     Fresh-and-ok: due once the block has aged past its TTL. Forced or no prior:
     always due. Previously FAILED (ok=False): due once `retry_floor` seconds
-    have passed since the last ATTEMPT — crucially NOT every tick. That floor is
-    what stops a down source being hammered while the loop is in fast backoff:
+    have passed since the last ATTEMPT - crucially NOT every tick. That floor
+    stops a down source being hammered while the loop is in fast backoff:
     weather passes a small floor (retry in step with the backoff), the calendar
     passes its full TTL, so a Proton outage is retried gently even when a
     simultaneous weather outage (e.g. the whole network dropped) has the loop
@@ -131,7 +131,7 @@ def _seconds_to_next_local_midnight(now: datetime) -> float:
     `ZoneInfo`, and subtracting two aware datetimes with the *same* tzinfo ignores
     the offset and returns the naive wall-clock difference (a documented CPython
     behavior). Across a DST transition that would be off by the ±1h the day
-    gains/loses — sleeping too long/short and missing the 00:00 rollover — so
+    gains/loses - sleeping too long/short and missing the 00:00 rollover - so
     normalize both to UTC first, where the real elapsed time is exact."""
     midnight = (now + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -143,7 +143,7 @@ def _seconds_to_next_local_midnight(now: datetime) -> float:
 
 def _date_rolled(prev_iso: str | None, now: datetime) -> bool:
     """Whether `prev_iso` (a prior doc's `generated_at`) falls on a different
-    local calendar day than `now` — i.e. the agenda window must roll even if every
+    local calendar day than `now` - i.e. the agenda window must roll even if every
     source is still within its TTL. Absent/unparseable -> False (cold boot or a
     corrupt cache: every source is due anyway, so forcing adds nothing)."""
     if not isinstance(prev_iso, str):
@@ -172,7 +172,7 @@ async def _refresh_source(
     if prior is not None and not _is_due(
         prior, ttl, now, force, retry_floor=retry_floor
     ):
-        return prior, False  # still fresh — reuse as-is, nothing attempted
+        return prior, False  # still fresh - reuse as-is, nothing attempted
     try:
         block = await fetch()
     except Exception:
@@ -181,7 +181,7 @@ async def _refresh_source(
             raise
         # Keep last-good DATA, flag it stale, and stamp the attempt so `_is_due`
         # rate-limits the next retry. `{**prior, ...}` widens to a plain dict, so
-        # the cast is unavoidable — mypy can't see the result is still a `B`. It's
+        # the cast is unavoidable - mypy can't see the result is still a `B`. It's
         # sound here: `prior` is a `B` (validated at the cache boundary by
         # as_weather_block/as_calendar_block), and we only override `ok`/add
         # NotRequired keys, so every required key of `B` survives.
@@ -192,7 +192,7 @@ async def _refresh_source(
             "attempted_at": now.isoformat(timespec="seconds"),
         }
         return cast(B, stale), True
-    return cast(B, {**block, "ttl": ttl}), False  # fresh fetch — not a failure
+    return cast(B, {**block, "ttl": ttl}), False  # fresh fetch - not a failure
 
 
 async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> bool:
@@ -203,20 +203,20 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
     Returns True for a healthy tick, False if any attempted source fell back to
     last-good (the loop uses this to back off and retry sooner).
 
-    NOTE: the calendar soft-fails IN-BAND — `get_calendar` never raises (holidays
+    NOTE: the calendar soft-fails IN-BAND - `get_calendar` never raises (holidays
     must always show), so a Proton outage returns an `ok=False` block, not an
     exception, and the tick still reports healthy. Weather alone drives the loop
     backoff; the calendar's retry cadence on a Proton outage is governed entirely
     by its `retry_floor` below, so Proton is never hammered (see `_is_due`).
 
     The cache read/write are offloaded to a thread: they `fsync` (blocking), and
-    this runs on the event loop, so — like the source fetches — they must not
+    this runs on the event loop, so - like the source fetches - they must not
     stall it."""
     now = now or datetime.now(ZoneInfo(_DISPLAY_TZ))
     raw = await asyncio.to_thread(cache.read, _CACHE_KEY)
     # The cache doc is the untyped boundary and may predate a top-level field, so
     # read the envelope loosely but narrow the two source blocks INTO the typed
-    # world here — last-good then flows downstream as real WeatherBlock/
+    # world here - last-good then flows downstream as real WeatherBlock/
     # CalendarBlock, not `Any`. An absent/invalid block narrows to None → that
     # source is due, which is the correct cold-start behavior anyway.
     prior = raw if isinstance(raw, dict) else {}
@@ -251,7 +251,7 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
     )
 
     doc: DashboardDoc = {
-        # generated_at = when THIS doc was assembled — a source-independent clock
+        # generated_at = when THIS doc was assembled - a source-independent clock
         # in the display zone, since weather/calendar fetch times diverge.
         "generated_at": now.isoformat(timespec="seconds"),
         "clock_synced": _clock_synced(),
@@ -268,7 +268,7 @@ _refresh_lock = asyncio.Lock()
 
 
 async def _refresh_loop() -> None:
-    """The unkillable refresh cycle — a failing tick is logged, never fatal.
+    """The unkillable refresh cycle - a failing tick is logged, never fatal.
     Base cadence = the shortest source TTL; a failed tick backs off and retries
     sooner so transient blips clear without waiting the full interval. The sleep
     is also clamped to the next local midnight so a tick lands at 00:00 and the
@@ -333,7 +333,7 @@ def healthz() -> JSONResponse:
 def api_data() -> JSONResponse:
     """The normalized dashboard contract the frontend polls.
 
-    503 until the first refresh tick warms the cache — the frontend degrades
+    503 until the first refresh tick warms the cache - the frontend degrades
     visibly (stale dots + "Data unavailable") on any non-200, never a blank panel.
     """
     doc = cache.read(_CACHE_KEY)
@@ -344,8 +344,8 @@ def api_data() -> JSONResponse:
         or as_calendar_block(doc.get("calendar")) is None
     ):
         # A source block that fails the contract means producer/consumer drift or
-        # a corrupt write. Log it — NEVER the doc itself, which carries calendar
-        # PII — and still serve it so the dashboard degrades rather than blanking.
+        # a corrupt write. Log it - NEVER the doc itself, which carries calendar
+        # PII - and still serve it so the dashboard degrades rather than blanking.
         log.warning("cached dashboard block failed contract validation; serving as-is")
     # clock_synced reflects the clock *now*, not when the doc was assembled.
     # Overlay the live value (a cheap marker-file check) so the "clock not synced"
@@ -380,7 +380,7 @@ class _NoCacheStaticFiles(StaticFiles):
     Chromium keeps its cached copy but MUST revalidate it against the server on
     each load. Combined with the ETag/Last-Modified `StaticFiles` already stamps,
     an unchanged asset short-circuits to a 304 (free over localhost) while a
-    deploy (`git pull`) is picked up the instant the file differs — no stale
+    deploy (`git pull`) is picked up the instant the file differs - no stale
     `app.js` surviving until a hard refresh / the next 06:00 cold boot.
     `/api/data` is a separate route (unaffected); the frontend already fetches it
     with `cache:"no-store"`.
@@ -395,7 +395,7 @@ class _NoCacheStaticFiles(StaticFiles):
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 
 # THEME/LAYOUT are user config interpolated into a filesystem path, so each must
-# be a bare slug — anything with a separator (or any other oddity) is rejected.
+# be a bare slug - anything with a separator (or any other oddity) is rejected.
 _SLUG_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
 
 # Every slug-selected asset carries the same deploy-freshness contract as the
@@ -436,12 +436,12 @@ def _serve_slug_css(
     """Serve a slug-selected .css file, fail-soft to `fallback()`, always no-cache.
 
     Shared by /theme.css and /layout.css. `name` is a user-controlled setting
-    interpolated into a filesystem path, so it must be a bare slug — validate
+    interpolated into a filesystem path, so it must be a bare slug - validate
     BEFORE touching disk. Path shape is the only per-route difference: flat
     (theme) at static/<subdir>/<name>.css, or nested (layout) at
     static/<subdir>/<name>/<leaf>.css. A non-slug name, or a valid name whose
-    file is absent/unreadable, degrades to `fallback()` — empty CSS for a theme
-    (the built-in palette wins), classic's stylesheet for a layout — because the
+    file is absent/unreadable, degrades to `fallback()` - empty CSS for a theme
+    (the built-in palette wins), classic's stylesheet for a layout - because the
     kiosk must never lose the dashboard over a bad config value. Read per request
     (like the no-cache static bundle) so editing the file shows on next reload.
     """
@@ -463,7 +463,7 @@ def _serve_slug_css(
 
 def _serve_layout_module(name: str) -> Response:
     """/layout.js's body: a generated one-line ES module re-exporting the
-    selected layout — a layout SELECTS a module rather than serving a stored
+    selected layout - a layout SELECTS a module rather than serving a stored
     file, so it fail-softs to the valid "classic" name, not to an empty body.
     Both a bad slug AND a valid-slug-but-absent module fall back to classic: a
     re-export of a missing module would 404 the ES-module graph at LOAD time
@@ -498,7 +498,7 @@ def layout_css() -> Response:
 @app.get("/layout.js")
 def layout_js() -> Response:
     """The generated ES module selecting the layout (see _serve_layout_module);
-    app.js does `import {layout} from "/layout.js"` — no fetch race, no HTML
+    app.js does `import {layout} from "/layout.js"` - no fetch race, no HTML
     templating. MUST be served as text/javascript: a wrong JS MIME is silently
     refused under strict ES-module loading and would blank the kiosk."""
     return _serve_layout_module(settings.layout)

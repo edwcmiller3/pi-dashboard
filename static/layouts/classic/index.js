@@ -1,4 +1,4 @@
-// Classic layout — today's production UI, extracted as the first pluggable
+// Classic layout - today's production UI, extracted as the first pluggable
 // layout. Exports a `layout` object implementing the seven-hook Layout interface
 // (see core/contract.js): mount() builds the bento-over-ambient-glow shell into
 // the bare <div id="app">, and the per-region renderers fill it from the data
@@ -8,7 +8,7 @@
 // Side-effect-free on import (the core graph's invariant, see core/machine.js):
 // the DOM is touched only inside mount()/the render hooks, driven by init().
 
-import { to12, pad2, fmtCompact, fmtLong, localParts, localDate, localDayKey, dayLabel } from "../../core/time.js";
+import { to12, pad2, fmtCompact, fmtCompactOr, fmtLong, localParts, localDate, localDayKey, dayLabel } from "../../core/time.js";
 import {
   groupByDay,
   splitColumns,
@@ -82,29 +82,29 @@ const REFRESH_SVG =
 // ── DOM builders ─────────────────────────────────────────────────────────────
 
 // `isNext` marks the "next up" event with a subtle highlight; `isPast` tags an
-// already-past event `.is-past` — no CSS of its own, purely a marker the
+// already-past event `.is-past` - no CSS of its own, purely a marker the
 // fitDayInPlace roll-off pass consumes. Both apply only to a personal timed
-// row — the only kind nextUp/pastIndexes ever select — so the holiday/marker
+// row - the only kind nextUp/pastIndexes ever select - so the holiday/marker
 // branches ignore them.
 /** @param {AgendaItem} ev @param {boolean} [isNext] @param {boolean} [isPast] @returns {HTMLElement} */
 function eventNode(ev, isNext = false, isPast = false) {
   // Federal holiday / lesser observance -> identical pill above the day's
-  // events (no tiered visual weight — official and unofficial render the same;
+  // events (no tiered visual weight - official and unofficial render the same;
   // `kind` stays distinct in the data as provenance only).
   if (ev.kind === "holiday" || ev.kind === "observance") {
-    return el("span", "holiday", ev.title); // title as text (textContent) — never HTML
+    return el("span", "holiday", ev.title); // title as text (textContent) - never HTML
   }
   // DST / informational marker -> plain muted line.
   if (ev.kind === "info") {
     return el("span", "marker", ev.title);
   }
   // Personal event -> time + title row; the next-up one gets a subtle highlight
-  // so the event to look at reads at a glance (no chip — the tint is enough).
+  // so the event to look at reads at a glance (no chip - the tint is enough).
   const { time } = localParts(ev.start);
   const row = el("div", "event" + (isNext ? " is-next" : "") + (isPast ? " is-past" : ""));
   const when =
     ev.all_day || !time ? el("span", "etime allday", "All day") : el("span", "etime", fmtCompact(time));
-  row.append(when, el("span", "etitle", ev.title)); // title as text (textContent) — never HTML
+  row.append(when, el("span", "etitle", ev.title)); // title as text (textContent) - never HTML
   return row;
 }
 
@@ -116,8 +116,8 @@ function dayRowNode(group, calendarOk = true, clockSynced = true) {
   label.append(el("span", "dname", dname), el("span", "ddate", ddate));
   const events = el("div", "day-events");
   // "Today awareness": the next-up highlight and the roll-off candidates share
-  // one gate — TODAY only, and only when the clock is trustworthy (an unsynced
-  // Pi clock would mis-pick both; undefined/true = fine) — and one `now`, so
+  // one gate - TODAY only, and only when the clock is trustworthy (an unsynced
+  // Pi clock would mis-pick both; undefined/true = fine) - and one `now`, so
   // the emphasized row can never simultaneously be a roll-off candidate.
   const aware = isToday && clockSynced !== false;
   const now = new Date();
@@ -126,7 +126,7 @@ function dayRowNode(group, calendarOk = true, clockSynced = true) {
   group.items.forEach((ev, i) => events.append(eventNode(ev, i === nextIdx, pastIdx.has(i))));
   // Quiet-day state: today with no personal events gets a friendly "Nothing
   // today" (holidays/observances above still show as context). Only when the
-  // calendar fetched OK — on a stale/failed calendar we don't know today's
+  // calendar fetched OK - on a stale/failed calendar we don't know today's
   // events, so we don't claim emptiness (the stale status dot signals it).
   if (isToday && calendarOk && !hasPersonalEvents(group.items)) {
     events.append(el("div", "day-empty", "Nothing today"));
@@ -144,7 +144,7 @@ function wiIcon(iconClass, extra) {
 }
 
 // A "stat" cell: an icon (optional) + uppercase key label + value. The label
-// and value are set via textContent — never interpolated as HTML.
+// and value are set via textContent - never interpolated as HTML.
 /**
  * @param {string | null} iconClass
  * @param {string} label
@@ -159,11 +159,6 @@ function statCell(iconClass, label, value) {
   cell.append(k, el("span", "v", value));
   return cell;
 }
-
-// Sunrise/sunset are full ISO datetimes per the backend contract; a date-only
-// string (time null) would be contract drift — render "—" rather than crash.
-/** @param {import("../../core/time.js").LocalTime | null} time @returns {string} */
-const fmtCompactOr = (time) => (time ? fmtCompact(time) : "—");
 
 // One glyph+value line of a fmtHiLo pair (hero stack and forecast cards);
 // the glyph gets its own span so CSS can size/color it independently.
@@ -219,7 +214,7 @@ function renderCurrent(weather) {
   const tempRow = el("div", "cur-temp-row");
   tempRow.append(temp, hilo);
   const cond = el("div", "cur-cond");
-  // c.text is HUMAN TEXT — route through textContent, never innerHTML.
+  // c.text is HUMAN TEXT - route through textContent, never innerHTML.
   cond.append(c.text);
   main.append(tempRow, cond);
 
@@ -251,7 +246,7 @@ function renderForecast(forecast) {
     const { hi, lo } = fmtHiLo(f);
     temp.append(hiLoLine("hi", hi), hiLoLine("lo", lo));
 
-    // Right of the icon: temps, with the precip-chance line beneath — shown only
+    // Right of the icon: temps, with the precip-chance line beneath - shown only
     // on codes that precipitate (backend is_wet gate); an absent flag reads dry.
     const right = el("div", "fright");
     right.append(temp);
@@ -274,7 +269,7 @@ function renderForecast(forecast) {
 
 // ── agenda fit shells (DOM around the pure planners) ──────────────────────────
 
-// Measured render height of a node (includes padding/wrapping — the real px,
+// Measured render height of a node (includes padding/wrapping - the real px,
 // not an item-count estimate, so the fit below can GUARANTEE no clipping).
 /** @param {Element} node @returns {number} */
 const rowH = (node) => node.getBoundingClientRect().height;
@@ -283,7 +278,7 @@ const rowH = (node) => node.getBoundingClientRect().height;
 const moreLine = (text) => el("div", "agenda-more", text);
 
 // Height a "+N …" summary line will occupy in `container`, measured with a real
-// (briefly attached) placeholder — an estimate could under-reserve and let the
+// (briefly attached) placeholder - an estimate could under-reserve and let the
 // final label push a "fitting" row back over budget. Any one-line text measures
 // the same, so "+0 more" stands in for every label the planners charge for.
 /** @param {Element} container @returns {number} */
@@ -295,11 +290,11 @@ function measureLine(container) {
   return h;
 }
 
-// Trim a day-row's events in place until the whole row fits `budget` px —
+// Trim a day-row's events in place until the whole row fits `budget` px -
 // the imperative shell around the pure `planDayFit` (see its contract for the
 // roll-off/trim semantics). Used for the days we must never drop outright
 // (today; the first upcoming day), so a single very busy day is shortened
-// rather than removed — which is what keeps col 2 from ever ending up empty.
+// rather than removed - which is what keeps col 2 from ever ending up empty.
 /** @param {Element} dayRow @param {number} budget @returns {void} */
 function fitDayInPlace(dayRow, budget) {
   const events = dayRow.querySelector(".day-events");
@@ -313,7 +308,7 @@ function fitDayInPlace(dayRow, budget) {
     budget,
   );
   if (plan.earlierCount > 0) {
-    // Takes the oldest past row's place — below the all-day/holiday pills,
+    // Takes the oldest past row's place - below the all-day/holiday pills,
     // right where the timed list begins.
     const firstPast = children.find((c) => c.classList.contains("is-past"));
     if (firstPast) firstPast.before(moreLine(`+${plan.earlierCount} earlier`));
@@ -322,7 +317,7 @@ function fitDayInPlace(dayRow, budget) {
   if (plan.moreCount > 0) events.append(moreLine(`+${plan.moreCount} more`));
 }
 
-// Fit a column of day-rows into `budget` px without clipping — the imperative
+// Fit a column of day-rows into `budget` px without clipping - the imperative
 // shell around the pure `planColumnFit`. The first day is protected (its events
 // are trimmed via fitDayInPlace, never the whole day); later days that don't
 // fit are dropped and summarized with a "+N more days" footer.
@@ -330,7 +325,7 @@ function fitDayInPlace(dayRow, budget) {
 function fitColumnInPlace(col, budget) {
   const first = col.firstElementChild;
   if (!first) return;
-  fitDayInPlace(first, budget); // today / first upcoming day — protected
+  fitDayInPlace(first, budget); // today / first upcoming day - protected
   const days = [...col.children];
   const plan = planColumnFit(rowH(col), days.map(rowH), measureLine(col), budget);
   for (let k = 0; k < plan.dropCount; k++) days[days.length - 1 - k].remove();
@@ -396,7 +391,7 @@ function flashRefreshError() {
 }
 
 // Drive the manual refresh: spin, invoke the core's refresh primitive (POST
-// /refresh + reload — which rebuilds this node, still spinning via `refreshing`),
+// /refresh + reload - which rebuilds this node, still spinning via `refreshing`),
 // flash red on failure, then stop. Serialized against itself by `refreshing`.
 async function onRefresh() {
   if (refreshing) return; // ignore taps while one is already running
@@ -424,9 +419,9 @@ function srcNode(label, ok) {
   return src;
 }
 
-// `opts.stale` forces an all-stale, "Updated —" row (used when the fetch fails
-// so the kiosk degrades visibly rather than showing a blank panel). `opts.refresh`
-// is the core's refresh primitive the control wires to.
+// `opts.stale` forces an all-stale, dashed "Updated" row (used when the fetch
+// fails so the kiosk degrades visibly rather than showing a blank panel).
+// `opts.refresh` is the core's refresh primitive the control wires to.
 /** @param {DashboardDoc | null} data @param {StatusOpts} [opts] @returns {void} */
 function renderStatus(data, opts = {}) {
   coreRefresh = opts.refresh ?? null;
@@ -455,9 +450,9 @@ function renderStatus(data, opts = {}) {
   const refresh = el("span", "refresh");
   refresh.setAttribute("title", "refresh");
   refresh.setAttribute("role", "button");
-  refresh.innerHTML = REFRESH_SVG; // trusted backend/own SVG markup only — never interpolate calendar/user strings here.
+  refresh.innerHTML = REFRESH_SVG; // trusted backend/own SVG markup only - never interpolate calendar/user strings here.
   // Reflect an in-flight manual refresh: renderStatus rebuilds this node on every
-  // poll, so the spin can't live only on the old node — re-derive it from the
+  // poll, so the spin can't live only on the old node - re-derive it from the
   // module flag each render so a repaint mid-refresh keeps spinning.
   if (refreshing) refresh.classList.add("is-spinning");
   refresh.addEventListener("click", onRefresh); // tap → click (Chromium synthesizes it from wl_touch even with mouseEmulation="no")

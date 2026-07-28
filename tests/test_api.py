@@ -37,7 +37,7 @@ def test_api_data_503_until_cache_warm() -> None:
 
 def test_api_data_serves_cached_doc(clock_synced: Path) -> None:
     # Partial (not full-DashboardDoc) on purpose: the route serves whatever the
-    # cache holds verbatim, only overlaying the live clock_synced — so a minimal
+    # cache holds verbatim, only overlaying the live clock_synced - so a minimal
     # doc is enough to prove that pass-through.
     doc: dict[str, Any] = {
         "weather": {"ok": True},
@@ -73,7 +73,7 @@ def test_api_data_tolerates_non_dict_cached_value() -> None:
     # cache.read returns Any; a non-dict cached value (only reachable via a
     # corrupt / externally-mangled cache file) must not crash the `{**doc, ...}`
     # clock overlay. The isinstance(doc, dict) guard skips the overlay and serves
-    # the value as-is with 200 — an honest degrade, never a 500.
+    # the value as-is with 200 - an honest degrade, never a 500.
     cache.write(_CACHE_KEY, [1, 2, 3])
     resp = TestClient(app).get("/api/data")
     assert resp.status_code == 200

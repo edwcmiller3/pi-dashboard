@@ -1,4 +1,4 @@
-// Core contract typedefs — the layout-agnostic type surface.
+// Core contract typedefs - the layout-agnostic type surface.
 //
 // JSDoc @typedefs mirroring app/contract.py so an editor and `tsc --checkJs`
 // verify the contract the backend produces is consumed correctly across the
@@ -13,7 +13,7 @@
  * @property {string} start ISO datetime-with-offset (timed) or "YYYY-MM-DD" (all-day)
  * @property {string} [end] exclusive upper bound; absent on single-day/instant items
  * @property {boolean} all_day
- * @property {string} title untrusted PII — render via textContent only
+ * @property {string} title untrusted PII - render via textContent only
  * @property {Kind} kind
  */
 
@@ -77,7 +77,7 @@
 /**
  * Options the core passes to a layout's renderStatus hook.
  * @typedef {object} StatusOpts
- * @property {boolean} [stale] force an all-stale, "Updated —" row (fetch failed)
+ * @property {boolean} [stale] force an all-stale, dashed "Updated" row (fetch failed)
  * @property {() => Promise<void>} [refresh] the core's manual-refresh primitive
  *   (POST /refresh + reload); the layout wires its refresh control to this
  */

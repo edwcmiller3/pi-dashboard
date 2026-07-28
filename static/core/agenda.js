@@ -1,4 +1,4 @@
-// Core agenda transforms + pure fit planners — DOM-free and unit-testable.
+// Core agenda transforms + pure fit planners - DOM-free and unit-testable.
 //
 // The transforms group/split the event list the way the two-column agenda
 // renders; the planners are the measure-and-fit algorithm factored out of the
@@ -32,9 +32,9 @@ export function groupByDay(events) {
 }
 
 // Split ordered day groups into two columns the way the README mockup does:
-// TODAY (the first/earliest group — events arrive pre-sorted) gets column 1 to
+// TODAY (the first/earliest group - events arrive pre-sorted) gets column 1 to
 // itself; all upcoming days stack in column 2, chronological order preserved.
-// This is a deliberate hierarchy (today is the focus), NOT height-balancing.
+// A deliberate hierarchy (today is the focus), NOT height-balancing.
 // Edge: < 2 groups -> everything in col 1, col 2 empty.
 /** @param {DayGroup[]} groups @returns {[DayGroup[], DayGroup[]]} */
 export function splitColumns(groups) {
@@ -43,10 +43,10 @@ export function splitColumns(groups) {
 }
 
 // Guarantee today's group leads the agenda so column 1 always represents today.
-// Events arrive pre-sorted and windowed from today forward, so today — if it has
-// any events (personal, holiday, or marker) — is already `groups[0]`. When today
-// has NO events, no group exists for it, so synthesize an empty one: this is what
-// lets the quiet-day "Nothing today" state render instead of column 1 silently
+// Events arrive pre-sorted and windowed from today forward, so today - if it has
+// any events (personal, holiday, or marker) - is already `groups[0]`. When today
+// has NO events no group exists, so synthesize an empty one: this is what lets
+// the quiet-day "Nothing today" state render instead of column 1 silently
 // showing a future day. `todayKey` is a localDayKey ("YYYY-MM-DD"). Pure.
 /** @param {DayGroup[]} groups @param {string} todayKey @returns {DayGroup[]} */
 export function withTodayGroup(groups, todayKey) {
@@ -56,14 +56,14 @@ export function withTodayGroup(groups, todayKey) {
 
 // Whether a day's items include a personal (Proton) event, as opposed to only
 // holidays/observances/DST markers. Drives the quiet-day state: "Nothing today"
-// means no personal commitments — a holiday pill may still sit above it. Pure.
+// means no personal commitments - a holiday pill may still sit above it. Pure.
 /** @param {AgendaItem[]} items @returns {boolean} */
 export function hasPersonalEvents(items) {
   return items.some((i) => i.kind === "personal");
 }
 
 // The index of the day's event to emphasize as "next up", or -1 for none.
-// Considers TIMED personal events only — all-day / holiday / marker items are
+// Considers TIMED personal events only - all-day / holiday / marker items are
 // day context, never "next". The target is the earliest such event that isn't
 // already past: an in-progress one (start ≤ now < end) if any exists, else the
 // soonest upcoming (now < start). Items arrive pre-sorted by start, so the first
@@ -82,13 +82,13 @@ export function nextUp(items, now) {
 }
 
 // The indices of the day's events that MAY roll off when today overflows the
-// fit budget: already-past TIMED PERSONAL events — the complement of nextUp's
+// fit budget: already-past TIMED PERSONAL events - the complement of nextUp's
 // "not past" test (now < end, half-open [start, end); end absent -> an instant
 // at start), over the same kind/all_day filter, so the emphasized event can
 // never be a candidate. All-day and holiday/observance/info items are day
-// context and never roll off. Ascending = oldest first — the order the fit
+// context and never roll off. Ascending = oldest first - the order the fit
 // pass hides them in. This is a candidate list, not a command: whether any
-// actually hide is the fit pass's call (demand-driven — only on overflow, only
+// actually hide is the fit pass's call (demand-driven - only on overflow, only
 // as many as needed). Pure.
 /** @param {AgendaItem[]} items @param {Date} now @returns {number[]} */
 export function pastIndexes(items, now) {
@@ -110,7 +110,7 @@ export function pastIndexes(items, now) {
 // Plan how to fit a day-row into `budget` px. Mirrors the roll-off contract
 // documented on fitDayInPlace: already-past rows hide FIRST (oldest first) into
 // a "+N earlier" line; only when every past row is gone and the row still
-// overflows does the bottom "+N more" trim resume — and that trim never reaches
+// overflows does the bottom "+N more" trim resume - and that trim never reaches
 // above the "+N earlier" line (the pills before it are protected). The summary
 // lines' own height (`lineHeight`) is charged BEFORE deciding, so a final label
 // can't push the row back over budget. Demand-driven: a fitting row is a no-op
@@ -145,7 +145,7 @@ export function planDayFit(totalHeight, childHeights, isPast, lineHeight, budget
   h += lineHeight; // the "+N more" line
   let moreCount = 0;
   const hidden = new Set(hide);
-  // With a roll-off summary in place, the bottom-up trim stops at it — children
+  // With a roll-off summary in place, the bottom-up trim stops at it - children
   // before the first past row (the all-day/holiday pills) never trim.
   const floor = earlierCount > 0 ? past[0] : 0;
   for (let i = childHeights.length - 1; i >= floor && h > budget; i--) {
@@ -162,12 +162,12 @@ export function planDayFit(totalHeight, childHeights, isPast, lineHeight, budget
  * @typedef {object} ColumnFitPlan
  * @property {number} dropCount day-rows to remove from the END of the column
  * @property {boolean} showFooter append the "+N more days" footer (only when it
- *   itself fits — otherwise the protected day's own "+N more" already signals
+ *   itself fits - otherwise the protected day's own "+N more" already signals
  *   truncation)
  */
 
 // Plan how to fit a column into `budget` px: later days drop from the end; the
-// first day is protected (index 0 is never dropped — the shell trims its EVENTS
+// first day is protected (index 0 is never dropped - the shell trims its EVENTS
 // via planDayFit instead). The footer's height is charged up front so labeling
 // it can't overflow; a column that already fits is a no-op (the old in-place
 // code could drop a day from an exactly-fitting column because its probe footer

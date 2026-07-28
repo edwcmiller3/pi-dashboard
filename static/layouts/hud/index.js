@@ -1,4 +1,4 @@
-// HUD layout — the instrument-HUD design (design-mocks/instrument-hud-d.html),
+// HUD layout - the instrument-HUD design (design-mocks/instrument-hud-d.html),
 // ported as the second selectable layout. Exports a `layout` object implementing
 // the seven-hook Layout interface (see core/contract.js): mount() builds the
 // phosphor-CRT shell into the bare <div id="app">, and the per-region renderers
@@ -6,7 +6,7 @@
 //
 // The three instruments (240° temp dial + solar day-tape = SVG; forecast range
 // plot = positioned HTML markers) consume the PURE geometry modules under
-// ./geometry/ — this file writes only the imperative createElementNS/DOM walk
+// ./geometry/ - this file writes only the imperative createElementNS/DOM walk
 // that turns their specs into nodes; it never re-derives the math.
 //
 // Port constraints (from the plan):
@@ -16,9 +16,9 @@
 //    they are drawn as inline SVG shapes here, never emitted as text that would
 //    fall back to a system font on the kiosk;
 //  - weather glyphs reuse the vendored weather-icons font (the server-resolved
-//    `icon` class), phosphor-styled — not hand-drawn SVG.
+//    `icon` class), phosphor-styled - not hand-drawn SVG.
 //
-// Importing this module runs no side effects — the DOM is touched only inside
+// Importing this module runs no side effects - the DOM is touched only inside
 // mount()/the render hooks, driven by the core state machine's init().
 
 import { to12, pad2, fmtCompact, localParts, localDate, localDayKey, dayLabel } from "../../core/time.js";
@@ -56,7 +56,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const byId = (id) => document.getElementById(id);
 
 // Namespaced SVG element with attribute + optional text convenience. Colors are
-// never set here — SVG elements carry CLASSES and layout.css styles them, so the
+// never set here - SVG elements carry CLASSES and layout.css styles them, so the
 // palette cascade wins (the hard port constraint). Attributes are geometry only.
 /**
  * @param {string} name
@@ -89,7 +89,7 @@ const symRight = () => poly("sym-right", "1,0 9,5 1,10");
 /** ◂ left triangle (ACTIVE tag) @returns {SVGElement} */
 const symLeft = () => poly("sym-left", "9,0 1,5 9,10");
 
-// ⟳ RESYNC / refresh — the classic layout's two-path arc, drawn as SVG so it
+// ⟳ RESYNC / refresh - the classic layout's two-path arc, drawn as SVG so it
 // never relies on the U+27F3 font glyph the subset lacks.
 /** @returns {SVGElement} */
 function symResync() {
@@ -107,7 +107,7 @@ function symResync() {
 // ── shell (mount) ────────────────────────────────────────────────────────────
 
 // Build the full HUD DOM shell into the bare mount root: the phosphor canvas
-// (.screen — base owns its sizing/clipping), a chronometer header, the weather
+// (.screen - base owns its sizing/clipping), a chronometer header, the weather
 // stack (dial · solar tape · forecast) + agenda in the main grid, and the status
 // footer. The renderers below fill the id'd regions; the instrument frames,
 // labels, ruler strips and CRT overlay are static furniture built once here.
@@ -144,7 +144,7 @@ function mount(root) {
   meta.append("MODE ", mode, " · UNITS ", el("b", null, "°F / MPH"));
   hmeta.append(meta);
   hrow.append(clock, ampm, el("span", "hdiv"), hdate, hmeta);
-  // Clock-sync warning — shown only when the Pi clock is NOT NTP-synced.
+  // Clock-sync warning - shown only when the Pi clock is NOT NTP-synced.
   const warn = el("div", "clock-warn", "clock not yet synced");
   warn.id = "clock-warn";
   warn.hidden = true;
@@ -237,7 +237,7 @@ function renderClock(now, synced) {
 
 // The shared temperature window both the dial (renderCurrent) and the forecast
 // range plot + ruler (renderForecast) render against. Computed once per poll in
-// renderCurrent — which receives the WHOLE weather block, forecast included — so
+// renderCurrent - which receives the WHOLE weather block, forecast included - so
 // the two instruments always share ONE scale. renderForecast reads it back.
 // INVARIANT: core/machine.js always calls renderCurrent BEFORE renderForecast on
 // a paint, so the window is fresh when the forecast reads it; mount() resets it
@@ -319,7 +319,7 @@ function renderDial(c, scaleWindow) {
     );
     if (t.label) gsvg.append(svg("text", { class: "g-num", x: t.label.x, y: t.label.y, "text-anchor": "middle" }, t.label.text));
   }
-  // center readout — baselines are dial-specific layout constants (mock lines
+  // center readout - baselines are dial-specific layout constants (mock lines
   // 442-456), not geometry: temp on CY, condition + H/L below.
   gsvg.append(svg("text", { class: "g-center", x: cx, y: g.center.y + 27, "text-anchor": "middle" }, `${c.temp_f}°`));
   gsvg.append(svg("text", { class: "g-cond", x: cx, y: 249, "text-anchor": "middle" }, c.text.toUpperCase()));
@@ -339,7 +339,7 @@ function renderDial(c, scaleWindow) {
  * `fraction`/`nowX` are RAW (see solar.js): at night `fraction` is outside [0,1]
  * and `nowX` falls off the tape. Show the now-marker only in-day; the traveled
  * line consumes the spec's already-computed `nowX` and is only CLAMPED to the
- * daylight span for the off-tape (night) case — no re-derivation of the mapping.
+ * daylight span for the off-tape (night) case - no re-derivation of the mapping.
  * @param {Pick<SolarGeometry, "fraction" | "nowX" | "sunriseX" | "sunsetX">} s
  * @returns {{ show: boolean, travelX: number }}
  */
@@ -351,7 +351,7 @@ export function solarMarkerDecision(s) {
 
 // The solar day-progress tape. Night mode is out of scope, so the renderer hides
 // the now-marker + NOW label off-tape and clamps the traveled line to the
-// daylight span via solarMarkerDecision (a renderer call — the geometry stays raw).
+// daylight span via solarMarkerDecision (a renderer call - the geometry stays raw).
 /** @param {CurrentWeather} c @returns {void} */
 function renderSolar(c) {
   const ssvg = byId("ssvg");
@@ -377,7 +377,7 @@ function renderSolar(c) {
   // sunrise / sunset bugs
   for (const b of s.bugs) ssvg.append(svg("line", { class: "s-bug", x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2 }));
 
-  // sun marker + NOW label — only while the sun is actually on the tape
+  // sun marker + NOW label - only while the sun is actually on the tape
   if (inDay) {
     const m = s.sunMarker;
     ssvg.append(svg("circle", { class: "s-halo", cx: m.cx, cy: m.cy, r: m.haloR }));
@@ -427,7 +427,7 @@ function renderForecast(forecast) {
     scaleWindow ?? computeScaleWindow(days.flatMap((f) => [f.low_f, f.high_f]));
 
   // ruler: numerals every 20° + the minor-tick gradient (division count as a CSS
-  // custom prop so the gradient rule — and its themeable colors — stay in CSS).
+  // custom prop so the gradient rule - and its themeable colors - stay in CSS).
   const rul = byId("rul");
   if (rul) {
     rul.replaceChildren();
@@ -467,7 +467,7 @@ function renderForecast(forecast) {
     row.append(
       el("span", "dn", dname),
       wiIcon(f.icon, "gl"),
-      el("span", "cond", f.text), // human text — wraps to 2 lines, no ellipsis
+      el("span", "cond", f.text), // human text - wraps to 2 lines, no ellipsis
       el("span", "lo", `${f.low_f}°`),
       track,
       el("span", "hi", `${f.high_f}°`),
@@ -503,13 +503,13 @@ function moreLine(text) {
 /** @param {string} title @returns {HTMLElement} */
 function holPill(title) {
   const p = el("span", "hol");
-  p.append(symDiamond(), el("span", "hol-t", title)); // title as text — never HTML
+  p.append(symDiamond(), el("span", "hol-t", title)); // title as text - never HTML
   return p;
 }
 
 // One personal/info event row. Holiday/observance pills are pulled into the day
 // header instead (see daySection). `isActive` marks the next-up event ("◂ ACTIVE"),
-// `isPast` tags an already-past row for the roll-off pass — both apply only to a
+// `isPast` tags an already-past row for the roll-off pass - both apply only to a
 // timed personal row.
 /** @param {AgendaItem} ev @param {boolean} isActive @param {boolean} isPast @returns {HTMLElement} */
 function eventNode(ev, isActive, isPast) {
@@ -522,7 +522,7 @@ function eventNode(ev, isActive, isPast) {
   const allday = ev.all_day || !time;
   const row = el("div", "ev" + (allday ? " allday" : "") + (isActive ? " active" : "") + (isPast ? " is-past" : ""));
   const t = el("span", "t", allday ? "ALL DAY" : fmtCompact(time).toUpperCase());
-  row.append(t, el("span", "n", ev.title)); // title as text — never HTML
+  row.append(t, el("span", "n", ev.title)); // title as text - never HTML
   if (isActive) {
     const tag = el("span", "atag");
     tag.append(symLeft(), el("span", "atag-t", "ACTIVE"));
@@ -567,7 +567,7 @@ function daySection(group, calendarOk, clockSynced) {
 }
 
 // Height a "+N …" summary line will occupy, measured with a real (briefly
-// attached) placeholder — an estimate could under-reserve. Any one-line label
+// attached) placeholder - an estimate could under-reserve. Any one-line label
 // measures the same, so a "+0 more" probe stands in.
 /** @param {Element} container @returns {number} */
 function measureLine(container) {
@@ -579,7 +579,7 @@ function measureLine(container) {
 }
 
 // Trim a day-section's event rows in place until the whole section fits `budget`
-// px — the imperative shell around the pure planDayFit (its roll-off/trim
+// px - the imperative shell around the pure planDayFit (its roll-off/trim
 // contract). The day header (+ its pills) sit outside .day-events, so they are
 // never trimmed. Returns whether anything was hidden.
 /** @param {Element} section @param {number} budget @returns {boolean} */
@@ -618,7 +618,7 @@ function fitColumnInPlace(col, budget) {
 
   // Today-trim only fires when planColumnFit has dropped EVERY later day (its
   // loop stops at index 1), so `kept` is [today] alone here and `showFooter` is
-  // false — the otherH sum is 0 and the footer term drops out. The general form
+  // false - the otherH sum is 0 and the footer term drops out. The general form
   // is kept (totality) so the arithmetic stays correct if the planner contract
   // ever changes.
   const kept = sections.slice(0, sections.length - plan.dropCount);
@@ -635,8 +635,8 @@ function fitColumnInPlace(col, budget) {
 }
 
 // Whether the END OF SCHEDULE closure should show: only when the whole schedule
-// is displayed — nothing dropped or trimmed (`truncated` false) and no "+N …"
-// summary line present — AND the closure itself still fits the budget.
+// is displayed - nothing dropped or trimmed (`truncated` false) and no "+N …"
+// summary line present - AND the closure itself still fits the budget.
 /** @param {boolean} truncated @param {boolean} hasMore @param {number} colHeight @param {number} budget @returns {boolean} */
 export function showEndOfSchedule(truncated, hasMore, colHeight, budget) {
   return !truncated && !hasMore && colHeight <= budget;
@@ -651,8 +651,8 @@ function renderAgenda(events, calendarOk = true, clockSynced = true) {
   if (!root) return;
   // The measured column lives INSIDE the clipping/budget container: root's
   // height is flex-clamped to the panel, so measuring it always equals the
-  // budget. `col` (flex:0 0 auto) keeps its natural content height — the true
-  // fit input — and overflows into root's overflow:hidden (mirrors classic's
+  // budget. `col` (flex:0 0 auto) keeps its natural content height - the true
+  // fit input - and overflows into root's overflow:hidden (mirrors classic's
   // agenda-body → agenda-col split).
   const col = el("div", "acol");
   root.replaceChildren(col);
@@ -664,7 +664,7 @@ function renderAgenda(events, calendarOk = true, clockSynced = true) {
   if (budget > 0) {
     const truncated = fitColumnInPlace(col, budget);
     // END OF SCHEDULE closure (mock -empty ref): append, then keep only if the
-    // pure gate agrees — measured WITH the closure so its own height counts.
+    // pure gate agrees - measured WITH the closure so its own height counts.
     const hasMore = Boolean(findByClass(col, "more"));
     const eom = el("div", "eom");
     eom.append(el("span", "erule"), el("span", "eom-t", "END OF SCHEDULE"), el("span", "erule"));

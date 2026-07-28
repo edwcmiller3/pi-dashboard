@@ -1,16 +1,16 @@
-/* swiss-mono layout — the exposed-modular-grid design (design-mocks/swiss-mono.html),
+/* swiss-mono layout - the exposed-modular-grid design (design-mocks/swiss-mono.html),
    ported as a selectable layout. Loads after style.css (base .screen owns the
    1280x800 sizing + clipping) and before theme.css.
 
    FIXED LIGHT PALETTE. swiss-mono is a light paper design: its palette lives as
    LAYOUT-LOCAL vars scoped to the layout root (.swiss-mono), NOT the global
-   :root — so it neither remaps the base vars nor invites dark-THEME re-tinting.
+   :root - so it neither remaps the base vars nor invites dark-THEME re-tinting.
    A theme's :root override simply has nothing to bind to here.
 
    The "exposed grid" is pure CSS: background:var(--ink) showing through a 1px
-   gap reads as drafted hairline rules. NO blur/glow — thermal-safe on the Pi.
+   gap reads as drafted hairline rules. NO blur/glow - thermal-safe on the Pi.
 
-   The vendored typefaces (self-hosted, no CDN) — @import resolves against
+   The vendored typefaces (self-hosted, no CDN) - @import resolves against
    /layout.css -> /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
 @import url("vendor/fonts/fonts.css");
 
@@ -47,7 +47,7 @@
   overflow: hidden;
 }
 
-/* section label — quiet mono kicker (agenda only) */
+/* section label - quiet mono kicker (agenda only) */
 .swiss-mono .tag {
   position: absolute;
   top: 18px;
@@ -230,7 +230,7 @@
   color: var(--ink);
   font-weight: 700;
 }
-/* cold-boot placeholder — spans the four forecast columns so no ink cell is blank */
+/* cold-boot placeholder - spans the four forecast columns so no ink cell is blank */
 .swiss-mono .fc-unavailable {
   grid-column: 1 / -1;
   background: var(--paper);
@@ -252,7 +252,7 @@
 .swiss-mono .agenda-cols {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr; /* 50/50 — the divider lands on the 04<->05 forecast gap */
+  grid-template-columns: 1fr 1fr; /* 50/50 - the divider lands on the 04<->05 forecast gap */
   gap: 1px;
   background: var(--ink); /* the 1px gap reads as a drafted rule */
   min-height: 0;
@@ -433,7 +433,7 @@
   color: var(--ink-40);
 }
 
-/* refresh control — ink-outlined, matching the drafted rule weight */
+/* refresh control - ink-outlined, matching the drafted rule weight */
 .swiss-mono .refresh {
   display: inline-flex;
   align-items: center;

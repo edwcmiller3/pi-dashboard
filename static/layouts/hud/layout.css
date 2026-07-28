@@ -1,27 +1,27 @@
-/* HUD layout — the instrument-HUD design (design-mocks/instrument-hud-d.html),
+/* HUD layout - the instrument-HUD design (design-mocks/instrument-hud-d.html),
    ported as a selectable layout. Loads after style.css (base) and before
    theme.css (a theme's :root palette override still wins last).
 
-   PALETTE — the phosphor ramp is mapped ONTO the shared base :root var names
+   PALETTE - the phosphor ramp is mapped ONTO the shared base :root var names
    (see static/style.css): the dominant phosphor green is --cool, white-hot is
    --text, the amber annunciator is --accent. Every phosphor tint below is a
    color-mix() alpha of those base vars, so a hue theme (nord, gruvbox, …)
-   retints the whole HUD through the unchanged cascade — exactly like classic's
+   retints the whole HUD through the unchanged cascade - exactly like classic's
    glow tints. --ph0..--ph4 / --amb / --amb2 are convenience aliases derived
    from the base vars, keeping the ported rules close to the mock.
 
    NO backdrop-filter (Pi thermal constraint, style.css). The glow text-shadows
    are additive and trivially reducible if the panel runs hot (plan Phase 4).
 
-   The vendored HUD typefaces (self-hosted, no CDN) — @import resolves against
+   The vendored HUD typefaces (self-hosted, no CDN) - @import resolves against
    /layout.css → /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
 @import url("vendor/fonts/fonts.css");
 
 :root {
-  /* base-palette remap (phosphor) — a theme's :root override retints these */
-  --text: #eafff6; /* ph0 — white-hot numerals */
-  --cool: #5cffc5; /* phosphor green — the HUD's primary hue */
-  --accent: #ffb454; /* amber — caution / holiday annunciator */
+  /* base-palette remap (phosphor) - a theme's :root override retints these */
+  --text: #eafff6; /* ph0 - white-hot numerals */
+  --cool: #5cffc5; /* phosphor green - the HUD's primary hue */
+  --accent: #ffb454; /* amber - caution / holiday annunciator */
   --bg: #03080a; /* near-black canvas, faint green-blue cast */
   --canvas: #03080a;
 
@@ -270,7 +270,7 @@
   bottom: 22px;
 }
 
-/* dial SVG elements — colors in CLASSES so the palette cascade retints them */
+/* dial SVG elements - colors in CLASSES so the palette cascade retints them */
 .hud .g-arc-base {
   fill: none;
   stroke: color-mix(in srgb, var(--cool) 14%, transparent);
@@ -562,7 +562,7 @@
   flex-direction: column;
   min-height: 0;
 }
-/* the measured content column — flex:0 0 auto so it keeps its natural content
+/* the measured content column - flex:0 0 auto so it keeps its natural content
    height (never shrunk to the container) and overflows into .arows's clip. */
 .hud .acol {
   flex: 0 0 auto;
@@ -765,7 +765,7 @@
   background: var(--amb);
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-/* manual refresh control — reads pressable vs the .ok annunciators */
+/* manual refresh control - reads pressable vs the .ok annunciators */
 .hud-footer .rfr {
   display: inline-flex;
   align-items: center;
@@ -814,7 +814,7 @@
   stroke: var(--ph0);
   stroke-width: 2.4;
 }
-/* In-flight manual refresh: spin the ⟳ glyph (tiny region — cheap on the Pi's
+/* In-flight manual refresh: spin the ⟳ glyph (tiny region - cheap on the Pi's
    software compositor, unlike the shelved backdrop-filter). */
 .hud-footer .rfr.is-spinning .sym-resync {
   transform-origin: 50% 50%;

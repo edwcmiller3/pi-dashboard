@@ -67,7 +67,7 @@ RAW: dict[str, Any] = {
 
 
 def with_current(**overrides: Any) -> dict[str, Any]:
-    """A copy of RAW with `current` fields overridden — collapses the repeated
+    """A copy of RAW with `current` fields overridden - collapses the repeated
     `{**RAW, "current": {**RAW["current"], ...}}` fixture-building."""
     return {**RAW, "current": {**RAW["current"], **overrides}}
 
@@ -85,8 +85,8 @@ def with_daily(**overrides: Any) -> dict[str, Any]:
     [
         (72.3, 72),  # rounds down
         (72.4, 72),
-        (72.5, 73),  # .5 UP — banker's (round-half-to-even) would give 72
-        (74.5, 75),  # .5 UP — banker's would give 74
+        (72.5, 73),  # .5 UP - banker's (round-half-to-even) would give 72
+        (74.5, 75),  # .5 UP - banker's would give 74
         (71.5, 72),  # .5 UP where the even neighbor is also up (both agree)
         (6.5, 7),
         (0.5, 1),
@@ -134,7 +134,7 @@ def test_current_precip_prob_is_todays_daily_max() -> None:
 def test_current_sunrise_sunset_emitted_with_offset() -> None:
     # Contract rule: every emitted time is ISO-local-WITH-offset. Open-Meteo
     # returns naive-local strings (timezone=auto), so we attach the location's
-    # utc_offset_seconds (-14400 -> -04:00) — uniform with fetched_at/events,
+    # utc_offset_seconds (-14400 -> -04:00) - uniform with fetched_at/events,
     # and correct for any consumer that does `new Date(sunrise)`.
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["sunrise"] == "2026-06-29T06:18:00-04:00"
@@ -176,7 +176,7 @@ def test_forecast_is_four_future_days() -> None:
         "2026-07-01",
         "2026-07-02",
         "2026-07-03",
-    ]  # daily[1:5] — today (daily[0]) is excluded; it lives in the hero
+    ]  # daily[1:5] - today (daily[0]) is excluded; it lives in the hero
 
 
 def test_forecast_fields_resolved() -> None:
@@ -191,7 +191,7 @@ def test_forecast_fields_resolved() -> None:
 
 
 def test_forecast_precip_expected_tracks_the_weather_code() -> None:
-    # The precip line is gated on is_wet(code), not the % — a dry code hides it
+    # The precip line is gated on is_wet(code), not the % - a dry code hides it
     # even at a nonzero %, a wet code shows it. daily[2] (forecast[1]) is code 63.
     fc = weather.normalize_weather(RAW)["forecast"]
     assert fc[1]["code"] == 63 and fc[1]["precip_expected"] is True  # rain
@@ -226,7 +226,7 @@ def test_short_daily_response_raises_clear_valueerror() -> None:
     # A truncated Open-Meteo payload (<5 daily entries) used to raise a cryptic
     # IndexError from the daily[1:5] slice / daily[0] index. Guard it into a
     # descriptive ValueError so the refresh loop logs an intelligible cause and
-    # keeps the last-good doc (all-or-nothing keep-last-good is deliberate — the
+    # keeps the last-good doc (all-or-nothing keep-last-good is deliberate - the
     # frontend never renders a half-built weather block). Truncate ONLY `time`
     # (the field the guard measures) so the assertion pins that specific guard.
     raw = with_daily(time=RAW["daily"]["time"][:2])  # 2 days, other series full
@@ -330,7 +330,7 @@ def test_station_set_but_fetch_fails_keeps_pure_model_hero_and_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The overlay is fail-soft end to end: a dead api.weather.gov degrades to
-    # today's pure-model hero on a SUCCESSFUL tick — never a failed block.
+    # today's pure-model hero on a SUCCESSFUL tick - never a failed block.
     async def _fake_fetch(station: str) -> Observation | None:
         return None
 
@@ -383,7 +383,7 @@ def test_fetch_respects_weather_model_override(
 def test_fetch_treats_empty_weather_model_as_provider_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # WEATHER_MODEL= (empty) in .env overrides the settings default with "" —
+    # WEATHER_MODEL= (empty) in .env overrides the settings default with "" - 
     # that must still mean best_match, never a models="" query param.
     monkeypatch.setattr(settings, "weather_model", "")
     captured = _capture_params(monkeypatch)

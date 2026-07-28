@@ -1,11 +1,11 @@
 /*
- * HUD layout typefaces — self-hosted, subset. NO CDN (index.html:7, prod
+ * HUD layout typefaces - self-hosted, subset. NO CDN (index.html:7, prod
  * requirement). Both families are SIL OFL 1.1:
- *   Share Tech Mono  — Carrois Type Design   (OFL-Share-Tech-Mono.txt)
- *   IBM Plex Mono    — IBM Corp.              (OFL-IBM-Plex-Mono.txt)
+ *   Share Tech Mono - Carrois Type Design   (OFL-Share-Tech-Mono.txt)
+ *   IBM Plex Mono - IBM Corp.              (OFL-IBM-Plex-Mono.txt)
  *
  * VENDORED SUBSET: each woff2 was cut with pyftsubset to exactly the codepoints
- * in subset-manifest.txt — mono digits, basic Latin (U+0020-007E), and °·%.
+ * in subset-manifest.txt - mono digits, basic Latin (U+0020-007E), and °·%.
  * Do NOT reference a codepoint outside that set: it will render tofu.
  *
  * KNOWN GAP: the HUD also emits the geometric marks ◆ ▸ ◂ ▲ ▼ ⟳. Neither of
@@ -51,10 +51,10 @@
 }
 
 /* ---------------------------------------------------------------------------
- * swiss-mono LAYOUT typefaces — self-hosted, subset. NO CDN (index.html:7).
+ * swiss-mono LAYOUT typefaces - self-hosted, subset. NO CDN (index.html:7).
  * Both families are SIL OFL 1.1:
- *   Inter            — The Inter Project Authors  (OFL-Inter.txt)
- *   JetBrains Mono   — JetBrains Mono Authors      (OFL-JetBrains-Mono.txt)
+ *   Inter - The Inter Project Authors  (OFL-Inter.txt)
+ *   JetBrains Mono - JetBrains Mono Authors      (OFL-JetBrains-Mono.txt)
  *
  * VENDORED SUBSET: cut with pyftsubset to exactly the codepoints in
  * subset-manifest-swiss-mono.txt (mono digits, basic Latin, ° · and the marks

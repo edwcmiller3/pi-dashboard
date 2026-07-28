@@ -1,8 +1,8 @@
 /*
- * Weather Icons 2.0.10 by Erik Flowers — SIL OFL 1.1 (see OFL.txt).
+ * Weather Icons 2.0.10 by Erik Flowers - SIL OFL 1.1 (see OFL.txt).
  * VENDORED SUBSET: only the glyphs this dashboard renders. The woff2 was
  * subset with pyftsubset to exactly the 26 codepoints declared below, so do
- * NOT add a class for a glyph that isn't in the subset — it will render tofu.
+ * NOT add a class for a glyph that isn't in the subset - it will render tofu.
  * Source of truth for the weather glyphs: app/weather_codes.py (glyphs()).
  */
 
@@ -24,7 +24,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Weather condition glyphs — emitted by app/weather_codes.py describe(). */
+/* Weather condition glyphs - emitted by app/weather_codes.py describe(). */
 .wi-day-sunny::before { content: "\f00d"; }
 .wi-day-sunny-overcast::before { content: "\f00c"; }
 .wi-day-cloudy::before { content: "\f002"; }

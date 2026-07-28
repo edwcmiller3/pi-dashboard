@@ -7,7 +7,7 @@ spec". This file is the source of truth the test pins against
 
 Kept SEPARATE from subset-manifest.txt (the HUD's): the two layouts need
 different unicode sets, and tests/test_hud_fonts.py parses a SINGLE --unicodes=
-line out of that file — a second line would break it. One vendored-font home
+line out of that file - a second line would break it. One vendored-font home
 (static/vendor/fonts/), two manifests, two independent pins.
 
 Fonts (both SIL OFL 1.1, self-hosted, no CDN):
@@ -21,8 +21,8 @@ Weights are exactly those design-mocks/swiss-mono.html uses:
     NOW tag / REFRESH / precip emphasis).
 
 Upstream / provenance:
-  Inter          — google/fonts ofl/inter/Inter[opsz,wght].ttf (variable)
-  JetBrains Mono — JetBrains/JetBrainsMono fonts/ttf/{Medium,Bold}.ttf
+  Inter - google/fonts ofl/inter/Inter[opsz,wght].ttf (variable)
+  JetBrains Mono - JetBrains/JetBrainsMono fonts/ttf/{Medium,Bold}.ttf
 The license texts are vendored alongside (OFL-Inter.txt, OFL-JetBrains-Mono.txt).
 The .woff2 here are pyftsubset cuts of those upstreams, NOT the full fonts.
 @font-face wiring lives in fonts.css; the swiss-mono layout is the only consumer.
@@ -36,7 +36,7 @@ Regeneration:
   --unicodes=U+0020-007E,U+00B0,U+00B7,U+2191,U+2193,U+25CF
   --flavor=woff2 --layout-features='tnum' --no-hinting --desubroutinize
 
-NOTE on --layout-features: 'tnum' (tabular figures — the mock sets
+NOTE on --layout-features: 'tnum' (tabular figures - the mock sets
 font-variant-numeric: tabular-nums), NOT the HUD's '*'. Inter carries a huge
 OpenType feature set (20 stylistic sets, fractions, char variants); retaining
 '*' drags their entire alternate-glyph closure into the cut (~10x larger files)
@@ -55,6 +55,6 @@ SELF_HOSTED_MARKS (non-ASCII marks the design renders, present in EVERY subset):
   ° · ↑ ↓ ●
 Unlike the HUD (whose ◆ ▸ ◂ ▲ ▼ ⟳ are absent from its mono fonts and had to be
 drawn as SVG), fontTools confirmed all three marks ↑ ↓ ● exist in both Inter and
-JetBrains Mono, so swiss-mono needs NO SVG fallback — they subset directly.
+JetBrains Mono, so swiss-mono needs NO SVG fallback - they subset directly.
 
 FALLBACK_SYMBOLS: none. Every mark the design emits is vendored above.

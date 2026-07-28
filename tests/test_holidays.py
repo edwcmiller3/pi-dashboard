@@ -2,7 +2,7 @@
 
 `get_holidays(start, end)` is pure and fully offline (the `holidays` lib +
 `zoneinfo`), so the whole suite runs with no network. It emits contract
-agenda-items — `{start, all_day, title, kind}` with date-only `start` — for
+agenda-items - `{start, all_day, title, kind}` with date-only `start` - for
 three tiers: federal US holidays (kind="holiday"), lesser/unofficial
 observances (kind="observance"), and DST transitions (kind="info").
 """
@@ -56,11 +56,11 @@ COMPUTED_EXTRAS = frozenset(
 
 @pytest.fixture(scope="module")
 def year_2026() -> list[AgendaItem]:
-    """All of 2026's holiday items — the full-year window several tests share."""
+    """All of 2026's holiday items - the full-year window several tests share."""
     return H.get_holidays(date(2026, 1, 1), date(2026, 12, 31))
 
 
-# ── federal (public) — kind="holiday", actual dates only ─────────────────────
+# ── federal (public) - kind="holiday", actual dates only ─────────────────────
 
 
 def test_federal_holiday_is_kind_holiday_actual_date() -> None:
@@ -84,7 +84,7 @@ def test_observed_false_no_shifted_ghost() -> None:
     assert all("observed" not in i["title"].lower() for i in items)
 
 
-# ── unofficial — kind="observance" (full set: user chose all 10) ─────────────
+# ── unofficial - kind="observance" (full set: user chose all 10) ─────────────
 
 
 def test_unofficial_is_kind_observance() -> None:
@@ -109,7 +109,7 @@ def test_all_expected_observances_present(year_2026: list[AgendaItem]) -> None:
     assert observances >= COMPUTED_EXTRAS  # all computed extras present
 
 
-# ── computed cultural extras — kind="observance", rule-based (no hardcoded dates)
+# ── computed cultural extras - kind="observance", rule-based (no hardcoded dates)
 
 
 @pytest.mark.parametrize(
@@ -183,7 +183,7 @@ def test_extras_respect_the_window() -> None:
     assert "Earth Day" not in titles
 
 
-# ── DST markers — kind="info", from zoneinfo (not the holidays lib) ──────────
+# ── DST markers - kind="info", from zoneinfo (not the holidays lib) ──────────
 
 
 def test_dst_spring_forward_marker() -> None:

@@ -3,7 +3,7 @@
 //
 // The core modules are DOM-structure-agnostic and side-effect-free, so importing
 // them here runs no DOM/init: only the pure exports load. (The state machine and
-// the layouts hold all the DOM/render/fetch code — they need a DOM and are out of
+// the layouts hold all the DOM/render/fetch code - they need a DOM and are out of
 // scope for this dep-free suite.)
 //
 // Typing: JSDoc @typedefs below document the fixture shapes so a mistyped key
@@ -59,7 +59,7 @@ test("localParts: datetime with offset -> date + local wall-clock (no re-zoning)
 });
 
 test("localParts: a DIFFERENT offset still reads the literal local part", () => {
-  // 08:30 stays 08:30 regardless of the +09:00 zone — we do NOT re-zone.
+  // 08:30 stays 08:30 regardless of the +09:00 zone - we do NOT re-zone.
   assert.deepEqual(localParts("2026-06-28T08:30:00+09:00").time, { hh: 8, mm: 30 });
 });
 
@@ -124,7 +124,7 @@ test("isSameDay: different day false", () => {
 // ── localDayKey / dayRolledOver (midnight rollover) ──────────────────────────
 
 test("localDayKey: zero-pads month/day to YYYY-MM-DD (local components)", () => {
-  // Jan 5 2026, late evening — must read the LOCAL date, zero-padded.
+  // Jan 5 2026, late evening - must read the LOCAL date, zero-padded.
   assert.equal(localDayKey(new Date(2026, 0, 5, 23, 59)), "2026-01-05");
   assert.equal(localDayKey(new Date(2026, 11, 31, 0, 0)), "2026-12-31");
 });
@@ -252,7 +252,7 @@ const agendaItem = (kind) => ({ kind, start: "x", all_day: false, title: kind })
 
 test("withTodayGroup: today already first -> returned equal (contents unchanged)", () => {
   const groups = [dayGroup("2026-06-30", 2), dayGroup("2026-07-01", 1)];
-  // Assert the CONTENTS are returned as-is (behavior), not reference identity —
+  // Assert the CONTENTS are returned as-is (behavior), not reference identity -
   // a refactor that returned a shallow copy would still be correct.
   assert.deepEqual(withTodayGroup(groups, "2026-06-30"), groups);
 });
@@ -298,7 +298,7 @@ test("hasPersonalEvents: false for an empty day", () => {
 // ── localInstant (local wall-clock from an ISO string, no re-zoning) ──────────
 
 test("localInstant: datetime -> a local Date at the encoded wall-clock (offset ignored)", () => {
-  // The -04:00 offset is NOT reinterpreted — the local components are read as-is.
+  // The -04:00 offset is NOT reinterpreted - the local components are read as-is.
   const d = localInstant("2026-07-01T14:30:00-04:00");
   assert.equal(d.getFullYear(), 2026);
   assert.equal(d.getMonth(), 6); // July (0-based)
@@ -316,10 +316,10 @@ test("localInstant: date-only -> local midnight", () => {
 
 // ── nextUp ("next up" emphasis: index of earliest not-past timed personal ev) ──
 
-// 14:00 local on 2026-07-01 — the reference "now" for the cases below.
+// 14:00 local on 2026-07-01 - the reference "now" for the cases below.
 const NOW = new Date(2026, 6, 1, 14, 0);
 // A timed personal event on NOW's day; hh:mm are local wall-clock (offset is
-// cosmetic — localInstant reads the literal parts).
+// cosmetic - localInstant reads the literal parts).
 /** @param {number} sh @param {number} eh @returns {AgendaEvent & {end: string}} */
 const timed = (sh, eh) => ({
   start: `2026-07-01T${String(sh).padStart(2, "0")}:00:00-04:00`,
@@ -363,7 +363,7 @@ test("nextUp: in-progress wins even when a past event precedes it", () => {
 
 test("nextUp: a long in-progress meeting stays picked though a later event exists", () => {
   // 9–17 is still running at 14:00 (keys off END, the half-open [start,end)); the
-  // 15–16 event does NOT steal emphasis — you're still in the long meeting.
+  // 15–16 event does NOT steal emphasis - you're still in the long meeting.
   assert.equal(nextUp([timed(9, 17), timed(15, 16)], NOW), 0);
 });
 
@@ -398,7 +398,7 @@ test("pastIndexes: past events -> their indices, ascending (oldest first)", () =
 });
 
 test("pastIndexes: an in-progress event is NOT past (half-open [start,end))", () => {
-  // 13–15 straddles 14:00 — it's the event being highlighted, never rolled off.
+  // 13–15 straddles 14:00 - it's the event being highlighted, never rolled off.
   assert.deepEqual(pastIndexes([timed(13, 15)], NOW), []);
 });
 
@@ -408,7 +408,7 @@ test("pastIndexes: past exactly AT its end instant (now === end -> over)", () =>
 });
 
 test("pastIndexes: past events need not be a prefix (long in-progress first)", () => {
-  // 9–17 is still running at 14:00 but the LATER-sorted 10–11 is already over —
+  // 9–17 is still running at 14:00 but the LATER-sorted 10–11 is already over -
   // the candidate set is by pastness, not by position in the list.
   assert.deepEqual(pastIndexes([timed(9, 17), timed(10, 11)], NOW), [1]);
 });
@@ -448,7 +448,7 @@ test("pastIndexes: disjoint from nextUp — the emphasized event can never roll 
 
 test("dayLabel: today -> isToday + 'Today'", (t) => {
   // Freeze the clock so localDayKey() and dayLabel()'s internal `new Date()`
-  // observe the same instant — no midnight-crossing race.
+  // observe the same instant - no midnight-crossing race.
   t.mock.timers.enable({ apis: ["Date"] });
   t.mock.timers.setTime(Date.UTC(2026, 6, 1, 16, 0, 0));
   const label = dayLabel(localDayKey()); // localDayKey reads the frozen local day
@@ -458,7 +458,7 @@ test("dayLabel: today -> isToday + 'Today'", (t) => {
 
 test("dayLabel(localDayKey()) is today -> the synthesized quiet-day group labels as 'Today'", (t) => {
   // The quiet-day path hinges on withTodayGroup's synthesized group (date =
-  // localDayKey()) resolving to isToday through dayLabel — guard that coupling,
+  // localDayKey()) resolving to isToday through dayLabel - guard that coupling,
   // deterministically, with a frozen clock.
   t.mock.timers.enable({ apis: ["Date"] });
   t.mock.timers.setTime(Date.UTC(2026, 11, 31, 18, 0, 0));
@@ -500,7 +500,7 @@ test("pickUpdated: single ok source -> its stamp", () => {
 });
 
 test("pickUpdated: returns the OLDEST (min) ok stamp, not the newest", () => {
-  // "Updated X" must mean EVERY ok source is fresh as of at least X — so the
+  // "Updated X" must mean EVERY ok source is fresh as of at least X - so the
   // oldest wins, never the most recent (which would over-claim freshness).
   const got = pickUpdated([
     { ok: true, fetched_at: "2026-07-01T09:40:00-04:00" }, // weather, newer
@@ -517,7 +517,7 @@ test("pickUpdated: equal timestamps -> that stamp (stable, no spurious choice)",
 test("pickUpdated: an unparseable stamp never wins over a valid one (any order)", () => {
   // Date.parse("garbage") is NaN and every `<` with NaN is false, so a bad stamp
   // seen FIRST used to win the min and never be beaten. It must be ignored
-  // regardless of position — assert both orderings pick the valid stamp.
+  // regardless of position - assert both orderings pick the valid stamp.
   const good = "2026-07-01T09:00:00-04:00";
   assert.equal(
     pickUpdated([{ ok: true, fetched_at: "garbage" }, { ok: true, fetched_at: good }]),
@@ -531,7 +531,7 @@ test("pickUpdated: an unparseable stamp never wins over a valid one (any order)"
 
 test("pickUpdated: compares by instant across mixed offsets, excludes !ok", () => {
   // 12:30Z (= 08:30-04:00) is the earlier instant than 09:00-04:00 (= 13:00Z),
-  // even though its local wall-clock reads later — compare epochs, not strings.
+  // even though its local wall-clock reads later - compare epochs, not strings.
   const got = pickUpdated([
     { ok: true, fetched_at: "2026-07-01T09:00:00-04:00" },
     { ok: true, fetched_at: "2026-07-01T12:30:00+00:00" },
@@ -586,14 +586,14 @@ test("planDayFit: no past rows -> bottom-up trim into '+N more'", () => {
 test("planDayFit: past rows roll off FIRST, oldest first, into '+N earlier'", () => {
   // Row 0 is a pill (not past), rows 1-2 are past, row 3 upcoming. 140 over a
   // 120 budget: +10 earlier line -> shed 30 -> rolling row 1 (30px) fits it.
-  // The upcoming row 3 is untouched — that's the point of roll-off.
+  // The upcoming row 3 is untouched - that's the point of roll-off.
   const plan = planDayFit(140, [20, 30, 30, 30], [false, true, true, false], 10, 120);
   assert.deepEqual(plan, { hide: [1], earlierCount: 1, moreCount: 0 });
 });
 
 test("planDayFit: the earlier line's own height is charged before deciding", () => {
   // 125 over a 120 budget: without the +10 line one 30px roll-off would leave
-  // 95 ≤ 120 — but the line makes it 135, still requiring only one roll
+  // 95 ≤ 120 - but the line makes it 135, still requiring only one roll
   // (135-30=105). Budget 101 instead: one roll -> 105 > 101 -> a second rolls.
   const plan = planDayFit(125, [20, 30, 30, 30], [false, true, true, false], 10, 101);
   assert.deepEqual(plan, { hide: [1, 2], earlierCount: 2, moreCount: 0 });
@@ -607,7 +607,7 @@ test("planDayFit: roll-off exhausted -> trim resumes from the bottom", () => {
 });
 
 test("planDayFit: bottom trim never reaches above the '+N earlier' line", () => {
-  // Everything below the first past row is gone and it STILL overflows — the
+  // Everything below the first past row is gone and it STILL overflows - the
   // pill at index 0 (above the earlier line) is protected regardless.
   const plan = planDayFit(500, [20, 30, 30, 40], [false, true, true, false], 10, 50);
   assert.deepEqual(plan, { hide: [1, 2, 3], earlierCount: 2, moreCount: 1 });
@@ -619,7 +619,7 @@ test("planDayFit: without roll-off the trim may take every child", () => {
 });
 
 test("planDayFit: hide indexes are ascending regardless of trim order", () => {
-  // Roll-off pushes 1 then 2; the bottom trim pushes 3 — sorted output so the
+  // Roll-off pushes 1 then 2; the bottom trim pushes 3 - sorted output so the
   // shell can remove by index without caring about phase order.
   const plan = planDayFit(500, [20, 30, 30, 40], [false, true, true, false], 10, 50);
   assert.deepEqual(plan.hide, [...plan.hide].sort((a, b) => a - b));
@@ -653,7 +653,7 @@ test("planColumnFit: drops days from the END until the column + footer fit", () 
 });
 
 test("planColumnFit: the first day is protected even when it alone overflows", () => {
-  // Dropping every later day still leaves 200+10 over 100 — the footer is
+  // Dropping every later day still leaves 200+10 over 100 - the footer is
   // omitted (the first day's own '+N more' signals truncation instead).
   assert.deepEqual(planColumnFit(280, [200, 40, 40], 10, 100), {
     dropCount: 2,

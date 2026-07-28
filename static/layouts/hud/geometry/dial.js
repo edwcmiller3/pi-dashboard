@@ -1,4 +1,4 @@
-// HUD geometry — 240° primary temperature dial.
+// HUD geometry - 240° primary temperature dial.
 //
 // Pure, DOM-free: maps a temperature value + scale window to angles, arc
 // endpoint coordinates, SVG arc-path strings, and tick/label specs. The
@@ -60,10 +60,10 @@ export const DEFAULT_DIAL_CONFIG = {
  * @typedef {object} DialGeometry
  * @property {number} value the temperature being displayed
  * @property {number} angle needle/value angle (deg clockwise from 12 o'clock);
- *   there is no discrete needle — the value arc's terminal point IS the indicator
+ *   there is no discrete needle - the value arc's terminal point IS the indicator
  * @property {Point} center dial center
  * @property {number} radius arc radius
- * @property {Point} valuePoint arc endpoint at `value` — the value indicator
+ * @property {Point} valuePoint arc endpoint at `value` - the value indicator
  * @property {string} baselineArc SVG path, full min→max sweep
  * @property {string} valueArc SVG path, min→value sweep
  * @property {DialTick[]} ticks

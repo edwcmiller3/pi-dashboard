@@ -1,4 +1,4 @@
-// HUD geometry — shared temperature scale window.
+// HUD geometry - shared temperature scale window.
 //
 // Pure, DOM-free. This is the single scale both the 240° temp dial and the
 // forecast range plot render against, so it lives on its own and both import it.
@@ -26,7 +26,7 @@ export const DEFAULT_STEP = 10;
  * A hardcoded window (the mock's original MIN=50/MAX=110) breaks in winter:
  * below the floor the dial's arc sweeps the wrong way and the range plot
  * computes negative percents. Instead the floor is `min(all temps)` snapped
- * DOWN to a multiple of `step` — the snap itself provides 0–9 °F of headroom
+ * DOWN to a multiple of `step` - the snap itself provides 0–9 °F of headroom
  * (the "gutter" that keeps the flanking lo/hi numerals off the track edges);
  * if the coldest reading lands exactly on a gridline we drop one more full
  * step so it never touches the edge. If a freak spread exceeds `span`, the

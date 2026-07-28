@@ -1,11 +1,11 @@
 // Integration tests for the HUD layout's render hooks, run on Node's built-in
-// runner with a MINIMAL hand-rolled DOM stub (the JS suite ships zero deps — no
+// runner with a MINIMAL hand-rolled DOM stub (the JS suite ships zero deps - no
 // jsdom). Run:  node --test static/layouts/hud/hud.test.js
 //
 // Scope (the two things a pure geometry test can't reach):
 //   1. every distinct weather-icons class the WMO table resolves to renders as a
 //      `wi-<name>` class on a forecast row, with its condition text intact and
-//      un-truncated (long strings included) — the "consume the resolved icon,
+//      un-truncated (long strings included) - the "consume the resolved icon,
 //      wrap without ellipsis" contract. `test_hud_glyphs.py` proves the other
 //      half: all 28 WMO codes map onto exactly these classes, all in-font.
 //   2. the six geometric marks (◆ ▸ ◂ ▲ ▼ ⟳) are drawn as SVG shapes, never
@@ -124,7 +124,7 @@ const firstByClass = (node, cls) => allByClass(node, cls)[0] ?? null;
 
 // Install a composable height model on the current document: a node whose class
 // is in `heights` returns that fixed px (a leaf row); any other node sums its
-// children — mirroring the no-gap flex-column invariant the pure planners assume,
+// children - mirroring the no-gap flex-column invariant the pure planners assume,
 // so the fit shell runs against deterministic, exact heights.
 function installHeights(heights) {
   document._measure = function measure(node) {
@@ -138,7 +138,7 @@ function fire(node, type) {
   for (const fn of node._listeners?.[type] ?? []) fn();
 }
 
-// Local wall-clock ISO for today at hh:mm — localParts/localInstant read the
+// Local wall-clock ISO for today at hh:mm - localParts/localInstant read the
 // wall-clock digits (the offset is ignored, see time.js), so this groups into
 // today and compares against `now` in the machine's zone regardless of TZ.
 function todayAt(hh, mm) {
@@ -236,7 +236,7 @@ test("renderForecast: each resolved icon class lands on its row's .wi glyph", ()
 
 test("renderForecast: long condition text is kept whole (no ellipsis truncation)", () => {
   freshMount();
-  // Worst-case wrapping strings — the renderer must place them verbatim; the
+  // Worst-case wrapping strings - the renderer must place them verbatim; the
   // 2-line wrap (no ellipsis) is enforced by layout.css (asserted in Python).
   const longs = ["Heavy freezing drizzle", "Thunderstorm with hail"];
   const days = longs.map((t, i) => fday("wi-rain-mix", t, i));
@@ -505,7 +505,7 @@ test("renderStatus: RESYNC wires opts.refresh — spins, guards double-tap, then
 
 test("renderStatus: a failed refresh flashes the RESYNC error, then clears", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  t.mock.method(console, "error", () => {}); // the SUT logs the failure — expected
+  t.mock.method(console, "error", () => {}); // the SUT logs the failure - expected
   freshMount();
   layout.renderStatus(STATUS_DOC, { refresh: async () => { throw new Error("boom"); } });
   const resync = document.getElementById("resync");

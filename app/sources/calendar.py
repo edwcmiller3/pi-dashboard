@@ -1,27 +1,27 @@
-"""Calendar source — Proton ICS (Full-view URL) merged with offline holidays.
+"""Calendar source - Proton ICS (Full-view URL) merged with offline holidays.
 
 Two layers, kept apart so the transform is pure and unit-testable (mirrors
 `weather.py`):
-  * `normalize_events(ics_text, start, end, tz)` — pure: raw ICS text -> the
+  * `normalize_events(ics_text, start, end, tz)` - pure: raw ICS text -> the
     contract's personal agenda-items. Parses with `icalendar`, expands
     recurrences with `recurring-ical-events` over tz-aware `[start, end)` bounds
-    (naive bounds raise — recurring-ical-events#26), honors EXDATE-on-master
-    (verified against a live Proton feed),
-    and normalizes the DATE-vs-DATETIME split: all-day -> date-only `start`
-    (`all_day=True`); timed -> ISO-with-offset `start` (`all_day=False`). A
-    multi-day all-day span is exploded into one single-day item per day it covers
-    within the window (an in-progress span clamps to Today) so it renders on each
-    day; timed multi-day spans are still start-day-only (deferred).
-  * `get_calendar(now)` — impure: fetch the ICS (offloaded off the event loop),
+    (naive bounds raise - recurring-ical-events#26), honors EXDATE-on-master
+    (verified against a live Proton feed), and normalizes the DATE-vs-DATETIME
+    split: all-day -> date-only `start` (`all_day=True`); timed ->
+    ISO-with-offset `start` (`all_day=False`). A multi-day all-day span is
+    exploded into one single-day item per day it covers within the window (an
+    in-progress span clamps to Today) so it renders on each day; timed multi-day
+    spans are still start-day-only (deferred).
+  * `get_calendar(now)` - impure: fetch the ICS (offloaded off the event loop),
     normalize, and MERGE with `holidays.get_holidays(window)` into one flat,
     sorted, windowed `events` list wrapped with `ok`/`fetched_at`.
 
 `ok` tracks the Proton fetch ONLY. Holidays/observances/DST are offline and
-always merge in regardless — so a Proton outage (or no URL configured) still
+always merge in regardless - so a Proton outage (or no URL configured) still
 shows holidays, with the calendar honestly flagged stale.
 
 The Proton URL is a SECRET bearer credential (embeds the decryption key inline)
-and the feed is PII-bearing. The URL is NEVER logged — fetch/parse failures log
+and the feed is PII-bearing. The URL is NEVER logged - fetch/parse failures log
 only the exception *type*, never the exception (whose message/traceback would
 carry the URL). Event titles are untrusted PII; the frontend renders them via
 `textContent`. See README "Secrets & data handling".
@@ -49,12 +49,12 @@ log = logging.getLogger("pi_dashboard.calendar")
 # refresh loop serializes fetches, so only one worker thread uses it at a time.
 _SESSION: Final = build_session()
 
-# The dashboard's display zone — matches the holidays source and the config
+# The dashboard's display zone - matches the holidays source and the config
 # lat/long default. A parameter throughout so the window/tz stays testable.
 _DISPLAY_TZ: Final = "America/New_York"
 
 # Agenda window: today + 4 future days, aligned with the 4-future-day forecast
-# row. A deliberately short window — NOT a 180-day span that would expand a daily
+# row. A deliberately short window - NOT a 180-day span that would expand a daily
 # event into hundreds of rows.
 _AGENDA_DAYS: Final = 5
 
@@ -70,7 +70,7 @@ _MAX_ICS_BYTES: Final = 5 * 1024 * 1024
 
 def _window(now: datetime, days: int = _AGENDA_DAYS) -> tuple[datetime, datetime]:
     """`[start-of-today, start-of-(today+days))` as tz-aware bounds in `now`'s
-    zone — what `recurring_ical_events.between` consumes (aware required)."""
+    zone - what `recurring_ical_events.between` consumes (aware required)."""
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return start, start + timedelta(days=days)
 
@@ -78,7 +78,7 @@ def _window(now: datetime, days: int = _AGENDA_DAYS) -> tuple[datetime, datetime
 def _iso(dt: date | datetime, tz: ZoneInfo) -> str:
     """Normalize an occurrence's DTSTART/DTEND to a contract ISO string.
     `datetime` subclasses `date`, so test datetime first: timed -> ISO-with-offset
-    (Proton feeds are tz-aware in the display zone — verified live; a naive datetime is
+    (Proton feeds are tz-aware in the display zone - verified live; a naive datetime is
     localized as a defensive fallback); all-day DATE -> date-only `YYYY-MM-DD`."""
     if isinstance(dt, datetime):
         if dt.tzinfo is None:
@@ -89,7 +89,7 @@ def _iso(dt: date | datetime, tz: ZoneInfo) -> str:
 
 def _agenda_item(occ: Any, tz: ZoneInfo) -> AgendaItem:
     """One expanded VEVENT occurrence -> a contract `personal` agenda-item.
-    `occ` is `Any` — `recurring_ical_events` ships no types, so the library
+    `occ` is `Any` - `recurring_ical_events` ships no types, so the library
     boundary is untyped; `_iso` re-establishes the date/datetime split.
 
     `start`/`end` are the half-open interval `[start, end)`. The library always
@@ -111,7 +111,7 @@ def _covered_days(
     start: date, end: date, window_lo: date, window_hi: date
 ) -> list[date]:
     """The days a half-open all-day span `[start, end)` occupies within the
-    half-open window `[window_lo, window_hi)` (pure — all `date`). Clamps BOTH
+    half-open window `[window_lo, window_hi)` (pure - all `date`). Clamps BOTH
     ends to the window: an in-progress span that began before the window is
     clamped up to `window_lo` (Today), so it renders from Today forward instead
     of vanishing under a past day the agenda never draws; a span running past the
@@ -162,13 +162,13 @@ def normalize_events(
 ) -> list[AgendaItem]:
     """Raw ICS text -> the window's personal agenda-items (pure). Recurrences
     are expanded over `[start, end)`; EXDATE-excluded occurrences are dropped by
-    the library. Returned unsorted — `get_calendar` sorts the merged list.
+    the library. Returned unsorted - `get_calendar` sorts the merged list.
 
     `between` returns every event OVERLAPPING the window, including a multi-day
     event that *began before* it. Each occurrence is routed through `_emit`,
     which turns an all-day span into one item per covered in-window day (clamping
     an in-progress span up to Today) and passes a timed event through iff its
-    start is in-window (timed multi-day spans stay dropped — deferred). All-day
+    start is in-window (timed multi-day spans stay dropped - deferred). All-day
     multi-day *rendering* is what supersedes the earlier drop-not-clamp rule."""
     cal = icalendar.Calendar.from_ical(ics_text)
     window_lo, window_hi = start.date(), end.date()
@@ -184,7 +184,7 @@ def normalize_events(
 def _read_capped(url: str) -> str:
     """Fetch the ICS text, refusing a body larger than `_MAX_ICS_BYTES`. Streamed
     so an oversized (or lying-Content-Length) feed is cut off mid-read rather than
-    fully buffered. Raises ValueError on overflow — with only sizes in the message,
+    fully buffered. Raises ValueError on overflow - with only sizes in the message,
     never the secret URL. ICS is UTF-8 per spec; decode errors are replaced rather
     than raised so one bad byte can't drop the whole calendar."""
     with _SESSION.get(url, timeout=_REQUEST_TIMEOUT_SECONDS, stream=True) as resp:
@@ -221,7 +221,7 @@ def _fetch_personal(
 def _last_good_personal(
     last_good: CalendarBlock | None, start: datetime, end: datetime
 ) -> list[AgendaItem]:
-    """The personal events to fall back on when the Proton fetch fails — the
+    """The personal events to fall back on when the Proton fetch fails - the
     `kind="personal"` items from the last-good doc, filtered to the CURRENT
     window. Holidays are excluded (they're recomputed fresh every tick, so
     carrying them would double them); out-of-window items are dropped so a
@@ -261,7 +261,7 @@ async def get_calendar(
     """The merged `calendar` block for the agenda window.
 
     Holidays/observances/DST (offline, never-fail) always merge in. The Proton
-    fetch is best-effort: on any failure — or no URL configured — `ok=False`,
+    fetch is best-effort: on any failure - or no URL configured - `ok=False`,
     `fetched_at=None`, and the last-good personal events (if any, in-window) are
     kept so a transient Proton blip doesn't wipe the user's meetings; holidays
     still show. Never raises for a Proton outage, so a calendar blip doesn't fail
@@ -282,7 +282,7 @@ async def get_calendar(
             _fetch_personal, settings.proton_ics_url, start, end, tz
         )
     except Exception as exc:
-        # NEVER log `exc` / use log.exception — the message+traceback carry the
+        # NEVER log `exc` / use log.exception - the message+traceback carry the
         # secret URL. Log the type only.
         log.warning(
             "Proton calendar fetch/parse failed (%s); keeping last-good personal "

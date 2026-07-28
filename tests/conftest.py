@@ -1,13 +1,12 @@
 """Shared pytest fixtures and typed source-block factories.
 
 The autouse `_tmp_cache` fixture redirects the JSON cache at `settings.cache_dir`
-to a per-test `tmp_path` for EVERY test. That kills the ~20 duplicated
-`monkeypatch.setattr(settings, "cache_dir", str(tmp_path))` lines that used to
-open each cache-touching test AND guarantees no test can ever read or write the
-real `var/` dir (a test that forgot the redirect used to be one edit away from
-clobbering a live last-good doc). Tests that need a differently-shaped cache dir
-(e.g. a not-yet-created nested path) still override `cache_dir` themselves — the
-autouse fixture just sets a safe default first.
+to a per-test `tmp_path` for EVERY test, replacing the ~20 duplicated
+`monkeypatch.setattr(settings, "cache_dir", str(tmp_path))` lines and guaranteeing
+no test can read or write the real `var/` dir (a forgotten redirect used to be one
+edit away from clobbering a live last-good doc). Tests needing a differently-shaped
+cache dir (e.g. a not-yet-created nested path) still override `cache_dir`
+themselves; the autouse fixture just sets a safe default first.
 
 The block factories build real `WeatherBlock`/`CalendarBlock` values (not
 `dict[str, Any]`), so any test fake that drifts from the contract fails the
@@ -91,9 +90,9 @@ def _default_weather_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the weather-source settings to their shipped defaults for every test.
 
     `settings` reads the developer's real `.env` at import, so without this a
-    deployed checkout (NWS_STATION set — the feature's normal end state) fails
+    deployed checkout (NWS_STATION set - the feature's normal end state) fails
     the tests that assert off-by-default behavior AND lets `get_weather` tests
-    that only patch `_fetch_raw` make a live api.weather.gov call mid-suite —
+    that only patch `_fetch_raw` make a live api.weather.gov call mid-suite - 
     a network-dependent, weather-dependent flake. Tests that need overrides
     re-set these in their own body (which runs after autouse fixtures)."""
     monkeypatch.setattr(settings, "nws_station", "")

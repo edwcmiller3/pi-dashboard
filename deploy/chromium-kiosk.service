@@ -1,4 +1,4 @@
-# Chromium kiosk — renders http://localhost:8000 fullscreen inside the labwc
+# Chromium kiosk - renders http://localhost:8000 fullscreen inside the labwc
 # session. systemd USER service. Installs to ~/.config/systemd/user/.
 #
 #   systemctl --user enable --now chromium-kiosk.service
@@ -29,9 +29,9 @@
 #
 # NOTE on the wrapper: Pi OS /usr/bin/chromium injects extra flags from
 # /etc/chromium.d/* (incl. a stale --js-flags=--no-decommit-pooled-pages that V8
-# logs as "unrecognized flag" — cosmetic, harmless).
+# logs as "unrecognized flag" - cosmetic, harmless).
 # Our flags append/override; to fully silence it, clear /etc/chromium.d or set an
-# empty CHROMIUM_FLAGS (see deploy/README) — not done here to avoid masking the
+# empty CHROMIUM_FLAGS (see deploy/README) - not done here to avoid masking the
 # distro's other defaults.
 
 [Unit]

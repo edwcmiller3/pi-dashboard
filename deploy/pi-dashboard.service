@@ -1,4 +1,4 @@
-# FastAPI backend (uvicorn) — the data/app server the Chromium kiosk points at.
+# FastAPI backend (uvicorn) - the data/app server the Chromium kiosk points at.
 # systemd USER service. Installs to ~/.config/systemd/user/pi-dashboard.service.
 #
 #   systemctl --user enable --now pi-dashboard.service
@@ -16,7 +16,7 @@
 Description=pi-dashboard FastAPI backend
 # Best-effort ordering: the network helps weather/calendar fetch, but the app
 # tolerates a cold start (serves 503 "warming up" until the first tick), so this
-# is Wants, not Requires — the backend must come up even if the network is late.
+# is Wants, not Requires - the backend must come up even if the network is late.
 Wants=network-online.target
 After=network-online.target
 

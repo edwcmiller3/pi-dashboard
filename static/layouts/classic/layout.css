@@ -1,15 +1,15 @@
-/* Classic layout — v4 design (bento over ambient glow, no-blur "safe" build).
+/* Classic layout - v4 design (bento over ambient glow, no-blur "safe" build).
    The extracted look of today's production UI. Loads after style.css (base) and
    before theme.css (palette override wins last).
 
    Deliberately NO backdrop-filter: .glass cards are a semi-transparent dark
    fill so the ambient glow tints through. A frosted-glass backdrop-filter
-   enhancement shipped 2026-07-01 and was reverted 2026-07-11 — the GPU
+   enhancement shipped 2026-07-01 and was reverted 2026-07-11 - the GPU
    compositing it forced ran the Pi hot even with an active cooler. Don't
    reintroduce blur without checking panel temps. Hairline borders kept at 1px
    on purpose. */
 
-/* ambient canvas — extends the base .screen (which owns sizing + clipping) with
+/* ambient canvas - extends the base .screen (which owns sizing + clipping) with
    this layout's corner-glow background and bento grid. Glow intensity comes
    from the --glow-* palette vars. */
 .screen {
@@ -25,7 +25,7 @@
   padding: 1.3rem;
 }
 
-/* SAFE surface — semi-transparent dark fill, no blur; glow tints through, text stays legible */
+/* SAFE surface - semi-transparent dark fill, no blur; glow tints through, text stays legible */
 .glass {
   background: linear-gradient(
     180deg,
@@ -48,7 +48,7 @@
   display: grid;
   grid-template-columns: 0.95fr 2.05fr;
   gap: 1.1rem;
-  /* the hero cedes height to the taller forecast card (2026-07-01) — the two
+  /* the hero cedes height to the taller forecast card (2026-07-01) - the two
      floors sum the same as before, so the agenda's 1fr row is unchanged. */
   min-height: 9.5rem;
 }
@@ -188,7 +188,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.1rem;
-  /* taller than the hero now — holds day · icon+temps · precip · condition text
+  /* taller than the hero now - holds day · icon+temps · precip · condition text
      (2026-07-01). The hero (.top) gave up the matching height; agenda unchanged. */
   min-height: 11rem;
 }
@@ -198,7 +198,7 @@
   flex-direction: column;
   align-items: center;
   /* day pinned to the top, condition text to the bottom (mirroring it), the
-     icon+temps band centered between — the three zones the layout is built on. */
+     icon+temps band centered between - the three zones the layout is built on. */
   justify-content: space-between;
   gap: 0.5rem;
 }
@@ -232,13 +232,13 @@
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: baseline;
-  gap: 0.65rem; /* the space between H and L — replaces the old " / " */
+  gap: 0.65rem; /* the space between H and L - replaces the old " / " */
 }
 .fcard .ftemp .lo {
   color: var(--muted);
   font-weight: 400;
 }
-/* precip-chance line beneath the temps — only rendered on wet codes (is_wet). */
+/* precip-chance line beneath the temps - only rendered on wet codes (is_wet). */
 .fcard .fprecip {
   display: flex;
   align-items: center;
@@ -250,7 +250,7 @@
 .fcard .fprecip .wi {
   font-size: 1rem;
 }
-/* de-emphasized to match the day label (muted, same size) — the icon carries
+/* de-emphasized to match the day label (muted, same size) - the icon carries
    the condition; the text is a glance-confirm, not the focal point. */
 .fcard .fdesc {
   color: var(--muted);
@@ -259,7 +259,7 @@
   letter-spacing: 0.04em;
 }
 /* Forecast row is future-only (today lives in the hero), so there is no "today"
-   card to highlight — the .fcard.today treatment was removed (2026-06-28). */
+   card to highlight - the .fcard.today treatment was removed (2026-06-28). */
 
 /* ───────────── agenda: two-column timeline ───────────── */
 .agenda-card {
@@ -373,7 +373,7 @@
 /* "Next up" emphasis (the layout nextUp): the current/next timed event today
    reads at eye level. Subtle rounded cool tint (matching today's --cool identity);
    symmetric negative margins cancel the padding so the time column stays aligned
-   with the rows above/below — the tint bleeds into the gutter, no content shift. */
+   with the rows above/below - the tint bleeds into the gutter, no content shift. */
 .event.is-next {
   background: color-mix(in srgb, var(--cool) 8%, transparent);
   border-radius: 8px;
@@ -387,7 +387,7 @@
 }
 
 /* Day markers above a day's events. holiday = federal AND observance =
-   lesser/unofficial — both render identically (gold pill). info = DST etc.
+   lesser/unofficial - both render identically (gold pill). info = DST etc.
    (plain muted line). */
 .holiday {
   display: inline-flex;
@@ -410,7 +410,7 @@
   margin: 0.1rem 0 0.4rem;
 }
 
-/* quiet-day line inside today's column when there are no personal events —
+/* quiet-day line inside today's column when there are no personal events -
    friendly and unobtrusive; a holiday pill (if any) sits above it. */
 .day-empty {
   color: var(--faint);
@@ -419,7 +419,7 @@
   padding: 0.26rem 0;
 }
 
-/* shown when the initial fetch fails — glanceable, in-theme, unobtrusive */
+/* shown when the initial fetch fails - glanceable, in-theme, unobtrusive */
 .agenda-empty {
   color: var(--faint);
   font-size: 1.05rem;

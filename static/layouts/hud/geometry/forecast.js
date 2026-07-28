@@ -1,4 +1,4 @@
-// HUD geometry — forecast range plot.
+// HUD geometry - forecast range plot.
 //
 // Pure, DOM-free: maps each forecast day's lo/hi onto the shared scale window
 // as left-edge percents for the range-plot markers (hollow low ring · hairline

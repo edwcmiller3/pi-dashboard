@@ -9,7 +9,7 @@ keeps its copy but MUST revalidate (cheap 304 over localhost when unchanged, a
 full 200 the instant the file differs), so a deploy lands on the next page load.
 
 `no-cache` (revalidate), not `no-store` (never cache): the ETag short-circuits to
-a 304 when nothing changed, which is free correctness — the assets ARE cacheable,
+a 304 when nothing changed, which is free correctness - the assets ARE cacheable,
 they just must be revalidated. The data path is unaffected: `/api/data` is a
 separate JSON route the frontend already fetches with `cache:"no-store"`.
 """
@@ -21,11 +21,10 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-# NOTE: every request below uses a bare `TestClient(app).get(...)` — never the
+# NOTE: every request below uses a bare `TestClient(app).get(...)` - never the
 # `with TestClient(app) as client:` form. That is load-bearing: the `with` form
 # runs the app lifespan, which starts the unkillable background refresh loop and
 # would fire real Open-Meteo/Proton network calls during these header-only tests.
-# Keep these bare so the static-asset checks stay hermetic.
 
 
 @pytest.mark.parametrize(
@@ -64,7 +63,7 @@ def test_static_assets_send_no_cache(path: str) -> None:
 
 def test_static_revalidation_validators_present() -> None:
     # no-cache is only useful if the response carries a validator to 304 against;
-    # StaticFiles supplies etag + last-modified — assert we didn't strip them.
+    # StaticFiles supplies etag + last-modified - assert we didn't strip them.
     resp = TestClient(app).get("/app.js")
     assert resp.headers.get("etag")
     assert resp.headers.get("last-modified")

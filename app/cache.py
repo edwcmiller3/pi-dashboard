@@ -1,8 +1,8 @@
-"""Cache interface — JSON files on disk. Deliberately simple: no Redis, no
-SQLite, no store migration planned. The cache holds two
-regenerable blobs for one local process, so a cache server / embedded DB would
-be pure overhead. The small read/write seam stays only to keep the loop and
-route decoupled and the tests clean.
+"""Cache interface - JSON files on disk. Deliberately simple: no Redis, no
+SQLite, no store migration planned. The cache holds two regenerable blobs for
+one local process, so a cache server / embedded DB would be pure overhead. The
+small read/write seam stays only to keep the loop and route decoupled and the
+tests clean.
 
 The handoff between the background refresh loop (writer) and the `/api/data`
 route (reader). Writes go through a temp file + `os.replace` so a concurrent
@@ -33,7 +33,7 @@ def read(key: str) -> Any | None:
     """Return the cached value for `key`, or None if it's absent or unreadable.
 
     A missing file is the normal cold-cache case. A corrupt/empty file (the only
-    realistic trigger is a power loss mid-write — the atomic `os.replace` rules
+    realistic trigger is a power loss mid-write - the atomic `os.replace` rules
     out torn reads) is treated the same: degrade to `None` (the route then
     returns 503 and the frontend shows last-good / placeholders), never a 500.
     """

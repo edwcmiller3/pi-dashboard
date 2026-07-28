@@ -1,10 +1,10 @@
-"""Weather source — Open-Meteo.
+"""Weather source - Open-Meteo.
 
 Two layers, kept apart so the transform is pure and unit-testable:
-  * `normalize_weather(raw)` — pure: raw Open-Meteo JSON -> the contract's
+  * `normalize_weather(raw)` - pure: raw Open-Meteo JSON -> the contract's
     `weather` block (`current` + 4 future-day `forecast`). The frontend never
     sees raw WMO codes; `icon`/`text` are resolved here via `weather_codes`.
-  * `get_weather()` — impure: the single Open-Meteo call, offloaded off the
+  * `get_weather()` - impure: the single Open-Meteo call, offloaded off the
     event loop via `asyncio.to_thread`, wrapped with `ok`/`fetched_at`.
 
 Param set verified against the live API 2026-06-28:
@@ -58,13 +58,13 @@ _REQUIRED_DAILY_DAYS: Final = 5
 
 def _tz(utc_offset_seconds: int) -> timezone:
     """The dashboard location's fixed UTC offset (per the API's
-    `utc_offset_seconds`) — the single zone we stamp and emit every time in."""
+    `utc_offset_seconds`) - the single zone we stamp and emit every time in."""
     return timezone(timedelta(seconds=utc_offset_seconds))
 
 
 def _with_offset(naive_local_iso: str, tz: timezone) -> str:
     """Attach the location's offset to a naive-local Open-Meteo time so it obeys
-    the contract's "every time is ISO-local-with-offset" rule — uniform with
+    the contract's "every time is ISO-local-with-offset" rule - uniform with
     `fetched_at`/events and correct for a consumer that does `new Date(...)`.
     `'2026-06-29T06:22'` -> `'2026-06-29T06:22:00-04:00'`."""
     return datetime.fromisoformat(naive_local_iso).replace(tzinfo=tz).isoformat()
@@ -73,7 +73,7 @@ def _with_offset(naive_local_iso: str, tz: timezone) -> str:
 def _round_half_up(value: float) -> int:
     """Round to nearest int with halves going UP (72.5 -> 73). Python's built-in
     `round` is banker's rounding (round-half-to-even: round(72.5) == 72), which
-    surprises on a temperature readout — use this for every displayed number."""
+    surprises on a temperature readout - use this for every displayed number."""
     return math.floor(value + 0.5)
 
 
@@ -130,8 +130,8 @@ def _require(raw: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
 
 def _clamp_high_low(current: CurrentWeather) -> CurrentWeather:
     """Widen today's H/L to include the displayed "now" (pure). The current
-    temp and the daily forecast max/min are different products — an NWS
-    observation vs. the model, or even Open-Meteo's own current vs. daily —
+    temp and the daily forecast max/min are different products - an NWS
+    observation vs. the model, or even Open-Meteo's own current vs. daily -
     and the hero must never show now outside H/L."""
     return {
         **current,
@@ -171,14 +171,14 @@ def normalize_weather(raw: dict[str, Any]) -> WeatherData:
 
 # Discard an observation older than this rather than merge a confidently wrong
 # "now". Stations report hourly (plus SPECI on weather changes), so 90 min =
-# "missed more than one cycle". A code constant, not a setting — promote only if
+# "missed more than one cycle". A code constant, not a setting - promote only if
 # someone actually needs to tune it.
 _MAX_OBS_AGE: Final = timedelta(minutes=90)
 
 
 def _obs_or(value: float | None, fallback: int) -> int:
     """An observed number (rounded for display) or the model's value when the
-    station didn't report that field — the per-field half of fail-soft."""
+    station didn't report that field - the per-field half of fail-soft."""
     return fallback if value is None else _round_half_up(value)
 
 
@@ -191,7 +191,7 @@ def merge_current(
     condition come from the observation where present; each missing field keeps
     the model's value. Feels-like chains heatIndex -> windChill -> obs temp
     (NWS nulls the first two exactly when they don't apply) and never falls
-    back to the model's apparent temperature — a model feels-like next to an
+    back to the model's apparent temperature - a model feels-like next to an
     obs temp reads incoherently. Forecast-only concepts (precip probability,
     high/low, sunrise/sunset) and the clock-derived `is_day` stay the model's,
     except H/L are widened to include the merged temp (never show now > H).
@@ -225,7 +225,7 @@ def merge_current(
 
 def _stamp(utc_offset_seconds: int) -> str:
     """Stamp "now" in the dashboard location's offset (per the API, not the Pi
-    clock), as ISO with an explicit offset — so the frontend renders the right
+    clock), as ISO with an explicit offset - so the frontend renders the right
     wall-clock and compares instants correctly."""
     return datetime.now(_tz(utc_offset_seconds)).isoformat(timespec="seconds")
 
@@ -239,7 +239,7 @@ def _fetch_raw() -> dict[str, Any]:
             "latitude": settings.weather_lat,
             "longitude": settings.weather_lon,
             # merged here (not in _PARAMS) so a per-test settings override is
-            # seen — _PARAMS is a module Final built once at import. An empty
+            # seen - _PARAMS is a module Final built once at import. An empty
             # WEATHER_MODEL in .env still means the provider default.
             "models": settings.weather_model or "best_match",
         },
@@ -254,7 +254,7 @@ async def get_weather() -> WeatherBlock:
     """Fetch + normalize, wrapped with `ok`/`fetched_at` for the contract.
 
     The blocking `requests` call is offloaded so the event loop never stalls.
-    Raises on fetch/parse failure — the refresh loop catches it and keeps the
+    Raises on fetch/parse failure - the refresh loop catches it and keeps the
     last-good cached doc.
     """
     raw = await asyncio.to_thread(_fetch_raw)

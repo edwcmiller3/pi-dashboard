@@ -18,8 +18,8 @@
         cursor on demand if one ever appears.
 
   Deliberately NOT set:
-    - NO <touch><calibrationMatrix> — touch is already aligned at all corners.
-    - NO <autoEnableOutputs>no</autoEnableOutputs> — it stops labwc driving the
+    - NO <touch><calibrationMatrix> - touch is already aligned at all corners.
+    - NO <autoEnableOutputs>no</autoEnableOutputs> - it stops labwc driving the
       single fixed panel at all (text console stays up, wlopm lists no output).
       The panel must stay driven while the box is powered; nightly darkness
       comes from the smart-plug power-off window, not an output power state.

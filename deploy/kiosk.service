@@ -1,4 +1,4 @@
-# labwc compositor — the Wayland session the Chromium kiosk runs inside.
+# labwc compositor - the Wayland session the Chromium kiosk runs inside.
 # systemd USER service. Installs to ~/.config/systemd/user/kiosk.service.
 # Chromium is its OWN unit (chromium-kiosk.service) layered on top, so each
 # respawns independently and a browser restart doesn't bounce the compositor.
@@ -9,7 +9,7 @@
 # No `After=seatd.service`: a USER unit can't order against a SYSTEM unit, so it
 # would be inert. Restart=always covers the seatd-not-ready boot race (labwc exits,
 # is retried every RestartSec until seatd's socket is up) and any labwc crash.
-# Do NOT set <autoEnableOutputs>no</autoEnableOutputs> in rc.xml — it stops
+# Do NOT set <autoEnableOutputs>no</autoEnableOutputs> in rc.xml - it stops
 # labwc driving the single fixed panel at all.
 
 [Unit]

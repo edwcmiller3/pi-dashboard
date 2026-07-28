@@ -4,7 +4,7 @@ The HUD reuses the vendored weather-icons font for ALL 28 WMO conditions (it
 consumes the server-resolved `icon` class rather than hand-drawing SVG). This
 test proves the half a DOM-free JS test can't reach with the real WMO table:
 
-  * every one of the 28 documented WMO codes — in BOTH day and night variants —
+  * every one of the 28 documented WMO codes - in BOTH day and night variants - 
     resolves via describe() to a wi-* class that is actually DEFINED in the
     vendored weather-icons.css (so it renders a real glyph on the kiosk, never
     tofu), with a non-empty condition label;
@@ -12,7 +12,7 @@ test proves the half a DOM-free JS test can't reach with the real WMO table:
     (mock decision; worst case "Heavy freezing drizzle"), enforced in layout.css.
 
 The companion static/layouts/hud/hud.test.js proves the renderer round-trips
-each resolved `icon` onto its forecast row's .wi glyph — together they cover the
+each resolved `icon` onto its forecast row's .wi glyph - together they cover the
 "all 28 codes render a non-tofu glyph + wrapped text in the HUD forecast" gate.
 """
 

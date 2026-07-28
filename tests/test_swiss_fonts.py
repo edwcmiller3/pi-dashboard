@@ -1,7 +1,7 @@
 """Tests for the vendored, subset swiss-mono fonts (static/vendor/fonts/).
 
 Same two-way-pin spirit as tests/test_hud_fonts.py, but for the swiss-mono
-layout's faces and its OWN manifest (subset-manifest-swiss-mono.txt) — the two
+layout's faces and its OWN manifest (subset-manifest-swiss-mono.txt) - the two
 layouts need different unicode sets, so they keep separate manifests + pins.
 
 The pin is self-maintaining off the vendored artifacts themselves (the manifest's
@@ -38,7 +38,7 @@ SUBSET_FILES = (
     "jetbrains-mono-700.woff2",
 )
 
-# The marks the design renders as real font glyphs (mono runs) — pinned PRESENT.
+# The marks the design renders as real font glyphs (mono runs) - pinned PRESENT.
 SELF_HOSTED_MARKS = {0x00B0, 0x00B7, 0x2191, 0x2193, 0x25CF}  # ° · ↑ ↓ ●
 
 
@@ -62,7 +62,7 @@ def _requested() -> set[int]:
 
 
 # swiss-mono has NO fallback marks (every emitted glyph is vendored), so the
-# expected cmap IS the requested set — no subtraction, unlike the HUD.
+# expected cmap IS the requested set - no subtraction, unlike the HUD.
 EXPECTED_CPS = _requested()
 
 
