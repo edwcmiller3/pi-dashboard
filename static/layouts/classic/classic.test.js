@@ -193,12 +193,35 @@ const { layout } = await import("./index.js");
 
 // ── test helpers ──────────────────────────────────────────────────────────────
 
-/** Fresh shell per test: build #app, mount the layout into it. @returns {El} */
+// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
+// (matching the real pack's element) and records every renderIcon call so a test
+// can assert which semantic name each cell requested. Injection is required
+// because a real `import "/pack.js"` is unresolvable under node --test.
+function makeIconPack() {
+  /** @type {{ name: string, extra: string | undefined }[]} */
+  const calls = [];
+  return {
+    calls,
+    /** @param {string} name @param {string} [extra] @returns {El} */
+    renderIcon(name, extra) {
+      calls.push({ name, extra });
+      const i = new El("i");
+      i.className = "wx-icon wx-" + name + (extra ? " " + extra : "");
+      return i;
+    },
+  };
+}
+
+// The pack injected into the most recent mountShell(); tests read its `.calls`.
+let iconPack;
+
+/** Fresh shell per test: build #app, mount the layout (with a fake pack) into it. @returns {El} */
 function mountShell() {
   const app = new El("div");
   app.id = "app";
   doc._appRoot = app;
-  layout.mount(app);
+  iconPack = makeIconPack();
+  layout.mount(app, { icon: iconPack });
   return app;
 }
 
@@ -238,7 +261,7 @@ const weatherFixture = () => ({
     feels_like_f: 70,
     code: 1,
     text: "Mostly Sunny",
-    icon: "wi-day-sunny",
+    icon: "clear-day",
     is_day: true,
     humidity_pct: 44,
     wind_mph: 8,
@@ -254,10 +277,10 @@ const weatherFixture = () => ({
 /** @returns {any[]} Four forecast days; the first is wet (precip line shows). */
 function forecastFixture() {
   return [
-    { date: "2026-07-02", code: 61, text: "Rain", icon: "wi-rain", high_f: 70, low_f: 58, precip_prob_pct: 80, precip_expected: true },
-    { date: "2026-07-03", code: 1, text: "Sunny", icon: "wi-day-sunny", high_f: 82, low_f: 63, precip_prob_pct: 5 },
-    { date: "2026-07-04", code: 2, text: "Partly Cloudy", icon: "wi-day-cloudy", high_f: 80, low_f: 62, precip_prob_pct: 10 },
-    { date: "2026-07-05", code: 3, text: "Cloudy", icon: "wi-cloudy", high_f: 76, low_f: 60, precip_prob_pct: 20 },
+    { date: "2026-07-02", code: 61, text: "Rain", icon: "rain-day", high_f: 70, low_f: 58, precip_prob_pct: 80, precip_expected: true },
+    { date: "2026-07-03", code: 1, text: "Sunny", icon: "clear-day", high_f: 82, low_f: 63, precip_prob_pct: 5 },
+    { date: "2026-07-04", code: 2, text: "Partly Cloudy", icon: "partly-cloudy-day", high_f: 80, low_f: 62, precip_prob_pct: 10 },
+    { date: "2026-07-05", code: 3, text: "Cloudy", icon: "overcast", high_f: 76, low_f: 60, precip_prob_pct: 20 },
   ];
 }
 
@@ -304,6 +327,17 @@ test("renderCurrent: fills the hero from the weather block", () => {
   assert.equal(withClass(card, "stat").length, 6);
   assert.ok(txt.includes("Feels like") && txt.includes("70°"));
   assert.ok(txt.includes("8 mph") && txt.includes("44%"));
+  // Every glyph is routed through the injected pack: the five chrome stat cells
+  // by GlyphName + the condition icon by IconToken. Feels-like has no glyph.
+  const called = iconPack.calls.map((c) => c.name);
+  for (const g of ["precip", "wind", "humidity", "sunrise", "sunset"]) {
+    assert.ok(called.includes(g), `chrome glyph ${g} routed through the pack`);
+  }
+  assert.ok(
+    iconPack.calls.some((c) => c.name === "clear-day" && c.extra === "cur-icon"),
+    "the condition icon routes c.icon (IconToken) with the cur-icon extra",
+  );
+  assert.equal(iconPack.calls.length, 6, "5 chrome glyphs + 1 condition; feels-like has none");
 });
 
 // ── renderForecast ────────────────────────────────────────────────────────────
@@ -316,6 +350,11 @@ test("renderForecast: renders 4 cards; precip line only on wet days", () => {
   // Exactly one day (the first, precip_expected) shows the precip line.
   assert.equal(withClass(root, "fprecip").length, 1);
   assert.ok(root.textContent.includes("Rain") && root.textContent.includes("80%"));
+  // Each card's condition icon routes its IconToken through the pack (fcard-icon
+  // extra); the single wet day also routes the "precip" chrome glyph.
+  const cardIcons = iconPack.calls.filter((c) => c.extra === "fcard-icon").map((c) => c.name);
+  assert.deepEqual(cardIcons, ["rain-day", "clear-day", "partly-cloudy-day", "overcast"]);
+  assert.equal(iconPack.calls.filter((c) => c.name === "precip").length, 1, "precip glyph only on the wet day");
 });
 
 test("renderForecast: slices defensively to 4 even given a longer feed", () => {

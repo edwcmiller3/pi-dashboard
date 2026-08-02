@@ -57,5 +57,11 @@ class Settings(BaseSettings):
     # UI; an invalid name fail-softs to classic (the kiosk must never blank).
     layout: str = "classic"
 
+    # --- Icon pack (which weather-icon set renders) ---
+    # Name of an icon pack the frontend maps WMO codes through. "weather-icons"
+    # = the built-in set; an invalid name fail-softs to it (the kiosk must never
+    # blank).
+    icon_pack: str = "weather-icons"
+
 
 settings = Settings()

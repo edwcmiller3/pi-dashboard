@@ -244,10 +244,15 @@ def parse_args() -> argparse.Namespace:
         help="UI layout: a directory name under static/layouts/ (default classic)",
     )
     parser.add_argument(
+        "--icon-pack",
+        help="icon pack: a directory name under static/packs/ (default weather-icons)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
-        help="screenshot path (default docs/mockup.png; a non-default --layout "
-        "and/or --theme add a -<layout>-<theme> suffix so renders don't clobber)",
+        help="screenshot path (default docs/mockup.png; a non-default --layout, "
+        "--theme, and/or --icon-pack add a -<layout>-<theme>-<iconpack> suffix so "
+        "renders don't clobber)",
     )
     parser.add_argument(
         "--port",
@@ -296,18 +301,38 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
+    if args.icon_pack:
+        packs_dir = REPO / "static" / "packs"
+        # Mirror the server's _available_packs rule: a pack dir only resolves at
+        # runtime if it carries an index.js module, so a dir lacking one must be
+        # rejected here too (an is_dir() check alone would pass then fail to serve).
+        if not (packs_dir / args.icon_pack / "index.js").is_file():
+            names = ", ".join(
+                sorted(
+                    p.name for p in packs_dir.iterdir() if (p / "index.js").is_file()
+                )
+            )
+            print(
+                f"unknown icon pack {args.icon_pack!r} — available: {names or '(none)'}",
+                file=sys.stderr,
+            )
+            return 1
     if not args.serve and not Path(CHROME).exists():
         print(f"Chrome not found at {CHROME!r} — set CHROME_BIN", file=sys.stderr)
         return 1
-    # A non-default layout and/or a theme each default to their own file so a
-    # layout×theme experiment can never silently clobber the README image (nor
-    # can a HUD render clobber the classic PNG). classic is the default layout,
-    # so it adds no suffix - an unthemed classic render stays docs/mockup.png.
+    # A non-default layout, theme, and/or icon pack each default to their own file
+    # so a layout×theme×pack experiment can never silently clobber the README image
+    # (nor can a HUD render clobber the classic PNG). classic and weather-icons are
+    # the defaults, so they add no suffix - an unthemed classic render on the
+    # default pack stays docs/mockup.png.
     suffix = "-".join(
         part
         for part in (
             args.layout if args.layout and args.layout != "classic" else None,
             args.theme,
+            args.icon_pack
+            if args.icon_pack and args.icon_pack != "weather-icons"
+            else None,
         )
         if part
     )
@@ -327,6 +352,8 @@ def main() -> int:
             server_env["THEME"] = args.theme
         if args.layout:
             server_env["LAYOUT"] = args.layout
+        if args.icon_pack:
+            server_env["ICON_PACK"] = args.icon_pack
         server = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(args.port)],
             cwd=REPO,
@@ -339,7 +366,11 @@ def main() -> int:
             if args.serve:
                 bits = [
                     f"{k}: {v}"
-                    for k, v in (("layout", args.layout), ("theme", args.theme))
+                    for k, v in (
+                        ("layout", args.layout),
+                        ("theme", args.theme),
+                        ("icon pack", args.icon_pack),
+                    )
                     if v
                 ]
                 note = f" ({', '.join(bits)})" if bits else ""

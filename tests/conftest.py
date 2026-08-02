@@ -31,7 +31,7 @@ def current_weather(temp_f: int) -> CurrentWeather:
         "feels_like_f": temp_f,
         "code": 0,
         "text": "Clear",
-        "icon": "wi-day-sunny",
+        "icon": "clear-day",
         "is_day": True,
         "humidity_pct": 50,
         "wind_mph": 5,

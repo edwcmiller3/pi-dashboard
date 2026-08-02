@@ -43,6 +43,17 @@ from app.main import app
         "/core/format.js",
         "/core/dom.js",
         "/core/machine.js",
+        # The active icon pack's runtime assets (served under packs/): its glyph
+        # module and generated stylesheet carry the same freshness contract so a
+        # stale cached pack.css/index.js can't survive a `git pull` on the wall.
+        "/packs/weather-icons/pack.css",
+        "/packs/weather-icons/index.js",
+        "/packs/meteocons-flat/pack.css",
+        "/packs/meteocons-flat/index.js",
+        "/packs/meteocons-line/pack.css",
+        "/packs/meteocons-line/index.js",
+        "/packs/meteocons-mono/pack.css",
+        "/packs/meteocons-mono/index.js",
         "/layouts/classic/index.js",
         "/layouts/classic/layout.css",
         # The HUD layout (Phase 3): its entry module, stylesheet, and the four

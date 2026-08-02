@@ -1,16 +1,17 @@
-"""WMO weather-code -> weather-icons glyph + label (Open-Meteo interpretation).
+"""WMO weather-code -> condition token + label (Open-Meteo interpretation).
 
 Pure, functional, no classes: an immutable lookup table plus pure functions.
-Single source of truth for (a) the vendored weather-icons font subset and
-(b) the weather transform that resolves `icon`/`text` for the data contract.
-The frontend never sees raw WMO codes.
+Single source of truth for the weather transform that resolves `icon`/`text`
+for the data contract. The frontend never sees raw WMO codes; it receives a
+semantic, day/night-resolved `IconToken`, which an icon pack later maps to a
+concrete glyph. The token preserves the full condition distinction even where a
+pack collapses several tokens onto one drawing.
 
 Granularity: "Detailed" - one entry per WMO interpretation code, not coarse
 buckets. Day/night variants come from Open-Meteo's free `is_day` field; neutral
-buckets (overcast/fog/mix/storm) use one glyph for both. NOTE: these are
+conditions (overcast/fog/freezing/storm) use one token for both. NOTE: these are
 Open-Meteo WMO *interpretation* codes, deliberately mapped by hand from
-Open-Meteo's documented list -- NOT the weather-icons `wi-wmo4680-*` set, which
-encodes different WMO 4680 codes.
+Open-Meteo's documented list.
 """
 
 from __future__ import annotations
@@ -18,86 +19,90 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Final, Literal, TypedDict
 
-# The closed set of weather-icons classes this module can emit. Making it a
-# Literal (not a bare `str`) means the contract's `icon` fields carry a real,
-# checkable vocabulary end to end, and a new glyph MUST be added here - which is
-# exactly the prompt to also vendor it into the font subset (see `glyphs`). Keep
-# in sync with `_WMO` + `_UNKNOWN`; mypy flags any drift.
-WiIcon = Literal[
-    "wi-day-sunny",
-    "wi-night-clear",
-    "wi-day-sunny-overcast",
-    "wi-night-alt-cloudy-high",
-    "wi-day-cloudy",
-    "wi-night-alt-cloudy",
-    "wi-cloudy",
-    "wi-fog",
-    "wi-day-sprinkle",
-    "wi-night-alt-sprinkle",
-    "wi-rain-mix",
-    "wi-day-rain",
-    "wi-night-alt-rain",
-    "wi-day-snow",
-    "wi-night-alt-snow",
-    "wi-day-showers",
-    "wi-night-alt-showers",
-    "wi-day-sleet",
-    "wi-sleet",
-    "wi-thunderstorm",
-    "wi-na",
+# The closed set of semantic condition tokens this module can emit, day/night
+# resolved. Making it a Literal (not a bare `str`) means the contract's `icon`
+# fields carry a real, checkable vocabulary end to end: a new token MUST be added
+# here, which is exactly the prompt to also map it in the icon pack. Keep in sync
+# with `_WMO` + `_UNKNOWN`; mypy flags any drift. Neutral conditions carry a
+# single token used for both day and night.
+IconToken = Literal[
+    "clear-day",
+    "clear-night",
+    "mostly-clear-day",
+    "mostly-clear-night",
+    "partly-cloudy-day",
+    "partly-cloudy-night",
+    "overcast",
+    "fog",
+    "drizzle-day",
+    "drizzle-night",
+    "freezing-drizzle",
+    "rain-day",
+    "rain-night",
+    "freezing-rain",
+    "snow-day",
+    "snow-night",
+    "showers-day",
+    "showers-night",
+    "snow-showers-day",
+    "snow-showers-night",
+    "thunderstorm",
+    "not-available",
 ]
 
 
 class Condition(TypedDict):
-    icon: WiIcon  # a weather-icons class, e.g. "wi-day-rain"
+    icon: IconToken  # a semantic condition token, e.g. "rain-day"
     text: str  # short human label, e.g. "Light rain"
 
 
-# code -> (day glyph, night glyph, label). Neutral buckets repeat the glyph.
-_WMO: Final[dict[int, tuple[WiIcon, WiIcon, str]]] = {
-    0: ("wi-day-sunny", "wi-night-clear", "Clear"),
-    1: ("wi-day-sunny-overcast", "wi-night-alt-cloudy-high", "Mainly clear"),
-    2: ("wi-day-cloudy", "wi-night-alt-cloudy", "Partly cloudy"),
-    3: ("wi-cloudy", "wi-cloudy", "Overcast"),
-    45: ("wi-fog", "wi-fog", "Fog"),
-    48: ("wi-fog", "wi-fog", "Rime fog"),
-    51: ("wi-day-sprinkle", "wi-night-alt-sprinkle", "Light drizzle"),
-    53: ("wi-day-sprinkle", "wi-night-alt-sprinkle", "Drizzle"),
-    55: ("wi-day-sprinkle", "wi-night-alt-sprinkle", "Heavy drizzle"),
-    56: ("wi-rain-mix", "wi-rain-mix", "Freezing drizzle"),
-    57: ("wi-rain-mix", "wi-rain-mix", "Freezing drizzle"),
-    61: ("wi-day-rain", "wi-night-alt-rain", "Light rain"),
-    63: ("wi-day-rain", "wi-night-alt-rain", "Rain"),
-    65: ("wi-day-rain", "wi-night-alt-rain", "Heavy rain"),
-    66: ("wi-rain-mix", "wi-rain-mix", "Freezing rain"),
-    67: ("wi-rain-mix", "wi-rain-mix", "Freezing rain"),
-    71: ("wi-day-snow", "wi-night-alt-snow", "Light snow"),
-    73: ("wi-day-snow", "wi-night-alt-snow", "Snow"),
-    75: ("wi-day-snow", "wi-night-alt-snow", "Heavy snow"),
-    77: ("wi-day-snow", "wi-night-alt-snow", "Snow grains"),
-    80: ("wi-day-showers", "wi-night-alt-showers", "Light showers"),
-    81: ("wi-day-showers", "wi-night-alt-showers", "Showers"),
-    82: ("wi-day-showers", "wi-night-alt-showers", "Violent showers"),
-    # 85/86 night uses the neutral wi-sleet, not a wi-night-alt-* variant: the
-    # vendored font subset has no wi-night-alt-sleet, so this avoids tofu.
-    85: ("wi-day-sleet", "wi-sleet", "Snow showers"),
-    86: ("wi-day-sleet", "wi-sleet", "Snow showers"),
-    95: ("wi-thunderstorm", "wi-thunderstorm", "Thunderstorm"),
-    96: ("wi-thunderstorm", "wi-thunderstorm", "Thunderstorm with hail"),
-    99: ("wi-thunderstorm", "wi-thunderstorm", "Thunderstorm with hail"),
+# code -> (day token, night token, label). Neutral conditions repeat the token.
+_WMO: Final[dict[int, tuple[IconToken, IconToken, str]]] = {
+    0: ("clear-day", "clear-night", "Clear"),
+    1: ("mostly-clear-day", "mostly-clear-night", "Mainly clear"),
+    2: ("partly-cloudy-day", "partly-cloudy-night", "Partly cloudy"),
+    3: ("overcast", "overcast", "Overcast"),
+    45: ("fog", "fog", "Fog"),
+    48: ("fog", "fog", "Rime fog"),
+    51: ("drizzle-day", "drizzle-night", "Light drizzle"),
+    53: ("drizzle-day", "drizzle-night", "Drizzle"),
+    55: ("drizzle-day", "drizzle-night", "Heavy drizzle"),
+    56: ("freezing-drizzle", "freezing-drizzle", "Freezing drizzle"),
+    57: ("freezing-drizzle", "freezing-drizzle", "Freezing drizzle"),
+    61: ("rain-day", "rain-night", "Light rain"),
+    63: ("rain-day", "rain-night", "Rain"),
+    65: ("rain-day", "rain-night", "Heavy rain"),
+    66: ("freezing-rain", "freezing-rain", "Freezing rain"),
+    67: ("freezing-rain", "freezing-rain", "Freezing rain"),
+    71: ("snow-day", "snow-night", "Light snow"),
+    73: ("snow-day", "snow-night", "Snow"),
+    75: ("snow-day", "snow-night", "Heavy snow"),
+    77: ("snow-day", "snow-night", "Snow grains"),
+    80: ("showers-day", "showers-night", "Light showers"),
+    81: ("showers-day", "showers-night", "Showers"),
+    82: ("showers-day", "showers-night", "Violent showers"),
+    85: ("snow-showers-day", "snow-showers-night", "Snow showers"),
+    86: ("snow-showers-day", "snow-showers-night", "Snow showers"),
+    95: ("thunderstorm", "thunderstorm", "Thunderstorm"),
+    96: ("thunderstorm", "thunderstorm", "Thunderstorm with hail"),
+    99: ("thunderstorm", "thunderstorm", "Thunderstorm with hail"),
 }
 
 # Read-only view -> the table can't be mutated at runtime.
 WMO: Final = MappingProxyType(_WMO)
 
-_UNKNOWN: Final[tuple[WiIcon, WiIcon, str]] = ("wi-na", "wi-na", "Unknown")
+_UNKNOWN: Final[tuple[IconToken, IconToken, str]] = (
+    "not-available",
+    "not-available",
+    "Unknown",
+)
 
 
 def describe(code: int, is_day: bool = True) -> Condition:
-    """Resolve a WMO code (+ day/night) to its icon class and label.
+    """Resolve a WMO code (+ day/night) to its condition token and label.
 
-    Unknown codes fall back to the `wi-na` glyph rather than raising, so a
-    surprise code from the API can never break rendering.
+    Unknown codes fall back to the `not-available` token rather than raising, so
+    a surprise code from the API can never break rendering.
     """
     day, night, label = _WMO.get(code, _UNKNOWN)
     return {"icon": day if is_day else night, "text": label}
@@ -117,13 +122,3 @@ def is_wet(code: int) -> bool:
     precipitates, so we don't show a precip line for it.
     """
     return code in _WMO and code not in _DRY
-
-
-def glyphs() -> frozenset[WiIcon]:
-    """Every weather-icons class this module can emit (incl. the fallback).
-
-    Drives the font subset: exactly these glyphs are vendored.
-    """
-    return frozenset(
-        {g for day, night, _ in _WMO.values() for g in (day, night)} | {_UNKNOWN[0]}
-    )

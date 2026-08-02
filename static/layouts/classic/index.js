@@ -30,6 +30,14 @@ import { el } from "../../core/dom.js";
 /** @typedef {import("../../core/contract.js").StatusOpts} StatusOpts */
 /** @typedef {import("../../core/agenda.js").DayGroup} DayGroup */
 /** @typedef {import("../../core/format.js").HiLoLine} HiLoLine */
+/** @typedef {import("../../core/contract.js").IconPack} IconPack */
+/** @typedef {import("../../core/contract.js").GlyphName} GlyphName */
+
+// The icon pack injected at mount (core/contract.js IconPack). Every weather and
+// chrome glyph routes through iconPack.renderIcon, so this layout never names a
+// pack - swapping ICON_PACK upstream reskins all glyphs. Captured once in mount.
+/** @type {IconPack} */
+let iconPack;
 
 // ── shell ────────────────────────────────────────────────────────────────────
 
@@ -38,8 +46,9 @@ import { el } from "../../core/dom.js";
 // #status) plus the one hardcoded "Upcoming" heading. The renderers below fill
 // them; only the shell + that heading are static (matching the pre-refactor
 // index.html exactly).
-/** @param {HTMLElement} root @returns {void} */
-function mount(root) {
+/** @param {HTMLElement} root @param {{ icon: IconPack }} ctx @returns {void} */
+function mount(root, ctx) {
+  iconPack = ctx.icon;
   const screen = el("div", "screen");
 
   const top = el("div", "top");
@@ -135,26 +144,19 @@ function dayRowNode(group, calendarOk = true, clockSynced = true) {
   return row;
 }
 
-// A weather <i class="wi wi-…"> glyph. The icon class is an OWN value (resolved
-// by our backend's WMO->wi-* table), so it is safe in an attribute; human text
-// (conditions, future alert/location strings) must NOT be built this way.
-/** @param {string} iconClass @param {string} [extra] @returns {HTMLElement} */
-function wiIcon(iconClass, extra) {
-  return el("i", "wi " + iconClass + (extra ? " " + extra : ""));
-}
-
-// A "stat" cell: an icon (optional) + uppercase key label + value. The label
-// and value are set via textContent - never interpolated as HTML.
+// A "stat" cell: an icon (optional) + uppercase key label + value. The glyph is
+// requested from the injected pack by a semantic GlyphName (wind/humidity/…); the
+// label and value are set via textContent - never interpolated as HTML.
 /**
- * @param {string | null} iconClass
+ * @param {GlyphName | null} glyph
  * @param {string} label
  * @param {string} value
  * @returns {HTMLElement}
  */
-function statCell(iconClass, label, value) {
+function statCell(glyph, label, value) {
   const cell = el("div", "stat");
   const k = el("span", "k");
-  if (iconClass) k.append(wiIcon(iconClass), " ");
+  if (glyph) k.append(iconPack.renderIcon(glyph), " ");
   k.append(label);
   cell.append(k, el("span", "v", value));
   return cell;
@@ -221,14 +223,14 @@ function renderCurrent(weather) {
   const stats = el("div", "cur-stats");
   stats.append(
     statCell(null, "Feels like", `${c.feels_like_f}°`),
-    statCell("wi-raindrop", "Rain", `${c.precip_prob_pct}%`),
-    statCell("wi-strong-wind", "Wind", `${c.wind_mph} mph`),
-    statCell("wi-humidity", "Humidity", `${c.humidity_pct}%`),
-    statCell("wi-sunrise", "Sunrise", fmtCompactOr(localParts(c.sunrise).time)),
-    statCell("wi-sunset", "Sunset", fmtCompactOr(localParts(c.sunset).time)),
+    statCell("precip", "Rain", `${c.precip_prob_pct}%`),
+    statCell("wind", "Wind", `${c.wind_mph} mph`),
+    statCell("humidity", "Humidity", `${c.humidity_pct}%`),
+    statCell("sunrise", "Sunrise", fmtCompactOr(localParts(c.sunrise).time)),
+    statCell("sunset", "Sunset", fmtCompactOr(localParts(c.sunset).time)),
   );
 
-  card.append(wiIcon(c.icon, "cur-icon"), main, el("div", "cur-div"), stats);
+  card.append(iconPack.renderIcon(c.icon, "cur-icon"), main, el("div", "cur-div"), stats);
 }
 
 /** @param {ForecastDay[]} forecast @returns {void} */
@@ -252,14 +254,14 @@ function renderForecast(forecast) {
     right.append(temp);
     if (f.precip_expected) {
       const precip = el("div", "fprecip");
-      precip.append(wiIcon("wi-raindrop"), el("span", null, `${f.precip_prob_pct}%`));
+      precip.append(iconPack.renderIcon("precip"), el("span", null, `${f.precip_prob_pct}%`));
       right.append(precip);
     }
 
     // Middle band: bigger icon on the left, temps/precip on the right, grouped
     // and centered as a unit (not edge-justified).
     const mid = el("div", "fmid");
-    mid.append(wiIcon(f.icon, "fcard-icon"), right);
+    mid.append(iconPack.renderIcon(f.icon, "fcard-icon"), right);
 
     // day (top) · icon+temps (middle) · condition text (bottom, mirrors the day).
     card.append(el("span", "fday", dname), mid, el("span", "fdesc", f.text));

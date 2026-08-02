@@ -173,7 +173,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.stat .k .wi {
+.stat .k .wx-icon {
   font-size: 0.95rem;
   color: var(--muted);
 }
@@ -247,7 +247,7 @@
   font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
 }
-.fcard .fprecip .wi {
+.fcard .fprecip .wx-icon {
   font-size: 1rem;
 }
 /* de-emphasized to match the day label (muted, same size) - the icon carries

@@ -314,6 +314,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Surface a bad LAYOUT loudly at boot (the routes fail-soft silently per
     # request, so a typo/case-mismatch is otherwise invisible on a headless Pi).
     _warn_on_unknown_layout()
+    _warn_on_unknown_pack()
     task = asyncio.create_task(_refresh_loop())
     app.state.refresh_task = task  # strong ref so the loop isn't GC'd mid-flight
     task.add_done_callback(_loop_exited)
@@ -429,15 +430,18 @@ def _valid_slug(name: str) -> bool:
     return False
 
 
-def _classic_layout_css() -> str:
-    """/layout.css's fail-soft body: the classic layout's stylesheet. Mirrors
-    /layout.js's fail-soft to the classic MODULE, so a bad/ghost LAYOUT renders
-    classic's region styling (28 selectors) rather than the classic DOM naked.
-    Last-resort empty if classic's own file is somehow missing (never a 500)."""
+def _builtin_slug_css(subdir: str, slug: str, leaf: str) -> str:
+    """A built-in slug asset's stylesheet, read defensively - the shared fail-soft
+    body for /layout.css (subdir "layouts", slug "classic", leaf "layout") and
+    /pack.css (subdir "packs", slug "weather-icons", leaf "pack"). Mirrors the
+    matching /layout.js / /pack.js fail-soft to the built-in MODULE, so a bad/ghost
+    LAYOUT or ICON_PACK renders the built-in default's styling (classic's region
+    CSS, weather-icons' glyph CSS) rather than the fallback DOM naked. Last-resort
+    empty if the built-in file is somehow missing (never a 500)."""
     try:
-        return (_static_dir / "layouts" / "classic" / "layout.css").read_text(encoding="utf-8")
+        return (_static_dir / subdir / slug / f"{leaf}.css").read_text(encoding="utf-8")
     except OSError:
-        log.warning("classic layout.css is missing; serving empty layout css")
+        log.warning("%s %s.css is missing; serving empty %s css", slug, leaf, leaf)
         return ""
 
 
@@ -477,57 +481,96 @@ def _serve_slug_css(
     return Response(body, media_type="text/css", headers=_NO_CACHE)
 
 
-def _serve_layout_module(name: str) -> Response:
-    """/layout.js's body: a generated one-line ES module re-exporting the
-    selected layout - a layout SELECTS a module rather than serving a stored
-    file, so it fail-softs to the valid "classic" name, not to an empty body.
-    Both a bad slug AND a valid-slug-but-absent module fall back to classic: a
-    re-export of a missing module would 404 the ES-module graph at LOAD time
-    (which app.js's usage-level try/catch can't catch → blank kiosk). Shares
-    _normalized, _SLUG_RE, and the no-cache header with the css reader."""
+def _serve_module(name: str, subdir: str, default: str, export: str) -> Response:
+    """A slug-selected asset's body: a generated one-line ES module re-exporting
+    the selected asset - it SELECTS a module rather than serving a stored file, so
+    it fail-softs to the valid `default` name, not to an empty body. Both a bad
+    slug AND a valid-slug-but-absent module fall back to `default`: a re-export of
+    a missing module would 404 the ES-module graph at LOAD time (which app.js's
+    usage-level try/catch can't catch → blank kiosk). If even the built-in
+    `default` module is missing (a broken deploy), its re-export target would 404
+    too, so the last resort is a non-empty inline stub exporting an empty object -
+    a body app.js's usage-level try/catch CAN survive, unlike a load-time 404.
+    Shared by /layout.js (export "layout" from layouts/, default "classic") and
+    /pack.js (export "iconPack" from packs/, default "weather-icons"). Shares
+    _normalized, _valid_slug, and the no-cache header with the css reader."""
     name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
-    slug = name if _valid_slug(name) else "classic"
-    if slug != "classic" and not (_static_dir / "layouts" / slug / "index.js").is_file():
-        log.warning("layout %r has no index.js module; falling back to classic", slug)
-        slug = "classic"
-    body = f'export {{layout}} from "./layouts/{slug}/index.js";\n'
+    slug = name if _valid_slug(name) else default
+    if slug != default and not (_static_dir / subdir / slug / "index.js").is_file():
+        log.warning(
+            "%s %r has no index.js module; falling back to %r", subdir, slug, default
+        )
+        slug = default
+    if not (_static_dir / subdir / slug / "index.js").is_file():
+        # Even the built-in default is absent: a re-export would 404 the ES-module
+        # graph at LOAD time and blank the kiosk (the exact failure the fallback to
+        # `default` exists to prevent). Emit a non-empty inline stub instead - an
+        # empty export is a body app.js's usage-level try/catch can handle.
+        log.warning(
+            "%s default %r has no index.js module; serving inline stub", subdir, default
+        )
+        body = f"export const {export} = {{}};\n"
+        return Response(body, media_type="text/javascript", headers=_NO_CACHE)
+    body = f'export {{{export}}} from "./{subdir}/{slug}/index.js";\n'
     return Response(body, media_type="text/javascript", headers=_NO_CACHE)
 
 
-def _available_layouts() -> list[str]:
-    """Layout dir names under static/layouts/ that carry an index.js module - the
-    exact set a LAYOUT value can select. Sorted for a stable log line; empty on an
-    unreadable dir (never fatal: the routes still fail-soft per request)."""
+def _available_slugs(subdir: str) -> list[str]:
+    """Dir names under static/<subdir>/ that carry an index.js module - the exact
+    set a LAYOUT (subdir "layouts") or ICON_PACK (subdir "packs") value can select.
+    Sorted for a stable log line; empty on an unreadable dir (never fatal: the
+    routes still fail-soft per request)."""
     try:
         return sorted(
             p.name
-            for p in (_static_dir / "layouts").iterdir()
+            for p in (_static_dir / subdir).iterdir()
             if (p / "index.js").is_file()
         )
     except OSError:
         return []
 
 
-def _warn_on_unknown_layout() -> None:
-    """Log ONCE at startup when LAYOUT won't resolve, so a config typo is visible
-    in the journal instead of silently rendering classic on a headless wall. The
-    /layout.* routes still fail-soft per request - this only surfaces the CAUSE,
-    which was otherwise buried in a per-request warning. The value is folded the
-    same way the routes resolve it, so a mere case/space variant (LAYOUT=HUD -> hud)
-    does NOT warn; only a genuinely absent layout does. `settings.layout` (the raw
-    value) is echoed so the operator recognizes exactly what they typed."""
-    name = _normalized(settings.layout)
-    if not name or name == "classic":
-        return  # unset/default: the intended classic experience, nothing to warn
+def _warn_on_unknown_slug(
+    subdir: str, selected: str, default: str, *, label: str, noun: str
+) -> None:
+    """Log ONCE at startup when a slug setting won't resolve, so a config typo is
+    visible in the journal instead of silently rendering the built-in default on a
+    headless wall. The matching routes still fail-soft per request - this only
+    surfaces the CAUSE, which was otherwise buried in a per-request warning. The
+    value is folded the same way the routes resolve it, so a mere case/space
+    variant (LAYOUT=HUD -> hud) does NOT warn; only a genuinely absent slug does.
+    `selected` (the raw value) is echoed so the operator recognizes exactly what
+    they typed. `label` is the setting name (LAYOUT/ICON_PACK) and `noun` the
+    singular kind (layout/pack) woven into the message."""
+    name = _normalized(selected)
+    if not name or name == default:
+        return  # unset/default: the intended built-in, nothing to warn
     if not _valid_slug(name):
         return  # _valid_slug already warned that the value isn't a bare slug
-    if not (_static_dir / "layouts" / name / "index.js").is_file():
+    if not (_static_dir / subdir / name / "index.js").is_file():
         log.warning(
-            "LAYOUT=%r matches no layout under static/layouts (have: %s); "
-            "serving classic",
-            settings.layout,
-            ", ".join(_available_layouts()) or "none",
+            "%s=%r matches no %s under static/%s (have: %s); serving %s",
+            label,
+            selected,
+            noun,
+            subdir,
+            ", ".join(_available_slugs(subdir)) or "none",
+            default,
         )
+
+
+def _warn_on_unknown_layout() -> None:
+    """Startup warning for an unresolvable LAYOUT (see _warn_on_unknown_slug)."""
+    _warn_on_unknown_slug(
+        "layouts", settings.layout, "classic", label="LAYOUT", noun="layout"
+    )
+
+
+def _warn_on_unknown_pack() -> None:
+    """Startup warning for an unresolvable ICON_PACK (see _warn_on_unknown_slug)."""
+    _warn_on_unknown_slug(
+        "packs", settings.icon_pack, "weather-icons", label="ICON_PACK", noun="pack"
+    )
 
 
 @app.get("/theme.css")
@@ -542,22 +585,48 @@ def theme_css() -> Response:
 def layout_css() -> Response:
     """The selected layout's stylesheet (LAYOUT setting), linked BETWEEN
     style.css and theme.css so the cascade is base < layout < theme. Fail-softs
-    to classic's stylesheet (see _classic_layout_css), NOT empty."""
+    to classic's stylesheet (see _builtin_slug_css), NOT empty."""
     return _serve_slug_css(
-        settings.layout, "layouts", leaf="layout", fallback=_classic_layout_css
+        settings.layout,
+        "layouts",
+        leaf="layout",
+        fallback=lambda: _builtin_slug_css("layouts", "classic", "layout"),
     )
 
 
 @app.get("/layout.js")
 def layout_js() -> Response:
-    """The generated ES module selecting the layout (see _serve_layout_module);
+    """The generated ES module selecting the layout (see _serve_module);
     app.js does `import {layout} from "/layout.js"` - no fetch race, no HTML
     templating. MUST be served as text/javascript: a wrong JS MIME is silently
     refused under strict ES-module loading and would blank the kiosk."""
-    return _serve_layout_module(settings.layout)
+    return _serve_module(settings.layout, "layouts", "classic", "layout")
+
+
+@app.get("/pack.css")
+def pack_css() -> Response:
+    """The selected icon pack's stylesheet (ICON_PACK setting), mirroring
+    /layout.css. Fail-softs to the weather-icons pack's stylesheet (see
+    _builtin_slug_css), NOT empty."""
+    return _serve_slug_css(
+        settings.icon_pack,
+        "packs",
+        leaf="pack",
+        fallback=lambda: _builtin_slug_css("packs", "weather-icons", "pack"),
+    )
+
+
+@app.get("/pack.js")
+def pack_js() -> Response:
+    """The generated ES module selecting the icon pack (see _serve_module);
+    app.js does `import {iconPack} from "/pack.js"`. Like /layout.js it MUST be
+    served as text/javascript, and fail-softs to the weather-icons pack module
+    (never an empty body, which would 404 the ES-module graph and blank the
+    kiosk)."""
+    return _serve_module(settings.icon_pack, "packs", "weather-icons", "iconPack")
 
 
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz, /api/*, /theme.css, /layout.css, and /layout.js take precedence
-# over the catch-all static mount.
+# so /healthz, /api/*, /theme.css, /layout.css, /layout.js, /pack.css, and
+# /pack.js take precedence over the catch-all static mount.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

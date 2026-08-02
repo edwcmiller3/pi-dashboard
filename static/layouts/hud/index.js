@@ -47,8 +47,15 @@ import { forecastRangePlot, forecastRuler, rulerDivisions } from "./geometry/for
 /** @typedef {import("../../core/agenda.js").DayGroup} DayGroup */
 /** @typedef {import("./geometry/scale.js").ScaleWindow} ScaleWindow */
 /** @typedef {import("./geometry/solar.js").SolarGeometry} SolarGeometry */
+/** @typedef {import("../../core/contract.js").IconPack} IconPack */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// The icon pack injected at mount (core/contract.js IconPack). The forecast
+// condition glyphs route through iconPack.renderIcon, so the HUD never names a
+// pack - swapping ICON_PACK upstream reskins them. Captured once in mount.
+/** @type {IconPack} */
+let iconPack;
 
 // ── small builders ─────────────────────────────────────────────────────────
 
@@ -111,8 +118,9 @@ function symResync() {
 // stack (dial · solar tape · forecast) + agenda in the main grid, and the status
 // footer. The renderers below fill the id'd regions; the instrument frames,
 // labels, ruler strips and CRT overlay are static furniture built once here.
-/** @param {HTMLElement} root @returns {void} */
-function mount(root) {
+/** @param {HTMLElement} root @param {{ icon: IconPack }} ctx @returns {void} */
+function mount(root, ctx) {
+  iconPack = ctx.icon;
   // Clear the shared scale (declared below) so a remount can never read a window
   // left over from a previous mount / render cycle.
   scaleWindow = null;
@@ -401,14 +409,6 @@ function renderSolar(c) {
 
 // ── forecast : range-plot channel rows ───────────────────────────────────────
 
-// A weather <i class="wi wi-…"> glyph (server-resolved icon class → the vendored
-// font, phosphor-styled). The icon class is an OWN value; human condition text
-// is always routed through textContent.
-/** @param {string} iconClass @param {string} [extra] @returns {HTMLElement} */
-function wiIcon(iconClass, extra) {
-  return el("i", "wi " + iconClass + (extra ? " " + extra : ""));
-}
-
 // The amber precip teardrop (mock's inline SVG), drawn as a shape so its stroke
 // follows the palette via a class rather than a hardcoded color.
 /** @returns {SVGElement} */
@@ -466,7 +466,7 @@ function renderForecast(forecast) {
 
     row.append(
       el("span", "dn", dname),
-      wiIcon(f.icon, "gl"),
+      iconPack.renderIcon(f.icon, "gl"),
       el("span", "cond", f.text), // human text - wraps to 2 lines, no ellipsis
       el("span", "lo", `${f.low_f}°`),
       track,

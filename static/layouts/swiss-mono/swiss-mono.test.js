@@ -219,12 +219,35 @@ const { layout } = await import("./index.js");
 
 // ── test helpers ──────────────────────────────────────────────────────────────
 
-/** Fresh shell per test: build #app, mount the layout into it. @returns {El} */
+// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
+// (matching the real pack's element) and records every renderIcon call so a test
+// can assert which semantic name each cell requested. Injection is required
+// because a real `import "/pack.js"` is unresolvable under node --test.
+function makeIconPack() {
+  /** @type {{ name: string, extra: string | undefined }[]} */
+  const calls = [];
+  return {
+    calls,
+    /** @param {string} name @param {string} [extra] @returns {El} */
+    renderIcon(name, extra) {
+      calls.push({ name, extra });
+      const i = new El("i");
+      i.className = "wx-icon wx-" + name + (extra ? " " + extra : "");
+      return i;
+    },
+  };
+}
+
+// The pack injected into the most recent mountShell(); tests read its `.calls`.
+let iconPack;
+
+/** Fresh shell per test: build #app, mount the layout (with a fake pack) into it. @returns {El} */
 function mountShell() {
   const app = new El("div");
   app.id = "app";
   doc._appRoot = app;
-  layout.mount(app);
+  iconPack = makeIconPack();
+  layout.mount(app, { icon: iconPack });
   return app;
 }
 
@@ -269,7 +292,7 @@ const weatherFixture = () => ({
     feels_like_f: 70,
     code: 1,
     text: "Mostly Sunny",
-    icon: "wi-day-sunny",
+    icon: "clear-day",
     is_day: true,
     humidity_pct: 44,
     wind_mph: 8,
@@ -285,10 +308,10 @@ const weatherFixture = () => ({
 /** @returns {any[]} Four forecast days; the first is wet (precip line shows). */
 function forecastFixture() {
   return [
-    { date: "2026-07-02", code: 61, text: "Rain", icon: "wi-rain", high_f: 70, low_f: 58, precip_prob_pct: 80, precip_expected: true },
-    { date: "2026-07-03", code: 1, text: "Sunny", icon: "wi-day-sunny", high_f: 82, low_f: 63, precip_prob_pct: 5 },
-    { date: "2026-07-04", code: 2, text: "Partly Cloudy", icon: "wi-day-cloudy", high_f: 80, low_f: 62, precip_prob_pct: 10 },
-    { date: "2026-07-05", code: 3, text: "Cloudy", icon: "wi-cloudy", high_f: 76, low_f: 60, precip_prob_pct: 20 },
+    { date: "2026-07-02", code: 61, text: "Rain", icon: "rain-day", high_f: 70, low_f: 58, precip_prob_pct: 80, precip_expected: true },
+    { date: "2026-07-03", code: 1, text: "Sunny", icon: "clear-day", high_f: 82, low_f: 63, precip_prob_pct: 5 },
+    { date: "2026-07-04", code: 2, text: "Partly Cloudy", icon: "partly-cloudy-day", high_f: 80, low_f: 62, precip_prob_pct: 10 },
+    { date: "2026-07-05", code: 3, text: "Cloudy", icon: "overcast", high_f: 76, low_f: 60, precip_prob_pct: 20 },
   ];
 }
 
@@ -352,6 +375,25 @@ test("renderForecast: renders 4 cells; precip line only on wet days", () => {
   // Exactly one day (the first, precip_expected) shows the precip line.
   assert.equal(withClass(root, "fc-precip").length, 1);
   assert.ok(root.textContent.includes("Rain") && root.textContent.includes("80%"));
+
+  // Icon routing: each card hands its f.icon token to the injected pack WITH the
+  // fc-icon extra, in card order (mirrors the current-icon assertion below).
+  // Catches a wrong token (name mismatch) or a dropped fc-icon extra (that call
+  // drops out of the fc-icon filter, so the order/length no longer matches).
+  const fcCalls = iconPack.calls.filter((c) => c.extra === "fc-icon");
+  assert.deepEqual(
+    fcCalls.map((c) => c.name),
+    ["rain-day", "clear-day", "partly-cloudy-day", "overcast"],
+    "each forecast card routes f.icon through the pack with the fc-icon extra, in order",
+  );
+  // And the pack's glyph node the card actually mounted carries wx-<token>, in
+  // card order - proving the routed node reaches the DOM (not just the spy).
+  const cardGlyphs = withClass(root, "fc").map((card) => withClass(card, "wx-icon")[0]);
+  assert.deepEqual(
+    cardGlyphs.map((g) => (g ? [...g._classes].find((c) => c.startsWith("wx-") && c !== "wx-icon") : null)),
+    ["wx-rain-day", "wx-clear-day", "wx-partly-cloudy-day", "wx-overcast"],
+    "the mounted forecast-card glyph carries wx-<token> per card",
+  );
 });
 
 test("renderForecast: slices defensively to 4 even given a longer feed", () => {
@@ -670,15 +712,21 @@ test("renderAgenda: an info-kind item renders as a .marker line carrying its tit
 
 // ── renderForecast empty + weather-icon class pass-through ─────────────────────
 
-test("renderForecast([]) makes zero cards without throwing; renderCurrent passes the icon class through", () => {
+test("renderForecast([]) makes zero cards without throwing; renderCurrent routes the icon token through the pack", () => {
   mountShell();
   assert.doesNotThrow(() => layout.renderForecast([]), "an empty feed renders no cards, no crash");
   assert.equal(withClass(doc.getElementById("forecast"), "fc").length, 0, "no .fc cards for an empty feed");
 
   layout.renderCurrent(weatherFixture());
-  const wi = withClass(doc.getElementById("current"), "wi")[0];
-  assert.ok(wi, "the current-weather .wi glyph node exists");
-  assert.ok(wi._classes.has("wi-day-sunny"), "the resolved icon class (c.icon) passes onto the .wi node");
+  // c.icon (an IconToken) is handed to the injected pack, which renders the glyph
+  // node - the layout no longer builds a `wi-*` element itself.
+  assert.ok(
+    iconPack.calls.some((c) => c.name === "clear-day" && c.extra === "cur-icon"),
+    "renderCurrent routes c.icon (clear-day) through the pack with the cur-icon extra",
+  );
+  const glyph = withClass(doc.getElementById("current"), "wx-icon")[0];
+  assert.ok(glyph, "the current-weather glyph node the pack returned is mounted");
+  assert.ok(glyph._classes.has("wx-clear-day"), "the rendered glyph carries wx-<token>");
 });
 
 // t.mock.timers auto-reset per test; reset the top-level mock too for safety.

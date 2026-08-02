@@ -10,7 +10,8 @@
     "lib": ["es2022", "dom", "dom.iterable"],
     "strict": true,
     "paths": {
-      "/layout.js": ["./layouts/classic/index.js"]
+      "/layout.js": ["./layouts/classic/index.js"],
+      "/pack.js": ["./packs/weather-icons/index.js"]
     }
   },
   "include": [

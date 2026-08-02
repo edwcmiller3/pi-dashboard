@@ -132,6 +132,48 @@ size):
 glows and adds a neon text-shadow to the hero temperature (documented
 deviations from the hue-only contract - see `static/themes/nord.css`).
 
+### Icon packs
+
+`ICON_PACK=<name>` selects which weather-icon set renders - the name of a
+directory under `static/packs/`. It is a third frontend axis, orthogonal to
+THEME and LAYOUT: the frontend maps each condition (and the chrome glyphs -
+wind / humidity / precip / sunrise / sunset) through the selected pack, whatever
+layout or theme is active. Built-in packs:
+
+- `weather-icons` (default) - the vendored weather-icons font; icons are glyphs
+  drawn in the text color.
+- `meteocons-flat` - full-color vendored Meteocons SVGs, the filled "flat" style.
+- `meteocons-line` - full-color vendored Meteocons SVGs, the lighter outline
+  "line" style.
+- `meteocons-mono` - single-color Meteocons: each SVG is painted as a CSS mask
+  over `currentColor`, so it inherits the layout/theme text color (the only pack
+  that retints with the palette).
+
+Like THEME and LAYOUT it is env-driven and read at startup, so a change needs a
+backend restart to apply. The name is slug-validated and the selection fail-softs
+to `weather-icons`: a non-slug value, a valid-but-absent pack, and an unset pack
+all serve the built-in weather-icons *experience* - both its module (`/pack.js`)
+and its stylesheet (`/pack.css`), never a blank or unstyled icon (the kiosk must
+never blank). Those two routes mirror `/layout.js` + `/layout.css`.
+
+**How to add a pack.** A pack is a directory `static/packs/<name>/` with two
+files:
+
+- `index.js` exporting `iconPack` (an `IconPack` per `static/core/contract.js`)
+  whose `renderIcon(name, extra)` returns `<i class="wx-icon wx-<name> <extra>">`.
+  It is byte-identical across every pack - the token-to-asset map lives in the
+  CSS, not the JS.
+- `pack.css` - a `.wx-icon` base rule plus one `.wx-<name>` rule per semantic
+  name, mapping each token to its asset (a font glyph, an SVG `url()`, or a mask).
+
+Then register `<name>` in `tests/test_pack.py`'s `_BUNDLED_PACKS`. For the
+bundled packs the `pack.css` is generated from a Python map under `app/packs/`
+(`weather_icons.py`; the three Meteocons variants share `meteocons.py`), and a
+pytest guard asserts the generator output equals the committed `pack.css` so the
+served CSS can't drift. A new pack can instead hand-write its `pack.css`.
+
+Icon licensing and offline-vendoring notes are in [Attribution](#attribution).
+
 ### Weather sources
 
 Current conditions and the forecast default to [Open-Meteo](https://open-meteo.com/)
@@ -180,3 +222,11 @@ Weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under
 set, current conditions come from the
 [National Weather Service](https://www.weather.gov/) (US-government public
 domain).
+
+Icons: the weather-icons font is under the
+[SIL Open Font License](https://openfontlicense.org/)
+(`static/vendor/weather-icons/OFL.txt`); the Meteocons SVGs are under the MIT
+License, Copyright (c) 2020-present Bas Milius
+(`static/packs/meteocons/LICENSE-MIT.txt`). Both are vendored offline (Meteocons
+via `tools/vendor_meteocons.py`), so the running Pi makes no network calls for
+icons.

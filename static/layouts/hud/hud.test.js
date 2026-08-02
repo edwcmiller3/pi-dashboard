@@ -3,11 +3,12 @@
 // jsdom). Run:  node --test static/layouts/hud/hud.test.js
 //
 // Scope (the two things a pure geometry test can't reach):
-//   1. every distinct weather-icons class the WMO table resolves to renders as a
-//      `wi-<name>` class on a forecast row, with its condition text intact and
-//      un-truncated (long strings included) - the "consume the resolved icon,
-//      wrap without ellipsis" contract. `test_hud_glyphs.py` proves the other
-//      half: all 28 WMO codes map onto exactly these classes, all in-font.
+//   1. every distinct IconToken the WMO table resolves to is routed through the
+//      injected pack onto a forecast row (as a `wx-<token>` glyph), with its
+//      condition text intact and un-truncated (long strings included) - the
+//      "hand the resolved token to the pack, wrap the text without ellipsis"
+//      contract. `test_hud_glyphs.py` proves the other half: all 28 WMO codes
+//      map onto exactly these tokens, all drawable by the default pack.
 //   2. the six geometric marks (◆ ▸ ◂ ▲ ▼ ⟳) are drawn as SVG shapes, never
 //      emitted as text that would fall back to a system font on the kiosk.
 //
@@ -157,27 +158,50 @@ function dayKeyPlus(n) {
 globalThis.document = makeDocument();
 const { layout, solarMarkerDecision, showEndOfSchedule } = await import("./index.js");
 
+// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
+// on the CURRENT document (freshMount swaps it per test) and records every
+// renderIcon call. Injection is required because a real `import "/pack.js"` is
+// unresolvable under node --test; the stub keeps the suite hermetic.
+function makeIconPack() {
+  /** @type {{ name: string, extra: string | undefined }[]} */
+  const calls = [];
+  return {
+    calls,
+    renderIcon(name, extra) {
+      calls.push({ name, extra });
+      const i = document.createElement("i");
+      i.className = "wx-icon wx-" + name + (extra ? " " + extra : "");
+      return i;
+    },
+  };
+}
+
+// The pack injected into the most recent freshMount(); tests read its `.calls`.
+let iconPack;
+
 /** Fresh mount into a bare #app for each test (ids re-register on the doc). */
 function freshMount() {
   globalThis.document = makeDocument();
   const root = document.createElement("div");
   root.id = "app";
-  layout.mount(root);
+  iconPack = makeIconPack();
+  layout.mount(root, { icon: iconPack });
   return root.children[0]; // the .screen.hud
 }
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
-// Every distinct weather-icons class app/weather_codes.py can resolve a WMO code
-// to (the WiIcon Literal, minus wi-na which is the unknown fallback). If the
+// Every distinct IconToken app/weather_codes.py can resolve a WMO code to (the
+// IconToken Literal, minus not-available which is the unknown fallback). If the
 // renderer round-trips all of these, it round-trips any of the 28 codes, which
 // map onto exactly this set (pinned by test_weather_codes.py + test_hud_glyphs.py).
-const WI_ICONS = [
-  "wi-day-sunny", "wi-night-clear", "wi-day-sunny-overcast", "wi-night-alt-cloudy-high",
-  "wi-day-cloudy", "wi-night-alt-cloudy", "wi-cloudy", "wi-fog",
-  "wi-day-sprinkle", "wi-night-alt-sprinkle", "wi-rain-mix", "wi-day-rain",
-  "wi-night-alt-rain", "wi-day-snow", "wi-night-alt-snow", "wi-day-showers",
-  "wi-night-alt-showers", "wi-day-sleet", "wi-sleet", "wi-thunderstorm",
+const ICON_TOKENS = [
+  "clear-day", "clear-night", "mostly-clear-day", "mostly-clear-night",
+  "partly-cloudy-day", "partly-cloudy-night", "overcast", "fog",
+  "drizzle-day", "drizzle-night", "freezing-drizzle", "rain-day",
+  "rain-night", "freezing-rain", "snow-day", "snow-night",
+  "showers-day", "showers-night", "snow-showers-day", "snow-showers-night",
+  "thunderstorm",
 ];
 
 /** @returns {import("../../core/contract.js").ForecastDay} */
@@ -195,7 +219,7 @@ function fday(icon, text, i) {
 }
 
 const CURRENT = {
-  temp_f: 82, feels_like_f: 85, code: 2, text: "Partly cloudy", icon: "wi-day-cloudy",
+  temp_f: 82, feels_like_f: 85, code: 2, text: "Partly cloudy", icon: "partly-cloudy-day",
   is_day: true, humidity_pct: 52, wind_mph: 7, precip_prob_pct: 15,
   high_f: 88, low_f: 71,
   sunrise: "2026-07-15T05:47:00-04:00", sunset: "2026-07-15T20:29:00-04:00",
@@ -208,16 +232,16 @@ const STATUS_DOC = {
 };
 
 // Four in-window forecast days (highs 80–83, lows 60–63 via fday).
-const fourDays = () => [0, 1, 2, 3].map((i) => fday("wi-day-sunny", "Clear", i));
+const fourDays = () => [0, 1, 2, 3].map((i) => fday("clear-day", "Clear", i));
 
 // ── weather glyphs: every resolved icon renders, condition text intact ────────
 
-test("renderForecast: each resolved icon class lands on its row's .wi glyph", () => {
+test("renderForecast: each resolved IconToken is routed through the pack onto its row's .gl glyph", () => {
   freshMount();
-  // The panel shows 4 rows; walk the full vocabulary in chunks so every class
-  // is exercised through the real renderer.
-  for (let i = 0; i < WI_ICONS.length; i += 4) {
-    const chunk = WI_ICONS.slice(i, i + 4);
+  // The panel shows 4 rows; walk the full vocabulary in chunks so every token is
+  // exercised through the real renderer + the injected pack.
+  for (let i = 0; i < ICON_TOKENS.length; i += 4) {
+    const chunk = ICON_TOKENS.slice(i, i + 4);
     const days = chunk.map((icon, j) => fday(icon, `cond ${icon}`, i + j));
     layout.renderForecast(days);
     const rows = allByClass(document.getElementById("frows"), "frow");
@@ -225,8 +249,11 @@ test("renderForecast: each resolved icon class lands on its row's .wi glyph", ()
     rows.forEach((row, j) => {
       const glyph = firstByClass(row, "gl");
       assert.ok(glyph, "row has a .gl weather glyph");
-      assert.ok(glyph.classList.contains("wi"), "glyph carries the .wi base class");
-      assert.ok(glyph.classList.contains(chunk[j]), `glyph carries ${chunk[j]}`);
+      assert.ok(glyph.classList.contains("wx-icon"), "glyph carries the pack's .wx-icon base class");
+      assert.ok(glyph.classList.contains("wx-" + chunk[j]), `glyph carries wx-${chunk[j]}`);
+      // the layout handed f.icon (the IconToken) to the pack with the "gl" extra
+      const call = iconPack.calls.find((c) => c.name === chunk[j]);
+      assert.ok(call && call.extra === "gl", `renderIcon("${chunk[j]}", "gl") was called`);
       // condition text is present verbatim (routed via textContent, not markup)
       const cond = firstByClass(row, "cond");
       assert.equal(cond.textContent, `cond ${chunk[j]}`);
@@ -239,7 +266,7 @@ test("renderForecast: long condition text is kept whole (no ellipsis truncation)
   // Worst-case wrapping strings - the renderer must place them verbatim; the
   // 2-line wrap (no ellipsis) is enforced by layout.css (asserted in Python).
   const longs = ["Heavy freezing drizzle", "Thunderstorm with hail"];
-  const days = longs.map((t, i) => fday("wi-rain-mix", t, i));
+  const days = longs.map((t, i) => fday("freezing-drizzle", t, i));
   layout.renderForecast(days);
   const conds = allByClass(document.getElementById("frows"), "cond");
   longs.forEach((t, i) => assert.equal(conds[i].textContent, t));
@@ -248,8 +275,8 @@ test("renderForecast: long condition text is kept whole (no ellipsis truncation)
 test("renderForecast: precip line shows only on precip_expected days", () => {
   freshMount();
   layout.renderForecast([
-    fday("wi-day-rain", "Rain", 0), // even i → precip_expected true
-    fday("wi-day-sunny", "Clear", 1), // odd i → false
+    fday("rain-day", "Rain", 0), // even i → precip_expected true
+    fday("clear-day", "Clear", 1), // odd i → false
   ]);
   const rows = allByClass(document.getElementById("frows"), "frow");
   assert.ok(firstByClass(rows[0], "pp").classList.contains("on"));
@@ -262,8 +289,8 @@ test("no geometric mark (◆ ▸ ◂ ▲ ▼ ⟳) is ever emitted as a text node
   const screen = freshMount();
   const today = localDayKey();
   layout.renderClock(new Date(), true);
-  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("wi-day-rain", "Rain", 0)] });
-  layout.renderForecast([fday("wi-day-rain", "Rain", 0)]);
+  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("rain-day", "Rain", 0)] });
+  layout.renderForecast([fday("rain-day", "Rain", 0)]);
   layout.renderAgenda(
     [
       { start: today, all_day: true, title: "Independence Day", kind: "observance" },
@@ -286,7 +313,7 @@ test("no geometric mark (◆ ▸ ◂ ▲ ▼ ⟳) is ever emitted as a text node
 test("the reachable marks are drawn as <svg> shapes with their sym class", () => {
   const screen = freshMount();
   const today = localDayKey();
-  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("wi-day-rain", "Rain", 0)] });
+  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("rain-day", "Rain", 0)] });
   layout.renderAgenda(
     [
       { start: today, all_day: true, title: "Independence Day", kind: "observance" }, // ◆ diamond
@@ -328,7 +355,7 @@ test("renderClock: zero-padded hour + uppercase date + sync warning toggle", () 
 
 test("renderCurrent: computes the shared scale label + fills the docks", () => {
   freshMount();
-  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("wi-day-rain", "Rain", 0), fday("wi-day-snow", "Snow", 1)] });
+  layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast: [fday("rain-day", "Rain", 0), fday("snow-day", "Snow", 1)] });
   // window over [82,88,71,60,80,61,81]: min 60 lands on a gridline → drops one
   // step to 50; span 40 → 50–90 (hi 88 fits).
   assert.equal(document.getElementById("scaleLbl").textContent, "SCALE 50–90");
@@ -355,7 +382,7 @@ test("shared scale: mount() clears the window so a remount can't leak a stale on
   layout.renderCurrent({ ok: true, fetched_at: "x", current: { ...CURRENT, high_f: 105 }, forecast: fourDays() }); // sets 50–110
   const root2 = document.createElement("div");
   root2.id = "app2";
-  layout.mount(root2); // MUST reset scaleWindow → null
+  layout.mount(root2, { icon: iconPack }); // MUST reset scaleWindow → null
   layout.renderForecast(fourDays()); // falls back to forecast-only 50–90
   const rul = document.getElementById("rul");
   // 4 numerals (…110) here would mean the stale 50–110 leaked past the remount.
@@ -365,8 +392,8 @@ test("shared scale: mount() clears the window so a remount can't leak a stale on
 test("renderCurrent: seeds the scale from only the first 4 days (>4-day feed can't stretch it)", () => {
   freshMount();
   const forecast = fourDays();
-  forecast.push({ ...fday("wi-day-sunny", "Hot", 4), high_f: 130, low_f: 120 });
-  forecast.push({ ...fday("wi-day-sunny", "Hot", 5), high_f: 135, low_f: 125 });
+  forecast.push({ ...fday("clear-day", "Hot", 4), high_f: 130, low_f: 120 });
+  forecast.push({ ...fday("clear-day", "Hot", 5), high_f: 135, low_f: 125 });
   layout.renderCurrent({ ok: true, fetched_at: "x", current: CURRENT, forecast });
   // Seeded from days 0–3 + today only → 50–90; days 4–5 (130/135) are excluded.
   assert.equal(document.getElementById("scaleLbl").textContent, "SCALE 50–90");

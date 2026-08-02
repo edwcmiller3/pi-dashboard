@@ -9,6 +9,7 @@ import { localDayKey, dayRolledOver } from "./time.js";
 
 /** @typedef {import("./contract.js").DashboardDoc} DashboardDoc */
 /** @typedef {import("./contract.js").Layout} Layout */
+/** @typedef {import("./contract.js").IconPack} IconPack */
 
 const DATA_URL = "/api/data";
 
@@ -24,10 +25,14 @@ const RETRY_INTERVAL_MS = 30 * 1000;
 /**
  * Build the dashboard state machine bound to one layout. Returns the bootstrap
  * handle; nothing runs until `init()` is called (from the browser entry point).
+ * `ctx` carries the injected render context (the active icon pack) forwarded
+ * verbatim to the layout's mount - the core never inspects it, keeping WHAT
+ * renders (pack included) entirely the layout's concern.
  * @param {Layout} layout
+ * @param {{ icon: IconPack }} ctx
  * @returns {{ init: () => void }}
  */
-export function createApp(layout) {
+export function createApp(layout, ctx) {
   // True once at least one fetch has painted real data. Drives how failures
   // degrade: BEFORE the first success (the cold-boot 503 window) we show honest
   // "unavailable" placeholders in EVERY data region; AFTER it, a failed poll
@@ -121,7 +126,7 @@ export function createApp(layout) {
     // (caught by app.js's try/catch net) instead of calling mount(null).
     const root = document.getElementById("app");
     if (!root) throw new Error('mount root #app not found in the document');
-    layout.mount(root);
+    layout.mount(root, ctx);
     renderClockNow();
     currentDay = localDayKey();
     setInterval(() => {

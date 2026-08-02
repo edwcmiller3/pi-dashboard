@@ -34,6 +34,13 @@ import { el } from "../../core/dom.js";
 /** @typedef {import("../../core/contract.js").DashboardDoc} DashboardDoc */
 /** @typedef {import("../../core/contract.js").StatusOpts} StatusOpts */
 /** @typedef {import("../../core/agenda.js").DayGroup} DayGroup */
+/** @typedef {import("../../core/contract.js").IconPack} IconPack */
+
+// The icon pack injected at mount (core/contract.js IconPack). The current +
+// forecast condition glyphs route through iconPack.renderIcon, so this layout
+// never names a pack - swapping ICON_PACK upstream reskins them. Set in mount.
+/** @type {IconPack} */
+let iconPack;
 
 // ── shell ────────────────────────────────────────────────────────────────────
 
@@ -43,8 +50,9 @@ import { el } from "../../core/dom.js";
 // Source order below drives the grid auto-placement to that arrangement. The
 // id'd region containers are filled by the renderers; only the shell + the
 // static "Upcoming" agenda tag are built here.
-/** @param {HTMLElement} root @returns {void} */
-function mount(root) {
+/** @param {HTMLElement} root @param {{ icon: IconPack }} ctx @returns {void} */
+function mount(root, ctx) {
+  iconPack = ctx.icon;
   const screen = el("div", "screen swiss-mono");
 
   // 01 / TIME - big clock + long date (+ the hidden clock-not-synced warning).
@@ -90,14 +98,6 @@ const REFRESH_SVG =
   '<path d="M19.5 12A7.5 7.5 0 1 1 16.6 6.2"/><polyline points="16.9 2.6 16.9 6.5 13 6.5"/></svg>';
 
 // ── DOM builders ─────────────────────────────────────────────────────────────
-
-// A weather <i class="wi wi-…"> glyph. The icon class is an OWN value (resolved
-// by the backend's WMO->wi-* table), so it is safe in an attribute; human text
-// (conditions, event titles) must NEVER be built this way.
-/** @param {string} iconClass @param {string} [extra] @returns {HTMLElement} */
-function wiIcon(iconClass, extra) {
-  return el("i", "wi " + iconClass + (extra ? " " + extra : ""));
-}
 
 // One cell of the 8-cell current-weather meta grid: uppercase key + value. Both
 // set via el()/textContent - never interpolated as HTML.
@@ -213,7 +213,7 @@ function renderCurrent(weather) {
   const temp = el("div", "cur-temp");
   temp.append(String(c.temp_f), el("span", "deg", "°")); // own numbers only
   const iconblock = el("div", "cur-iconblock");
-  iconblock.append(wiIcon(c.icon, "cur-icon"));
+  iconblock.append(iconPack.renderIcon(c.icon, "cur-icon"));
   top.append(temp, iconblock);
 
   const cond = el("div", "cur-cond");
@@ -263,7 +263,7 @@ function renderForecast(forecast) {
     }
 
     // day (top) · icon · temps · condition+precip foot (bottom).
-    card.append(el("div", "fc-day", dname), wiIcon(f.icon, "fc-icon"), temps, foot);
+    card.append(el("div", "fc-day", dname), iconPack.renderIcon(f.icon, "fc-icon"), temps, foot);
     root.append(card);
   }
 }

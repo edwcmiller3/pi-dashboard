@@ -4,18 +4,23 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pi Dashboard</title>
-<!-- Self-hosted, subset weather-icons font (no CDN - prod requirement). -->
-<link rel="stylesheet" href="vendor/weather-icons/weather-icons.css" />
 <!-- TRUE base: reset, :root palette vars, canvas sizing. -->
 <link rel="stylesheet" href="style.css" />
+<!-- Icon pack CSS: the selected icon pack's self-hosted @font-face + .wx-icon
+     base + per-glyph rules, served by the /pack.css route (ICON_PACK setting;
+     weather-icons by default). Carries the whole weather-icons font stylesheet
+     (conditions + chrome), so nothing else links the vendored css. Loaded AFTER
+     the base and BEFORE the layout so the cascade is base < pack < layout <
+     theme - the pack supplies the glyph drawing the layout then sizes/colors. -->
+<link rel="stylesheet" href="pack.css" />
 <!-- Layout CSS: the selected layout's own rules, served by the /layout.css
-     route (LAYOUT setting; classic by default). Loaded BETWEEN style.css and
-     theme.css so the cascade is base < layout < theme - a layout overrides/
-     extends the base (e.g. .screen), a theme's :root block still wins. -->
+     route (LAYOUT setting; classic by default). Loaded BETWEEN pack.css and
+     theme.css so the cascade is base < pack < layout < theme - a layout
+     overrides/extends the base (e.g. .screen), a theme's :root block still wins. -->
 <link rel="stylesheet" href="layout.css" />
 <!-- Palette override (THEME setting): the server serves the configured
      static/themes/<name>.css here, or empty CSS when unset. Loaded LAST so its
-     :root block wins the cascade (base < layout < theme). -->
+     :root block wins the cascade (base < pack < layout < theme). -->
 <link rel="stylesheet" href="theme.css" />
 </head>
 <body>

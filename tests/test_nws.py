@@ -409,7 +409,7 @@ def test_merge_mapped_condition_swaps_code_text_icon_honoring_model_is_day() -> 
     merged = weather.merge_current(model, _obs(wmo_code=63), _NOW)
     assert merged["code"] == 63
     assert merged["text"] == "Rain"
-    assert merged["icon"] == "wi-night-alt-rain"  # night variant - is_day honored
+    assert merged["icon"] == "rain-night"  # night variant - is_day honored
     assert merged["is_day"] is False
 
 

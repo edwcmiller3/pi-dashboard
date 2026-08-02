@@ -1,49 +1,44 @@
-"""HUD weather-glyph coverage + the no-ellipsis condition-wrap contract.
+"""HUD weather-condition coverage + the no-ellipsis condition-wrap contract.
 
-The HUD reuses the vendored weather-icons font for ALL 28 WMO conditions (it
-consumes the server-resolved `icon` class rather than hand-drawing SVG). This
-test proves the half a DOM-free JS test can't reach with the real WMO table:
+The HUD consumes the server-resolved `icon` token (an icon pack maps it to a
+glyph) rather than hand-drawing SVG. This test proves the half a DOM-free JS
+test can't reach with the real WMO table:
 
-  * every one of the 28 documented WMO codes - in BOTH day and night variants - 
-    resolves via describe() to a wi-* class that is actually DEFINED in the
-    vendored weather-icons.css (so it renders a real glyph on the kiosk, never
-    tofu), with a non-empty condition label;
+  * every one of the 28 documented WMO codes - in BOTH day and night variants -
+    resolves via describe() to a member of the IconToken vocabulary, with a
+    non-empty condition label;
   * the HUD forecast row's condition text wraps rather than ellipsis-truncating
     (mock decision; worst case "Heavy freezing drizzle"), enforced in layout.css.
 
-The companion static/layouts/hud/hud.test.js proves the renderer round-trips
-each resolved `icon` onto its forecast row's .wi glyph - together they cover the
-"all 28 codes render a non-tofu glyph + wrapped text in the HUD forecast" gate.
+The font-subset / tofu guard (every emitted token maps to a real, in-font
+glyph) now lives in the weather-icons pack test -
+`tests/test_weather_icons_pack.py::test_every_pack_codepoint_is_in_the_vendored_woff2_subset`
+- which owns the token -> glyph mapping and its generated CSS. Here we only check
+the token vocabulary, which is all the transform now owns.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import get_args
 
-from app.weather_codes import WMO, describe
+from app.weather_codes import WMO, IconToken, describe
 
 _STATIC = Path(__file__).resolve().parent.parent / "static"
-_WI_CSS = _STATIC / "vendor" / "weather-icons" / "weather-icons.css"
 _HUD_CSS = _STATIC / "layouts" / "hud" / "layout.css"
 
 
-def _defined_wi_classes() -> set[str]:
-    """Every `.wi-*` class the vendored weather-icons stylesheet actually draws."""
-    return set(re.findall(r"\.(wi-[a-z0-9-]+)::before", _WI_CSS.read_text()))
-
-
-def test_all_28_wmo_codes_resolve_to_an_in_font_glyph() -> None:
+def test_all_28_wmo_codes_resolve_to_a_known_token() -> None:
     # Guard: the documented Open-Meteo table really is the full 28 interpretations.
     assert len(WMO) == 28
-    classes = _defined_wi_classes()
+    tokens = set(get_args(IconToken))
     for code in WMO:
         for is_day in (True, False):
             cond = describe(code, is_day)
             icon = cond["icon"]
-            assert icon.startswith("wi-"), f"code {code} icon is not a wi-* class"
-            # Defined in the vendored CSS → the HUD renders a real glyph, not tofu.
-            assert icon in classes, f"code {code} ({is_day=}) → {icon} not in weather-icons.css"
+            # A member of the IconToken vocabulary -> an icon pack can resolve it.
+            assert icon in tokens, f"code {code} ({is_day=}) -> {icon} not an IconToken"
             assert cond["text"].strip(), f"code {code} has an empty condition label"
 
 

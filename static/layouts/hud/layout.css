@@ -424,7 +424,7 @@
   letter-spacing: 0.14em;
   color: var(--ph2);
 }
-.hud .frow .wi.gl {
+.hud .frow .wx-icon.gl {
   grid-column: 2;
   font-size: 27px;
   line-height: 1;

@@ -115,13 +115,13 @@ def test_current_icon_text_resolved_day() -> None:
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["code"] == 0
     assert cur["text"] == "Clear"
-    assert cur["icon"] == "wi-day-sunny"  # is_day=1
+    assert cur["icon"] == "clear-day"  # is_day=1
     assert cur["is_day"] is True
 
 
 def test_current_icon_uses_night_variant_when_not_day() -> None:
     cur = weather.normalize_weather(with_current(is_day=0))["current"]
-    assert cur["icon"] == "wi-night-clear"
+    assert cur["icon"] == "clear-night"
     assert cur["is_day"] is False
 
 
@@ -183,7 +183,7 @@ def test_forecast_fields_resolved() -> None:
     first = weather.normalize_weather(RAW)["forecast"][0]
     assert first["code"] == 2
     assert first["text"] == "Partly cloudy"
-    assert first["icon"] == "wi-day-cloudy"  # cards always use the daytime glyph
+    assert first["icon"] == "partly-cloudy-day"  # cards always use the daytime token
     assert first["high_f"] == 78
     assert first["low_f"] == 63
     assert first["precip_prob_pct"] == 20
@@ -201,7 +201,7 @@ def test_forecast_precip_expected_tracks_the_weather_code() -> None:
 def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:
     # Even fetched at night, the look-ahead cards show day glyphs.
     fc = weather.normalize_weather(with_current(is_day=0))["forecast"]
-    assert fc[1]["icon"] == "wi-day-rain"  # code 63 daytime
+    assert fc[1]["icon"] == "rain-day"  # code 63 daytime
 
 
 # ── robustness ──────────────────────────────────────────────────────────────
@@ -216,9 +216,9 @@ def test_null_precip_probability_becomes_zero() -> None:
     assert norm["forecast"][0]["precip_prob_pct"] == 0
 
 
-def test_unknown_code_falls_back_to_wi_na() -> None:
+def test_unknown_code_falls_back_to_not_available() -> None:
     cur = weather.normalize_weather(with_current(weather_code=1234))["current"]
-    assert cur["icon"] == "wi-na"
+    assert cur["icon"] == "not-available"
     assert cur["text"] == "Unknown"
 
 
@@ -273,7 +273,7 @@ def test_get_weather_wraps_with_ok_and_offset_stamp(
     assert "T" in fetched_at
     # the normalized block rides along under the same dict (rounding itself is
     # covered by test_round_half_up / test_current_numbers_rounded_to_int).
-    assert result["current"]["icon"] == "wi-day-sunny"
+    assert result["current"]["icon"] == "clear-day"
     assert len(result["forecast"]) == 4
 
 

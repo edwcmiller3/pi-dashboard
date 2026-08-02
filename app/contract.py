@@ -28,7 +28,7 @@ from typing import Final, Literal, NotRequired, TypedDict
 
 from pydantic import TypeAdapter, ValidationError
 
-from app.weather_codes import WiIcon
+from app.weather_codes import IconToken
 
 # An agenda item's provenance. "personal" = a Proton event; the rest are the
 # offline holidays source (federal holiday / lesser observance / DST marker).
@@ -78,7 +78,7 @@ class CurrentWeather(TypedDict):
     feels_like_f: int
     code: int
     text: str
-    icon: WiIcon
+    icon: IconToken
     is_day: bool
     humidity_pct: int
     wind_mph: int
@@ -93,7 +93,7 @@ class ForecastDay(TypedDict):
     date: str
     code: int
     text: str
-    icon: WiIcon
+    icon: IconToken
     high_f: int
     low_f: int
     precip_prob_pct: int
