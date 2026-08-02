@@ -11,6 +11,16 @@
 # unit is valid, but "active" != "wayland socket ready", so ExecStartPre waits for
 # the socket and Restart=always covers any residual race.
 #
+# SECOND ExecStartPre - backend readiness: After=pi-dashboard.service only
+# guarantees the backend PROCESS exec'd (Type=exec), NOT that uvicorn is accepting
+# connections on :8000. Chromium loads the URL exactly once at start and does NOT
+# retry a page it already rendered - so if it hits :8000 before uvicorn binds, the
+# ERR_CONNECTION_REFUSED ("localhost refused to connect") page STICKS (Restart=always
+# won't help: the browser didn't exit, it "succeeded" at rendering the error). So
+# gate the launch on the /healthz probe until the backend actually serves. curl
+# ships with Pi OS; if the backend never comes up, this blocks until systemd's
+# TimeoutStartSec, then Restart=always retries the whole unit.
+#
 # PINNED FLAG SET (determinism + quiet log + SD-wear):
 #   --ozone-platform=wayland --enable-features=UseOzonePlatform  native Wayland
 #   --kiosk --app=...                fullscreen, no chrome, single app
@@ -43,6 +53,7 @@ Wants=pi-dashboard.service
 Type=simple
 Environment=WAYLAND_DISPLAY=wayland-0
 ExecStartPre=/bin/sh -c 'until [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; do sleep 0.5; done'
+ExecStartPre=/bin/sh -c 'until curl -sf http://localhost:8000/healthz >/dev/null 2>&1; do sleep 0.5; done'
 ExecStart=/usr/bin/chromium \
   --ozone-platform=wayland --enable-features=UseOzonePlatform \
   --kiosk --app=http://localhost:8000 \

@@ -21,11 +21,13 @@ classic experience (the plan's Phase-2 exit criterion).
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.main import _SLUG_RE, _static_dir, app
+from app.main import _SLUG_RE, _static_dir, _warn_on_unknown_layout, app
 
 # The generated module body for the classic layout - the fail-soft target and
 # the unset-LAYOUT default. Note the relative "./layouts/..." specifier: it
@@ -150,6 +152,55 @@ def test_valid_slug_but_absent_layout_falls_back_to_classic(
     status, css, _ = _get("/layout.css")
     assert status == 200
     assert css == _classic_css()
+
+
+# The dev/prod parity trap that shipped: the Mac's filesystem is case-INSENSITIVE
+# so LAYOUT=HUD "worked" in dev, but the Pi's is case-SENSITIVE so layouts/HUD/
+# didn't exist there and it silently fell back to classic. The routes now fold
+# case (and stray .env whitespace) before touching disk, so every variant of a
+# real layout resolves to the same asset on either filesystem.
+@pytest.mark.parametrize("name", ["HUD", "Hud", "hUd", " hud ", "hud\n"])
+def test_layout_name_is_case_and_space_insensitive(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(settings, "layout", name)
+    status, js, headers = _get("/layout.js")
+    assert status == 200
+    assert js == 'export {layout} from "./layouts/hud/index.js";\n'
+    assert headers["content-type"].startswith("text/javascript")
+
+    status, css, _ = _get("/layout.css")
+    assert status == 200
+    assert css == (_static_dir / "layouts" / "hud" / "layout.css").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_unknown_layout_warns_loudly_at_startup(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A valid-slug-but-absent LAYOUT must be SURFACED at boot (not just fail-soft
+    # silently per request), naming the value and the layouts that DO exist - the
+    # journal line that turns "the wall shows classic" from a mystery into a
+    # 10-second diagnosis.
+    monkeypatch.setattr(settings, "layout", "hudd")
+    with caplog.at_level(logging.WARNING, logger="pi_dashboard.refresh"):
+        _warn_on_unknown_layout()
+    assert "hudd" in caplog.text
+    assert "static/layouts" in caplog.text
+    assert "hud" in caplog.text  # the "have: ..." list points at the real names
+
+
+@pytest.mark.parametrize("resolvable", ["HUD", "classic", "", "swiss-mono"])
+def test_resolvable_or_default_layout_is_silent_at_startup(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, resolvable: str
+) -> None:
+    # The startup check must NOT cry wolf: a case variant that resolves (HUD->hud),
+    # the explicit/implicit classic default, and a real layout all stay quiet.
+    monkeypatch.setattr(settings, "layout", resolvable)
+    with caplog.at_level(logging.WARNING, logger="pi_dashboard.refresh"):
+        _warn_on_unknown_layout()
+    assert "matches no layout" not in caplog.text
 
 
 def test_index_loads_only_app_js_as_its_module() -> None:

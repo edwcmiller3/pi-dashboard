@@ -311,6 +311,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "PROTON_ICS_URL is not set — personal calendar events are disabled "
             "(holidays/observances still show). Set it in .env to enable."
         )
+    # Surface a bad LAYOUT loudly at boot (the routes fail-soft silently per
+    # request, so a typo/case-mismatch is otherwise invisible on a headless Pi).
+    _warn_on_unknown_layout()
     task = asyncio.create_task(_refresh_loop())
     app.state.refresh_task = task  # strong ref so the loop isn't GC'd mid-flight
     task.add_done_callback(_loop_exited)
@@ -403,6 +406,18 @@ _SLUG_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
 _NO_CACHE: Final = {"Cache-Control": "no-cache"}
 
 
+def _normalized(name: str) -> str:
+    """Canonicalize a THEME/LAYOUT value to how it resolves on disk: strip
+    surrounding whitespace from a hand-edited .env and lowercase it. The dev Mac's
+    filesystem is case-INSENSITIVE but the Pi's is case-SENSITIVE, so LAYOUT=HUD
+    "worked" in dev yet silently fell back to classic on the wall (layouts/HUD/
+    doesn't exist there). Every bundled theme/layout dir is lowercase, so this
+    makes HUD/Hud/hud (and a stray trailing space) all resolve to the same asset
+    on either filesystem - killing that dev/prod parity trap at the boundary where
+    the value is turned into a path."""
+    return name.strip().lower()
+
+
 def _valid_slug(name: str) -> bool:
     """A bare slug is safe to interpolate into a filesystem path. Warn on a
     non-empty non-slug (a config typo worth surfacing); an empty/unset value is
@@ -445,6 +460,7 @@ def _serve_slug_css(
     kiosk must never lose the dashboard over a bad config value. Read per request
     (like the no-cache static bundle) so editing the file shows on next reload.
     """
+    name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
     if _valid_slug(name):
         rel = f"{name}.css" if leaf is None else f"{name}/{leaf}.css"
         path = _static_dir / subdir / rel
@@ -468,13 +484,50 @@ def _serve_layout_module(name: str) -> Response:
     Both a bad slug AND a valid-slug-but-absent module fall back to classic: a
     re-export of a missing module would 404 the ES-module graph at LOAD time
     (which app.js's usage-level try/catch can't catch → blank kiosk). Shares
-    only _SLUG_RE and the no-cache header with the css reader."""
+    _normalized, _SLUG_RE, and the no-cache header with the css reader."""
+    name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
     slug = name if _valid_slug(name) else "classic"
     if slug != "classic" and not (_static_dir / "layouts" / slug / "index.js").is_file():
         log.warning("layout %r has no index.js module; falling back to classic", slug)
         slug = "classic"
     body = f'export {{layout}} from "./layouts/{slug}/index.js";\n'
     return Response(body, media_type="text/javascript", headers=_NO_CACHE)
+
+
+def _available_layouts() -> list[str]:
+    """Layout dir names under static/layouts/ that carry an index.js module - the
+    exact set a LAYOUT value can select. Sorted for a stable log line; empty on an
+    unreadable dir (never fatal: the routes still fail-soft per request)."""
+    try:
+        return sorted(
+            p.name
+            for p in (_static_dir / "layouts").iterdir()
+            if (p / "index.js").is_file()
+        )
+    except OSError:
+        return []
+
+
+def _warn_on_unknown_layout() -> None:
+    """Log ONCE at startup when LAYOUT won't resolve, so a config typo is visible
+    in the journal instead of silently rendering classic on a headless wall. The
+    /layout.* routes still fail-soft per request - this only surfaces the CAUSE,
+    which was otherwise buried in a per-request warning. The value is folded the
+    same way the routes resolve it, so a mere case/space variant (LAYOUT=HUD -> hud)
+    does NOT warn; only a genuinely absent layout does. `settings.layout` (the raw
+    value) is echoed so the operator recognizes exactly what they typed."""
+    name = _normalized(settings.layout)
+    if not name or name == "classic":
+        return  # unset/default: the intended classic experience, nothing to warn
+    if not _valid_slug(name):
+        return  # _valid_slug already warned that the value isn't a bare slug
+    if not (_static_dir / "layouts" / name / "index.js").is_file():
+        log.warning(
+            "LAYOUT=%r matches no layout under static/layouts (have: %s); "
+            "serving classic",
+            settings.layout,
+            ", ".join(_available_layouts()) or "none",
+        )
 
 
 @app.get("/theme.css")
