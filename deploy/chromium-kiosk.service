@@ -60,6 +60,7 @@ ExecStart=/usr/bin/chromium \
   --force-device-scale-factor=1.5 \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble --no-first-run \
   --disable-background-networking --disable-component-update --disable-sync \
+  --disable-features=OptimizationHints,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationGuideModelDownloading,OptimizationGuideModelExecution \
   --disable-translate --check-for-update-interval=31536000 \
   --overscroll-history-navigation=0 --password-store=basic \
   --disk-cache-dir=%t/chromium-cache --disk-cache-size=33554432 \
