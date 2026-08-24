@@ -1,0 +1,17 @@
+{
+  "ComponentUpdatesEnabled": false,
+  "SyncDisabled": true,
+  "BrowserSignin": 0,
+  "BackgroundModeEnabled": false,
+
+  "SafeBrowsingProtectionLevel": 0,
+  "MetricsReportingEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false,
+  "DomainReliabilityAllowed": false,
+  "FeedbackSurveysEnabled": false,
+  "PromotionalTabsEnabled": false,
+
+  "SearchSuggestEnabled": false,
+  "SpellCheckServiceEnabled": false,
+  "DefaultNotificationsSetting": 2
+}
