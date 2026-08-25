@@ -332,48 +332,70 @@ masked.
 ### 5. Blocking Google background traffic (Chromium phone-home)
 
 The kiosk is a Chromium instance, and Chromium runs background services that
-periodically reach Google regardless of the page it's showing. On a signed-out
-kiosk the noisy ones are:
+reach Google regardless of the page it's showing (the panel only ever loads
+`http://localhost:8000`, so none of this is the app). Attribution is easy to
+confirm: `systemctl --user stop chromium-kiosk.service` and the traffic stops
+dead; start it and the traffic returns. The domains seen:
 
 - `optimizationguide.pa.googleapis.com` - the Optimization Guide fetching "hints"
   and downloading on-device ML models.
-- `mtalk.google.com` + `android.clients.google.com` - Google Cloud Messaging
-  (GCM): the push check-in/registration (`android.clients`) and the persistent
-  push socket (`mtalk`). GCM starts whenever *any* component asks for a push
-  channel, and once it can't reach the endpoint it retries on backoff - so a
-  DNS-level block (e.g. Pi-hole) makes the request frequency go *up*, not down.
-  The cure is to stop Chromium initiating it, not to block it downstream.
+- `mtalk.google.com` + `android.clients.google.com` (+ a `www.google.com`
+  preflight) - Google Cloud Messaging (GCM): the push check-in/registration
+  (`android.clients`) and the persistent push socket (`mtalk`). Once GCM can't
+  reach the endpoint it retries on backoff (observed: 3 lookups every ~30 s), so
+  a DNS-level block (Pi-hole) makes the request frequency go *up*, not down - the
+  block is what turns it into a top talker.
 
-`--disable-background-networking` (in `chromium-kiosk.service`) does NOT cover
-these: the Optimization Guide runs on its own scheduler outside that switch, and
-the GCM channel is held open by whatever component still wants push. Two layers
-kill it at the source:
+**What does NOT work, and why.** `--disable-background-networking` does not cover
+these, and neither does the full kitchen sink. Two layers help but do not finish
+the job:
 
-1. **Flags** (already in `chromium-kiosk.service` `ExecStart`):
-   `--disable-features=OptimizationHints,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationGuideModelDownloading,OptimizationGuideModelExecution`
-   stops the Optimization Guide fetch/model download (and the GCM registration it
-   drives).
+1. **`--disable-features=OptimizationHints,...`** (in `chromium-kiosk.service`
+   `ExecStart`) genuinely stops the Optimization Guide fetch/model download -
+   `optimizationguide.pa.googleapis.com` goes away. Confirm it landed on the live
+   process (the Pi OS `/usr/bin/chromium` wrapper can drop flags):
+   `ps -ww -eo args | grep -i chromi | grep -o 'disable-features=[^ ]*'`.
 
-2. **Managed policy** (`deploy/chromium-policy.json`) - survives the Pi OS
-   `/usr/bin/chromium` flag wrapper and version bumps, and disables the remaining
-   signed-out GCM consumers (component updater, sync, sign-in) plus Google
-   telemetry/beacons:
+2. **Managed policy** (`deploy/chromium-policy.json`, installed to
+   `/etc/chromium/policies/managed/kiosk.json`) disables telemetry, Safe
+   Browsing, component updates, sync, and sign-in. Kept as defense-in-depth, but
+   it does **not** stop GCM.
 
    ```sh
-   # Confirm the policy dir for your chromium package (Debian 'chromium' = /etc/chromium):
-   ls -d /etc/chromium*/policies/managed 2>/dev/null
-   # Install (adjust the path if the line above shows /etc/chromium-browser/...):
+   ls -d /etc/chromium*/policies/managed 2>/dev/null   # Debian 'chromium' = /etc/chromium
    sudo install -Dm644 deploy/chromium-policy.json \
      /etc/chromium/policies/managed/kiosk.json
-   systemctl --user restart chromium-kiosk.service   # policies load at launch
+   systemctl --user restart chromium-kiosk.service     # policies load at launch
    ```
 
-   The most likely remaining `mtalk` driver is the component updater, so
-   `ComponentUpdatesEnabled: false` is the load-bearing key. Verify behaviorally
-   (a kiosk has no keyboard for `chrome://policy`): with the Pi-hole blocks
-   temporarily off, watch DNS for a couple of minutes and confirm the three
-   domains stay quiet -
-   `sudo tcpdump -ni any -l 'udp port 53' | grep -iE 'mtalk|android.clients|optimizationguide'`.
+GCM itself **cannot be disabled at runtime** in stock Chromium - not by
+`--disable-background-networking`, `--disable-component-update`, `--disable-sync`,
+nor even `--disable-features=GCM`. The GCM component initializes anyway; this is a
+known, unresolved upstream limitation (see chromiumembedded/cef#4078). The only
+*true* removal is a build with GCM compiled out (ungoogled-chromium), which on
+arm64/Pi means a third-party binary or a self-build and no `apt` security updates
+- not worth it here.
+
+**What actually works: contain it inside Chromium.** Fail resolution *before* any
+DNS query leaves the process, with a host-resolver rule (in `ExecStart`):
+
+```
+"--host-resolver-rules=MAP mtalk.google.com ~NOTFOUND, MAP android.clients.google.com ~NOTFOUND, MAP www.google.com ~NOTFOUND"
+```
+
+`~NOTFOUND` makes Chromium's own resolver return failure for those hosts, so no
+DNS query and no packet ever egress - the GCM component still spins internally
+but reaches the wire zero times. This is strictly better than a Pi-hole block
+(which still emits the query). The quoting matters: the value contains spaces, so
+it must be a single double-quoted `ExecStart` argument or systemd splits it. The
+app references none of these hosts, so `NOTFOUND`-ing them has no collateral.
+Verify silence (Pi-hole *unblocked*, so you're testing the flag not the block):
+
+```sh
+sudo tcpdump -ni any 'udp port 53' | grep -iE 'mtalk|android.clients|www\.google'   # expect nothing
+```
+
+With the resolver rule in place the Pi-hole blocks for these three are redundant.
 
 ## Updating after a deploy (`git pull`)
 
