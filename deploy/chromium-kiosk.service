@@ -61,6 +61,7 @@ ExecStart=/usr/bin/chromium \
   --noerrdialogs --disable-infobars --disable-session-crashed-bubble --no-first-run \
   --disable-background-networking --disable-component-update --disable-sync \
   --disable-features=OptimizationHints,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationGuideModelDownloading,OptimizationGuideModelExecution \
+  "--host-resolver-rules=MAP mtalk.google.com ~NOTFOUND, MAP android.clients.google.com ~NOTFOUND, MAP www.google.com ~NOTFOUND" \
   --disable-translate --check-for-update-interval=31536000 \
   --overscroll-history-navigation=0 --password-store=basic \
   --disk-cache-dir=%t/chromium-cache --disk-cache-size=33554432 \
