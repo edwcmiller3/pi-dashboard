@@ -1,19 +1,28 @@
 # pi-dashboard
 
 A weather & calendar dashboard for a wall-mounted Raspberry Pi 5 touchscreen
-(Pi OS Lite + labwc + Chromium kiosk). FastAPI backend serves a static dashboard
-that the on-Pi Chromium kiosk points at over `http://localhost`.
+(Pi OS Lite + labwc + Chromium kiosk). A FastAPI backend serves a static
+dashboard that the on-Pi Chromium kiosk shows over `http://localhost`.
 
 ![Dashboard mockup](docs/mockup.png)
 
-*Mockup rendered by the real app from fabricated sample data (no live fetch, no
-real calendar): `tools/mockup.py` injects a fixture cache into a locally-run
-server and screenshots it with headless Chrome. The frame exercises most UI states:
-forecast cards with and without the precip line, holiday/observance pills, a
-multi-day all-day span repeating across days, the in-progress "next up"
-highlight, roll-off of past events ("+N earlier"), and agenda overflow
-("+N more", "+N more days").*
+*Rendered by the real app from fabricated sample data - `tools/mockup.py` injects
+a fixture cache into a locally-run server and screenshots it headless. No live
+fetch, no real calendar.*
 
+## What it shows
+
+- **Current conditions** hero - Open-Meteo by default, optionally overlaid with
+  real NWS station observations (see [Weather sources](#weather-sources)).
+- **Multi-day forecast** cards with a temperature range and an optional precip line.
+- **Calendar agenda** from a Proton Calendar ICS feed: timed and all-day /
+  multi-day events, an in-progress "next up" highlight, roll-off of past events
+  ("+N earlier"), and overflow collapsing ("+N more", "+N more days").
+- **Holidays / observances** as inline pills.
+- **Live clock** and hands-off refresh - a background loop repolls weather and
+  calendar, and the UI rolls over at midnight on its own.
+- **Selectable look** - swap the [layout](#layouts), [theme](#themes), and
+  [icon pack](#icon-packs) independently, all env-driven.
 
 ## Requirements
 
@@ -23,8 +32,8 @@ highlight, roll-off of past events ("+N earlier"), and agenda overflow
 ## Setup
 
 ```sh
-uv sync                 # create the venv, install deps from uv.lock
-cp .env.example .env     # then fill in PROTON_ICS_URL (see Secrets below)
+uv sync                  # create the venv, install deps from uv.lock
+cp .env.example .env      # then edit it - see Configuration and Secrets below
 ```
 
 ## Run
@@ -33,73 +42,39 @@ cp .env.example .env     # then fill in PROTON_ICS_URL (see Secrets below)
 uv run uvicorn app.main:app --reload    # dev (Mac): http://127.0.0.1:8000
 ```
 
-`/healthz` returns `{"status": "ok"}`. The static dashboard is served at `/`
-(with `Cache-Control: no-cache` so a deploy's new bundle is picked up on the next
-load rather than a stale cached copy), and `/api/data` serves the normalized
-weather/calendar contract the dashboard polls (a background loop refreshes it).
-The JS unit tests run with `node --test` from `static/`.
+`/` serves the static dashboard (with `Cache-Control: no-cache`, so a deploy's new
+bundle loads instead of a stale copy), `/api/data` serves the normalized
+weather/calendar contract the dashboard polls, and `/healthz` returns
+`{"status": "ok"}`. For production on the Pi, see [Deploy](#deploy-pi).
 
-### Frontend architecture
+## Configuration
 
-The dashboard is a small ES-module graph, not one script - three layers, each
-with one job:
-
-- **Server routes** (`app/main.py`) pick the skin from config and serve it:
-  `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), and the no-cache
-  static mount.
-- **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js`
-  is the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
-  machine; `contract.js` mirrors the backend data contract as JSDoc typedefs;
-  `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
-- **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all of
-  their own DOM/CSS. A layout is an ES module exporting a `layout` object that
-  implements the seven-hook `Layout` interface (`static/core/contract.js`):
-  `mount`, `renderClock`, `renderCurrent`, `renderForecast`, `renderAgenda`,
-  `renderStatus`, `renderUnavailable`.
-
-`static/app.js` is a thin bootstrap: it imports the core state machine
-and the layout (from the server's `/layout.js` route - a generated re-export of
-the LAYOUT-selected module) and calls `createApp(layout).init()`, guarded by
-`typeof document` so the pure core still imports cleanly under `node --test`.
-The mount is wrapped so a layout that throws can't blank the kiosk.
+Three independent axes select the look - `LAYOUT`, `THEME`, and `ICON_PACK`, each
+the name of a directory under `static/`. All three are set in `.env`, read **at
+backend startup** (so a change needs a `systemctl --user restart
+pi-dashboard.service`, not just a browser reload), and **fail-soft**: a non-slug
+value or a valid-but-absent target degrades to the default rather than blanking the
+kiosk or 404-ing the module graph. The [weather source](#weather-sources) is
+configured here too (`NWS_STATION`, `WEATHER_MODEL`), though it's data, not look.
 
 ### Layouts
 
-`LAYOUT=<name>` selects which UI renders - the name of a directory under
-`static/layouts/`. Built-in layouts:
+`LAYOUT=<name>` picks the UI from `static/layouts/`:
 
 - `classic` (default) - the production bento-over-ambient-glow UI.
 - `hud` - an instrument-HUD design (240° temperature dial, solar day-tape,
-  forecast range plot), using the self-hosted subset mono fonts vendored under
+  forecast range plot), using self-hosted subset mono fonts under
   `static/vendor/fonts/`.
 - `swiss-mono` - a swiss-grotesque "exposed grid" paper design (Inter + JetBrains
-  Mono, self-hosted subsets under `static/vendor/fonts/`). It is a **fixed light**
-  layout: its palette is layout-local, so unlike classic/hud it does not respond
-  to THEME.
+  Mono). A **fixed light** layout: its palette is layout-local, so unlike
+  classic/hud it does not respond to THEME.
 
-Like THEME, it is env-driven and read at startup, so a change needs a backend
-restart to apply. The name is slug-validated and the selection fail-softs to
-`classic`: both a non-slug value and a valid-but-absent module serve the classic
-module (the kiosk must never blank, and a typo must not 404 the ES-module graph
-at load time); `/layout.css` for a bad slug degrades to empty CSS.
-
-LAYOUT and THEME are orthogonal. A hue theme (`nord` / `gruvbox` / `catppuccin`)
-retints whatever layout is active through the `base < layout < theme` cascade -
-the HUD deliberately keeps its hot-tier colors in CSS classes so a palette can
-retint it too. `synthwave` is an *effect theme*: it reaches past the palette into
-classic-layout selectors (the hero temp's neon `text-shadow`), so it stays
-classic-coupled. The exception is `swiss-mono`, whose palette is layout-local
-(not a `:root` override), so a THEME has nothing to bind to - it stays fixed light.
-
-Preview a layout against the mockup fixture without touching `.env`:
+Preview against the mockup fixture without touching `.env`:
 
 ```sh
 uv run python -m tools.mockup --layout hud          # -> docs/mockup-hud.png
 uv run python -m tools.mockup --layout hud --serve  # browse it live instead
 ```
-
-The bundled layouts, rendered by that command from the same fixture data as the
-themes below (`classic` is the mockup at the top - click any image for full size):
 
 | `classic` (default) | `hud` | `swiss-mono` |
 | --- | --- | --- |
@@ -107,84 +82,92 @@ themes below (`classic` is the mockup at the top - click any image for full size
 
 ### Themes
 
-The palette is centralized in `:root` custom properties in `static/style.css`
-(every tint and glow is `color-mix()`-derived from them), so an alternate dark
-palette is a pure `:root` override block in `static/themes/<name>.css` - see
-`static/themes/nord.css` for the contract. Apply one with `THEME=<name>` in
-`.env`: the server exposes it at `/theme.css`, linked after `style.css` so it
-wins the cascade (an unset or invalid name degrades to the built-in palette).
-Preview a theme against the mockup fixture without touching `.env`:
+The palette lives in `:root` custom properties in `static/style.css` (every tint
+and glow is `color-mix()`-derived from them), so a theme is just a `:root` override
+block in `static/themes/<name>.css` - see `static/themes/nord.css` for the
+contract. `THEME=<name>` links it at `/theme.css`, after `style.css` so it wins the
+cascade.
+
+LAYOUT and THEME are orthogonal: a hue theme (`nord` / `gruvbox` / `catppuccin`)
+retints whatever layout is active through the `base < layout < theme` cascade (the
+HUD keeps its hot-tier colors in CSS classes so a palette can retint it too). Two
+exceptions couple a look to `classic`: `synthwave` is an *effect theme* - on top of
+the palette it boosts the ambient glows and adds a neon `text-shadow` to the hero
+temperature, reaching into classic-layout selectors; and `swiss-mono`'s palette is
+layout-local (not a `:root` override), so a THEME has nothing to bind to.
 
 ```sh
 uv run python -m tools.mockup --theme nord          # -> docs/mockup-nord.png
 uv run python -m tools.mockup --theme nord --serve  # browse it live instead
 ```
 
-The bundled themes, rendered by that command from the same fixture data as the
-mockup at the top (which shows the built-in palette - click any image for full
-size):
-
 | `nord` | `gruvbox` | `catppuccin` | `synthwave` |
 | --- | --- | --- | --- |
 | ![Nord theme](docs/mockup-nord.png) | ![Gruvbox theme](docs/mockup-gruvbox.png) | ![Catppuccin theme](docs/mockup-catppuccin.png) | ![Synthwave theme](docs/mockup-synthwave.png) |
 
-`synthwave` is an *effect theme*: on top of the palette it boosts the ambient
-glows and adds a neon text-shadow to the hero temperature (documented
-deviations from the hue-only contract - see `static/themes/nord.css`).
-
 ### Icon packs
 
-`ICON_PACK=<name>` selects which weather-icon set renders - the name of a
-directory under `static/packs/`. It is a third frontend axis, orthogonal to
-THEME and LAYOUT: the frontend maps each condition (and the chrome glyphs -
-wind / humidity / precip / sunrise / sunset) through the selected pack, whatever
-layout or theme is active. Built-in packs:
+`ICON_PACK=<name>` picks the weather-icon set from `static/packs/`. It maps every
+condition (and the chrome glyphs - wind / humidity / precip / sunrise / sunset)
+through the selected pack, whatever layout or theme is active:
 
-- `weather-icons` (default) - the vendored weather-icons font; icons are glyphs
-  drawn in the text color.
-- `meteocons-flat` - full-color vendored Meteocons SVGs, the filled "flat" style.
-- `meteocons-line` - full-color vendored Meteocons SVGs, the lighter outline
-  "line" style.
-- `meteocons-mono` - single-color Meteocons: each SVG is painted as a CSS mask
-  over `currentColor`, so it inherits the layout/theme text color (the only pack
-  that retints with the palette).
+- `weather-icons` (default) - the vendored weather-icons font; glyphs drawn in the
+  text color.
+- `meteocons-flat` / `meteocons-line` - full-color vendored Meteocons SVGs, filled
+  or outline style.
+- `meteocons-mono` - single-color Meteocons, painted as a CSS mask over
+  `currentColor`, so it inherits the layout/theme text color (the only pack that
+  retints with the palette).
 
-Like THEME and LAYOUT it is env-driven and read at startup, so a change needs a
-backend restart to apply. The name is slug-validated and the selection fail-softs
-to `weather-icons`: a non-slug value, a valid-but-absent pack, and an unset pack
-all serve the built-in weather-icons *experience* - both its module (`/pack.js`)
-and its stylesheet (`/pack.css`), never a blank or unstyled icon (the kiosk must
-never blank). Those two routes mirror `/layout.js` + `/layout.css`.
-
-**How to add a pack.** A pack is a directory `static/packs/<name>/` with two
-files:
+**Adding a pack.** A directory `static/packs/<name>/` with two files:
 
 - `index.js` exporting `iconPack` (an `IconPack` per `static/core/contract.js`)
   whose `renderIcon(name, extra)` returns `<i class="wx-icon wx-<name> <extra>">`.
-  It is byte-identical across every pack - the token-to-asset map lives in the
-  CSS, not the JS.
-- `pack.css` - a `.wx-icon` base rule plus one `.wx-<name>` rule per semantic
-  name, mapping each token to its asset (a font glyph, an SVG `url()`, or a mask).
+  It's byte-identical across packs - the token-to-asset map lives in the CSS.
+- `pack.css` - a `.wx-icon` base rule plus one `.wx-<name>` rule per semantic name,
+  mapping each token to its asset (font glyph, SVG `url()`, or mask).
 
-Then register `<name>` in `tests/test_pack.py`'s `_BUNDLED_PACKS`. For the
-bundled packs the `pack.css` is generated from a Python map under `app/packs/`
+Then register `<name>` in `tests/test_pack.py`'s `_BUNDLED_PACKS`. For the bundled
+packs the `pack.css` is generated from a Python map under `app/packs/`
 (`weather_icons.py`; the three Meteocons variants share `meteocons.py`), and a
-pytest guard asserts the generator output equals the committed `pack.css` so the
-served CSS can't drift. A new pack can instead hand-write its `pack.css`.
-
-Icon licensing and offline-vendoring notes are in [Attribution](#attribution).
+pytest guard asserts the generated CSS equals the committed file so the served CSS
+can't drift. A new pack can instead hand-write its `pack.css`. Licensing and
+offline-vendoring notes are in [Attribution](#attribution).
 
 ### Weather sources
 
-Current conditions and the forecast default to [Open-Meteo](https://open-meteo.com/)
-(no key needed). Optionally, set `NWS_STATION=<station id>` in `.env` to overlay
-real [National Weather Service](https://www.weather.gov/) station observations on
-the hero's current conditions - a measurement instead of a model estimate. US-only,
-off by default, and fail-soft: any NWS hiccup falls back to the pure Open-Meteo
-hero for that refresh; the forecast cards always stay Open-Meteo. See
-`.env.example` for how to find your nearest station (and the `NWS_USER_AGENT`
-contact-info note). The Open-Meteo forecast model is selectable via
-`WEATHER_MODEL` (default `best_match`).
+Conditions and forecast default to [Open-Meteo](https://open-meteo.com/) (no key
+needed). Set `NWS_STATION=<station id>` to overlay real
+[National Weather Service](https://www.weather.gov/) station observations on the
+hero's current conditions - a measurement instead of a model estimate. US-only, off
+by default, fail-soft: any NWS hiccup falls back to the pure Open-Meteo hero for
+that refresh, and the forecast cards always stay Open-Meteo. See `.env.example` for
+finding your nearest station and the `NWS_USER_AGENT` contact-info note. The
+Open-Meteo forecast model is selectable via `WEATHER_MODEL` (default `best_match`).
+
+## Frontend architecture
+
+The dashboard is a small ES-module graph, not one script - three layers, each with
+one job:
+
+- **Server routes** (`app/main.py`) pick the skin from config and serve it:
+  `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), `/pack.js` +
+  `/pack.css` (ICON_PACK), and the no-cache static mount.
+- **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js` is
+  the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
+  machine; `contract.js` mirrors the backend data contract as JSDoc typedefs;
+  `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
+- **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all their
+  own DOM/CSS. A layout is an ES module exporting a `layout` object that implements
+  the seven-hook `Layout` interface (`static/core/contract.js`): `mount`,
+  `renderClock`, `renderCurrent`, `renderForecast`, `renderAgenda`, `renderStatus`,
+  `renderUnavailable`.
+
+`static/app.js` is a thin bootstrap: it imports the core state machine and the
+layout (from the server's `/layout.js` route - a generated re-export of the
+LAYOUT-selected module) and calls `createApp(layout).init()`, guarded by `typeof
+document` so the pure core still imports cleanly under `node --test`. The mount is
+wrapped so a layout that throws can't blank the kiosk.
 
 ## Deploy (Pi)
 
@@ -195,12 +178,15 @@ acceptance checklist.
 
 ## Test / lint
 
+Dev-only: the JS tests and `tsc` need Node ≥18 (the app itself has no build step
+and no Node runtime dependency - the ES modules are served as-is).
+
 ```sh
 uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run mypy             # strict type-check gate (app + tests)
-npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph (core/ + all layouts) against the JSDoc contract
+npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph against the JSDoc contract
 ```
 
 (JS unit tests run with `node --test` from `static/` - the core and per-layout
@@ -209,19 +195,17 @@ npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend mod
 ## Secrets & data handling
 
 `PROTON_ICS_URL` is the Proton Calendar "Full view" ICS link. **The URL embeds the
-decryption key inline**, so it is a credential *and* exposes calendar PII (event
-titles, descriptions, participants, locations). Keep it in 1Password; put it only
-in the git-ignored `.env`; never commit it, paste it into logs/shell history, or
-share it. This is a personal project on a personal GitHub account by design - the
-calendar PII stays out of any org tooling.
+decryption key inline**, so it is both a credential and a source of calendar PII
+(event titles, descriptions, participants, locations). Put it only in the
+git-ignored `.env` - never commit it, echo it into logs or shell history, or share
+it.
 
 ## Attribution
 
 Weather data by [Open-Meteo.com](https://open-meteo.com/), licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). When `NWS_STATION` is
 set, current conditions come from the
-[National Weather Service](https://www.weather.gov/) (US-government public
-domain).
+[National Weather Service](https://www.weather.gov/) (US-government public domain).
 
 Icons: the weather-icons font is under the
 [SIL Open Font License](https://openfontlicense.org/)

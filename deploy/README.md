@@ -368,13 +368,28 @@ the job:
    systemctl --user restart chromium-kiosk.service     # policies load at launch
    ```
 
-GCM itself **cannot be disabled at runtime** in stock Chromium - not by
-`--disable-background-networking`, `--disable-component-update`, `--disable-sync`,
-nor even `--disable-features=GCM`. The GCM component initializes anyway; this is a
-known, unresolved upstream limitation (see chromiumembedded/cef#4078). The only
-*true* removal is a build with GCM compiled out (ungoogled-chromium), which on
-arm64/Pi means a third-party binary or a self-build and no `apt` security updates
-- not worth it here.
+GCM itself **cannot be disabled at runtime** in stock Chromium - the component
+initializes anyway, even with `--disable-features=GCM`. This is a known, unresolved
+upstream limitation (see chromiumembedded/cef#4078). The only *true* removal is a
+build with GCM compiled out (ungoogled-chromium) - a viable
+option we decline for reasons unrelated to telemetry:
+
+> **Note on ungoogled-chromium (researched 2026-08-25).** A maintained, signed
+> **aarch64** build ships on Flathub (`io.github.ungoogled_software.ungoogled_chromium`),
+> tracking upstream within days over Flatpak's own signed channel - so switching is
+> real, not the self-build-without-updates it might seem. We stay on stock anyway:
+> - **Telemetry win is already banked** - the resolver rule below gives zero egress;
+>   ungoogled removes GCM's code but not that result.
+> - **Second update train** - Flatpak is invisible to apt, so the browser needs its
+>   own `flatpak update` timer (no GNOME Software on a kiosk).
+> - **Sandbox friction** - host fonts need explicit `--filesystem` exposure or the
+>   designed look breaks; policy path and cache/GPU flags need re-validation.
+> - **Smaller trust surface** - community Flathub CI vs. Debian's chromium, no apt
+>   fallback unless stock stays installed alongside.
+>
+> Reopen if stock keeps surfacing new phone-home domains and the flag whack-a-mole
+> turns into ongoing work. Rendering is a non-factor - same Blink engine, so the
+> custom styles render identically (which is why it, not Firefox, is the pick).
 
 **What actually works: contain it inside Chromium.** Fail resolution *before* any
 DNS query leaves the process, with a host-resolver rule (in `ExecStart`):
@@ -414,9 +429,8 @@ cd ~/pi-dashboard && git pull
 | **New/changed dependency** (`pyproject.toml`/`uv.lock`) | `uv sync`, then restart the backend. |
 | **A `deploy/` unit or config file** | Re-run the relevant install step, then `systemctl --user daemon-reload` (user) / `sudo systemctl daemon-reload` (system). |
 
-**Nothing to nudge = within a day anyway:** the nightly power-off window ends in a
-06:00 cold boot, which starts a fresh backend and browser, picking up
-everything. The commands above are just for *instant* pickup after a same-day pull.
+**Nothing to nudge = within a day anyway:** the 06:00 cold boot picks up everything
+on its own. The commands above are just for *instant* same-day pickup.
 
 ## Verifying the install (on the panel)
 
