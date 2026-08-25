@@ -1,4 +1,4 @@
-// Unattended security upgrades for the kiosk.
+// Unattended upgrades for the kiosk - everything, every configured repo.
 // Installs to /etc/apt/apt.conf.d/50unattended-upgrades (system file; needs root).
 // Pair with 20auto-upgrades (this dir), which enables the apt periodic timers
 // that actually run this.
@@ -17,10 +17,12 @@
 // anyway - the box is off at 03:00).
 
 Unattended-Upgrade::Origins-Pattern {
-    // Security updates only - keep the appliance stable; no feature churn.
-    "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
-    "origin=Raspbian,codename=${distro_codename},label=Raspbian";
-    "origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi Foundation";
+    // Everything, every configured repo - not security-only. Deliberate
+    // 2026-08-24: on a flat network an unpatched CVE outranks the risk of an
+    // upgrade breaking the dashboard, which is recoverable (troubleshoot, or
+    // downgrade the offending package). Release-agnostic - no codename to revisit
+    // on the next Debian.
+    "origin=*";
 };
 
 // Clean up obsolete deps/kernels so /boot and the SD don't fill over time.

@@ -166,8 +166,9 @@ it. At a healthy signal no adapter helps - the problem is association, not radio
 | `wifi-watchdog.service` | `/etc/systemd/system/` | system | Polls `wlan0` every 30 s; calls `nmcli device connect` if not connected. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only - zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
-| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Security upgrades; no auto-reboot (the daily 06:00 cold boot covers reboot-required). |
+| `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Full upgrades, all origins (`origin=*`); no auto-reboot (the daily 06:00 cold boot covers reboot-required). |
 | `20auto-upgrades` | `/etc/apt/apt.conf.d/` | system | Enables the apt periodic timers that run the above. |
+| `80acquire-retries` | `/etc/apt/apt.conf.d/` | system | apt fetch retries + timeouts so the 06:00 run survives Wi-Fi flakiness instead of aborting. |
 | `nightly-halt.sh` | `/usr/local/bin/` | system | Pre-halt script: hour-guard, RTC wakealarm 06:00 (plug-fails backup), `systemctl poweroff`. |
 | `nightly-halt.{service,timer}` | `/etc/systemd/system/` | system | Runs the pre-halt at 01:00, before the plug cuts power at 01:05. `Persistent=false` is load-bearing (see timer comment). |
 
@@ -275,13 +276,13 @@ sudo sed -i "s/KIOSK_USER/$USER/" /etc/systemd/system/getty@tty1.service.d/autol
 sudo install -Dm644 deploy/journald.conf \
   /etc/systemd/journald.conf.d/00-kiosk-volatile.conf
 
-# Unattended security upgrades (no auto-reboot; the 06:00 cold boot covers it).
+# Unattended full OS upgrades (no auto-reboot; the 06:00 cold boot covers it).
 # The package is NOT preinstalled on Raspberry Pi OS - without it the config
 # below is inert (apt's daily timers run but silently skip upgrades). Install
 # it first so our conffiles below overwrite the package's defaults:
 sudo apt install -y unattended-upgrades
 sudo install -m644 deploy/50unattended-upgrades deploy/20auto-upgrades \
-  /etc/apt/apt.conf.d/
+  deploy/80acquire-retries /etc/apt/apt.conf.d/
 
 # Nightly 01:00 pre-halt (pairs with the smart plug's 01:05 OFF / 06:00 ON):
 sudo install -m755 deploy/nightly-halt.sh /usr/local/bin/
@@ -328,6 +329,52 @@ stale `--js-flags=--no-decommit-pooled-pages` that V8 logs as "unrecognized flag
 `/etc/chromium.d/` - left as-is by default so the distro's other defaults aren't
 masked.
 
+### 5. Blocking Google background traffic (Chromium phone-home)
+
+The kiosk is a Chromium instance, and Chromium runs background services that
+periodically reach Google regardless of the page it's showing. On a signed-out
+kiosk the noisy ones are:
+
+- `optimizationguide.pa.googleapis.com` - the Optimization Guide fetching "hints"
+  and downloading on-device ML models.
+- `mtalk.google.com` + `android.clients.google.com` - Google Cloud Messaging
+  (GCM): the push check-in/registration (`android.clients`) and the persistent
+  push socket (`mtalk`). GCM starts whenever *any* component asks for a push
+  channel, and once it can't reach the endpoint it retries on backoff - so a
+  DNS-level block (e.g. Pi-hole) makes the request frequency go *up*, not down.
+  The cure is to stop Chromium initiating it, not to block it downstream.
+
+`--disable-background-networking` (in `chromium-kiosk.service`) does NOT cover
+these: the Optimization Guide runs on its own scheduler outside that switch, and
+the GCM channel is held open by whatever component still wants push. Two layers
+kill it at the source:
+
+1. **Flags** (already in `chromium-kiosk.service` `ExecStart`):
+   `--disable-features=OptimizationHints,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationGuideModelDownloading,OptimizationGuideModelExecution`
+   stops the Optimization Guide fetch/model download (and the GCM registration it
+   drives).
+
+2. **Managed policy** (`deploy/chromium-policy.json`) - survives the Pi OS
+   `/usr/bin/chromium` flag wrapper and version bumps, and disables the remaining
+   signed-out GCM consumers (component updater, sync, sign-in) plus Google
+   telemetry/beacons:
+
+   ```sh
+   # Confirm the policy dir for your chromium package (Debian 'chromium' = /etc/chromium):
+   ls -d /etc/chromium*/policies/managed 2>/dev/null
+   # Install (adjust the path if the line above shows /etc/chromium-browser/...):
+   sudo install -Dm644 deploy/chromium-policy.json \
+     /etc/chromium/policies/managed/kiosk.json
+   systemctl --user restart chromium-kiosk.service   # policies load at launch
+   ```
+
+   The most likely remaining `mtalk` driver is the component updater, so
+   `ComponentUpdatesEnabled: false` is the load-bearing key. Verify behaviorally
+   (a kiosk has no keyboard for `chrome://policy`): with the Pi-hole blocks
+   temporarily off, watch DNS for a couple of minutes and confirm the three
+   domains stay quiet -
+   `sudo tcpdump -ni any -l 'udp port 53' | grep -iE 'mtalk|android.clients|optimizationguide'`.
+
 ## Updating after a deploy (`git pull`)
 
 Install (above) is one-time. To ship later changes, `git pull` on the Pi - but a
@@ -366,7 +413,10 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   Panel auto-on after wall-power loss was verified 2026-07-04.
 - **Unattended upgrades:** `sudo unattended-upgrade --dry-run 2>&1 | tail -5`
   parses the config without acting. `command not found` means the package is
-  missing and the apt.conf.d files are doing nothing (see install §2).
+  missing and the apt.conf.d files are doing nothing (see install §2). To confirm
+  the `origin=*` broadening took, `sudo unattended-upgrade --dry-run -d 2>&1 |
+  grep -i 'allowed origins'` should list every configured origin, not just
+  `-security`.
 - **Crash recovery:** `systemctl --user kill chromium-kiosk.service` → Chromium
   comes back fullscreen on its own (`Restart=always`).
 - **Deploy pickup:** `git pull` a visible change, trigger the reload
