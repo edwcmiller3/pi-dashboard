@@ -135,15 +135,29 @@ client mid-session. If the AP sits on DFS, move it to an active-scan channel:
 
 `autoconnect-retries 0` (retry forever) keeps NM trying, but its internal backoff
 can leave the interface stuck in "disconnected" for minutes - long enough to look
-permanently broken after a reboot. A watchdog service polls every 30 s
-and calls `nmcli device connect wlan0` whenever the device isn't connected, forcing
-NM out of any backoff state. As a persistent system service it covers both
-boot-time failures and mid-session drops.
+permanently broken after a reboot. A watchdog service polls every 30 s and calls
+`nmcli device connect wlan0` **only when the device is genuinely down**, forcing NM
+out of any backoff state. As a persistent system service it covers both boot-time
+failures and mid-session drops.
 
-`wifi-watchdog.service` in this repo handles this - see [Install § 2](#2-system-files-root).
+`wifi-watchdog.service` runs `wifi-watchdog.sh` (both in this repo) - see
+[Install § 2](#2-system-files-root). Two correctness traps the script is written
+around, both of which turned the watchdog from a safety net into the *cause* of an
+outage on a live rebuild (hidden SSID, slow join):
 
-The service targets the device name (`wlan0`), not a connection profile name, so
-it works regardless of the profile name and survives renames.
+- **Read STATE from `device status`, not `device show`.** `nmcli -g GENERAL.STATE
+  device show wlan0` returns `100 (connected)` - the numeric prefix means a
+  `^connected` anchor never matches even when connected, so the kick fires *every*
+  cycle. `nmcli -t -f DEVICE,STATE device status` returns the plain word
+  (`connected` / `disconnected` / `connecting`), so the health check is exact.
+- **Never kick a `connecting*` state.** Forcing `device connect` on an in-progress
+  association tears it down mid-associate (local deauth, reason 3). On a fast join
+  that's tolerated churn; on a slow hidden-SSID join it loops forever and the link
+  never completes. The script leaves both `connected` and `connecting*` alone and
+  only kicks a genuinely down device.
+
+The script targets the device name (`wlan0`), not a connection profile name, so it
+works regardless of the profile name and survives renames.
 
 **When hardware *is* warranted.** Only if `iw dev wlan0 link` shows genuinely weak
 signal (below ~-72 dBm) at the mount. Then, best first: wired Ethernet (the Pi 5
@@ -163,7 +177,8 @@ it. At a healthy signal no adapter helps - the problem is association, not radio
 | `chromium-reload.service` | `~/.config/systemd/user/` | user | Manual browser reload for same-day deploy pickup (no timer - the daily 06:00 cold boot owns nightly hygiene). |
 | `labwc/rc.xml` | `~/.config/labwc/` | user | `mouseEmulation="no"` + `HideCursor`. |
 | `labwc/autostart` | `~/.config/labwc/` | user | Nudges the virtual pointer at session start so the cursor auto-hides via the page's CSS `cursor:none` (no touch needed). Requires `wlrctl`. |
-| `wifi-watchdog.service` | `/etc/systemd/system/` | system | Polls `wlan0` every 30 s; calls `nmcli device connect` if not connected. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
+| `wifi-watchdog.sh` | `/usr/local/bin/` | system | Watchdog loop body: polls `wlan0` STATE every 30 s and kicks `nmcli device connect` only when genuinely down (leaves `connected`/`connecting*` alone). |
+| `wifi-watchdog.service` | `/etc/systemd/system/` | system | Runs `wifi-watchdog.sh`. Covers boot-time and mid-session failures that `autoconnect-retries` misses due to backoff. |
 | `journald.conf` | `/etc/systemd/journald.conf.d/00-kiosk-volatile.conf` | system | Logs in RAM only - zero SD wear. |
 | `getty-autologin.conf` | `/etc/systemd/system/getty@tty1.service.d/autologin.conf` | system | tty1 autologin + quiet boot (`--noclear --noissue`). |
 | `50unattended-upgrades` | `/etc/apt/apt.conf.d/` | system | Full upgrades, all origins (`origin=*`); no auto-reboot (the daily 06:00 cold boot covers reboot-required). |
@@ -262,7 +277,8 @@ sudo loginctl enable-linger "$USER"     # start at boot without an interactive l
 ### 2. System files (root)
 
 ```sh
-# Wi-Fi reconnect watchdog:
+# Wi-Fi reconnect watchdog (script + unit that runs it):
+sudo install -m755 deploy/wifi-watchdog.sh /usr/local/bin/
 sudo install -m644 deploy/wifi-watchdog.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now wifi-watchdog.service

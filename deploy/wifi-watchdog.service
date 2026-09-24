@@ -5,12 +5,10 @@ Wants=NetworkManager.service
 
 [Service]
 Type=simple
-ExecStart=/bin/sh -c '\
-  while true; do \
-    nmcli -g GENERAL.STATE device show wlan0 2>/dev/null | grep -q "^connected" || \
-      nmcli device connect wlan0 2>/dev/null || true; \
-    sleep 30; \
-  done'
+# Loop body lives in wifi-watchdog.sh (installs to /usr/local/bin/) - kept out of an
+# inline `sh -c` so the state check + connecting-guard aren't hostage to systemd's
+# $-expansion and nested-quote rules. Mirrors the nightly-halt.sh pattern.
+ExecStart=/usr/local/bin/wifi-watchdog.sh
 Restart=always
 RestartSec=10
 
