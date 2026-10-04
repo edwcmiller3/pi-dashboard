@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi-dashboard admin mock — swiss / mono exposed grid</title>
+<!-- Admin screen in the `swiss-mono` idiom: the dashboard's engineering-sheet
+     modular grid (ink gaps read as drafted 1px rules), JetBrains Mono metadata +
+     Inter grotesque numerals, a single Swiss-red accent. Theme-aware AND
+     layout-skinned per the 2026-10-04 reversal. Structure + behavior are identical
+     to admin-dark-bento.html (the reference); only the styling is swiss-mono.
+     Fixture = CONTENT.md Admin section. Five storyboard frames. No build step. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F5F4F0;
+    --paper-dim: #EFEEE9;
+    --ink: #161613;
+    --ink-60: rgba(22, 22, 19, 0.60);
+    --ink-40: rgba(22, 22, 19, 0.40);
+    --rule: rgba(22, 22, 19, 0.16);
+    --red: #E30613;
+    --surround: #D9D8D2;
+    --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    --grot: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    background: var(--surround);
+    color: var(--ink);
+    font-family: var(--grot);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 2.2rem; padding: 48px 20px 80px;
+  }
+  .page-head { max-width: 1280px; width: 100%; }
+  .page-head h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+  .page-head p { color: var(--ink-60); font-size: 13.5px; margin-top: 4px; max-width: 78ch; }
+  .page-head code { font-family: var(--mono); font-size: 0.92em; }
+
+  /* storyboard frame chrome (mock-only) */
+  .frame { display: flex; flex-direction: column; gap: 10px; }
+  .frame figcaption { color: var(--ink-60); font: 500 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+  .frame figcaption b { color: var(--ink); font-weight: 700; }
+  .frame figcaption code { font-family: var(--mono); color: var(--red); text-transform: none; }
+
+  /* ---- canvas: the exposed modular grid (ink bg → 1px gaps read as drafted rules) ---- */
+  .screen {
+    width: 1280px; height: 800px; position: relative; overflow: hidden;
+    background: var(--ink); border: 1px solid var(--ink);
+    display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: 60px 1fr auto; gap: 1px;
+    box-shadow: 0 24px 60px rgba(22, 22, 19, 0.18);
+  }
+  .cell { background: var(--paper); position: relative; overflow: hidden; }
+
+  svg { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---- header: back + ADMIN ---- */
+  .ahead { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: 16px; padding: 0 18px; }
+  .back { width: 38px; height: 38px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--paper); border: 1px solid var(--ink); cursor: pointer; }
+  .back svg { width: 16px; height: 16px; stroke: var(--ink); stroke-width: 1.8; display: block; }
+  .back:hover { background: var(--ink); }
+  .back:hover svg { stroke: var(--paper); }
+  .ahead .title { font: 800 24px var(--grot); letter-spacing: 0.02em; text-transform: uppercase; }
+
+  /* ---- panel kicker (mono section label, replaces the card <h2>) ---- */
+  .cell.panel { padding: 30px 28px 22px; display: flex; flex-direction: column; min-height: 0; }
+  .kick { font: 500 11px var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 20px; }
+
+  /* ---- config knobs ---- */
+  .config { grid-column: 1; grid-row: 2 / 4; }
+  .knob { padding: 14px 0; }
+  .knob + .knob { border-top: 1px solid var(--rule); }
+  .knob-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .knob-name { font: 700 19px var(--grot); letter-spacing: -0.01em; }
+  .knob-live { font: 500 11px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-40); }
+  .knob-live b { color: var(--ink-60); font-weight: 700; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { font: 500 13.5px var(--mono); letter-spacing: 0.02em; padding: 7px 12px 6px;
+    border: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
+  /* solid red = the selected value (current when resting, staged when pending) */
+  .opt.is-current, .opt.is-staged { background: var(--red); border-color: var(--red); color: #fff; font-weight: 700; }
+  /* red outline = the value that was live, when a different one is staged */
+  .opt.was-current { background: var(--paper); border-color: var(--red); color: var(--ink); }
+
+  /* ---- apply bar ---- */
+  .apply-bar { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--ink);
+    display: flex; align-items: center; justify-content: space-between; }
+  .apply-summary { font: 500 11.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-40); }
+  .apply-summary.has-staged { color: var(--red); font-weight: 700; }
+  .apply-btn { font: 700 12px var(--mono); letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 10px 20px 9px; border: 1px solid; cursor: pointer; }
+  .apply-btn.is-off { border-color: var(--rule); background: var(--paper-dim); color: var(--ink-40); cursor: default; }
+  .apply-btn.is-on { border-color: var(--red); background: var(--red); color: #fff; }
+
+  /* ---- device health ---- */
+  .health { grid-column: 2; grid-row: 2; }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .metric { border-top: 1px solid var(--rule); padding: 9px 0 8px; }
+  .metric.wide { grid-column: 1 / -1; }
+  .metric .k { display: flex; align-items: center; gap: 6px; font: 500 10.5px var(--mono);
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-60); margin-bottom: 4px; }
+  .metric .k svg { width: 12px; height: 12px; stroke: var(--ink-60); stroke-width: 1.8; }
+  .metric .v { font: 700 22px var(--grot); letter-spacing: -0.02em; }
+  .metric .v small { font: 500 13px var(--mono); color: var(--ink-60); letter-spacing: 0; }
+  .metric.net .v { font: 600 16px var(--mono); letter-spacing: -0.01em; }
+  .metric.host .v { font: 600 16px var(--mono); }
+  .metric.is-warn .v { color: var(--red); }
+  .metric.is-warn .k { color: var(--red); }
+  .metric.is-warn .k svg { stroke: var(--red); }
+  .flags { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 2px; }
+  .flag { font: 700 10.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 8px 3px; border: 1px solid var(--ink); }
+  .flag.ok { border-color: var(--ink); color: var(--ink); }
+  .flag.bad { border-color: var(--red); background: var(--red); color: #fff; }
+  .flag.muted { border: none; padding: 0; color: var(--ink-40); font-weight: 500; }
+  .hex { font: 500 11px var(--mono); letter-spacing: 0.08em; color: var(--ink-40); }
+
+  /* ---- device actions ---- */
+  .acts { grid-column: 2; grid-row: 3; }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .act { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer;
+    background: var(--paper); border: 1px solid var(--ink); }
+  .act .ico { width: 22px; height: 22px; flex: none; display: inline-flex; }
+  .act .ico svg { width: 22px; height: 22px; stroke: var(--ink); stroke-width: 1.8; }
+  .act .lbl { font: 700 13.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+  .act:hover { background: var(--ink); }
+  .act:hover .lbl { color: var(--paper); }
+  .act:hover .ico svg { stroke: var(--paper); }
+  .act.danger { border-color: var(--red); }
+  .act.danger .ico svg { stroke: var(--red); }
+  .act.danger .lbl { color: var(--red); }
+  .act.danger:hover { background: var(--red); }
+  .act.danger:hover .lbl { color: #fff; }
+  .act.danger:hover .ico svg { stroke: #fff; }
+
+  /* ---- overlay scrim (confirm dialog + transition) ---- */
+  .scrim { position: absolute; inset: 0; background: rgba(22, 22, 19, 0.52);
+    display: flex; align-items: center; justify-content: center; }
+
+  /* ---- confirm dialog (solid paper, sharp) ---- */
+  .dialog { width: 460px; background: var(--paper); border: 1px solid var(--ink); padding: 32px 32px 26px;
+    box-shadow: 0 28px 70px rgba(22, 22, 19, 0.4); }
+  .dialog .dico { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--red); margin-bottom: 18px; }
+  .dialog .dico svg { width: 22px; height: 22px; stroke: var(--red); stroke-width: 1.8; }
+  .dialog h3 { font: 800 24px var(--grot); letter-spacing: -0.01em; text-transform: uppercase; margin-bottom: 10px; }
+  .dialog p { font: 400 15px var(--grot); color: var(--ink-60); line-height: 1.5; }
+  .dialog .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+  .dbtn { font: 700 12px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; padding: 11px 18px 10px; border: 1px solid; cursor: pointer; }
+  .dbtn.ghost { border-color: var(--ink); background: var(--paper); color: var(--ink); }
+  .dbtn.danger { border-color: var(--red); background: var(--red); color: #fff; }
+
+  /* ---- transition state (Apply / Restart) ---- */
+  .screen.transition { display: flex; align-items: center; justify-content: center; background: var(--paper); border-color: var(--ink); }
+  .terminal { display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+  .terminal .spin { width: 44px; height: 44px; border: 3px solid var(--rule); border-top-color: var(--red);
+    animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .terminal .big { font: 800 28px var(--grot); letter-spacing: -0.01em; text-transform: uppercase; }
+  .terminal .small { font: 500 12px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-60); }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <h1>Admin screen — swiss / mono exposed grid (the <code>swiss-mono</code> layout)</h1>
+  <p>The Admin screen rendered in the swiss-mono engineering-sheet idiom (theme-aware AND
+  layout-skinned). Frame 1 is the canonical resting view; frames 2–5 document the
+  staged-apply, confirm, transition, and degraded-health states. Fixture: CONTENT.md.</p>
+</div>
+
+<!-- ============================================================= -->
+<!-- FRAME 1 — resting, nominal health                              -->
+<!-- ============================================================= -->
+<figure class="frame">
+  <figcaption><b>1 · Resting</b> — nominal health · nothing staged · Apply inactive</figcaption>
+  <div class="screen">
+
+    <div class="cell ahead">
+      <button class="back" type="button" aria-label="Back to dashboard" title="Back to dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      </button>
+      <span class="title">Admin</span>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="cell panel config">
+      <div class="kick">01 / Config</div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Layout</span><span class="knob-live">Live: <b>swiss-mono</b></span></div>
+        <div class="opts">
+          <span class="opt">classic</span>
+          <span class="opt">hud</span>
+          <span class="opt is-current">swiss-mono</span>
+          <span class="opt">paper-editorial</span>
+          <span class="opt">neo-brutalist</span>
+          <span class="opt">soft-scandi</span>
+        </div>
+      </div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Theme</span><span class="knob-live">Live: <b>default</b></span></div>
+        <div class="opts">
+          <span class="opt is-current">default</span>
+          <span class="opt">catppuccin</span>
+          <span class="opt">gruvbox</span>
+          <span class="opt">nord</span>
+          <span class="opt">synthwave</span>
+        </div>
+      </div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Icon pack</span><span class="knob-live">Live: <b>weather-icons</b></span></div>
+        <div class="opts">
+          <span class="opt is-current">weather-icons</span>
+          <span class="opt">meteocons</span>
+          <span class="opt">meteocons-flat</span>
+          <span class="opt">meteocons-line</span>
+          <span class="opt">meteocons-mono</span>
+        </div>
+      </div>
+
+      <div class="apply-bar">
+        <span class="apply-summary">No changes staged</span>
+        <button class="apply-btn is-off" type="button">Apply</button>
+      </div>
+    </div>
+
+    <!-- DEVICE HEALTH (nominal) -->
+    <div class="cell panel health">
+      <div class="kick">02 / Device health</div>
+      <div class="metrics">
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>CPU</div><div class="v">22%</div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="9"/><path d="M7 17v3M12 17v3M17 17v3"/></svg>RAM</div><div class="v">1.4<small> / 3.8 GB</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg>Temp</div><div class="v">48.3<small> °C</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><path d="M7 20V9h10v11M10 13h.01"/></svg>Disk (SD)</div><div class="v">4.1<small> / 29 GB</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Uptime</div><div class="v">8h 46m</div></div>
+        <div class="metric host"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16"/><path d="M9 9h6v6H9z"/></svg>Host</div><div class="v">raspberrypi</div></div>
+        <div class="metric wide"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>Throttle</div><div class="flags"><span class="flag ok">No throttling</span><span class="hex">0x0</span></div></div>
+        <div class="metric wide net"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a16 16 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="0.6"/></svg>Network</div><div class="v">192.168.1.42 <small>/24 · wlan0</small></div></div>
+      </div>
+    </div>
+
+    <!-- DEVICE ACTIONS -->
+    <div class="cell panel acts">
+      <div class="kick">03 / Device</div>
+      <div class="actions">
+        <button class="act" type="button">
+          <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v4h-4"/></svg></span>
+          <span class="lbl">Restart dashboard</span>
+        </button>
+        <button class="act danger" type="button">
+          <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></span>
+          <span class="lbl">Reboot Pi</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</figure>
+
+<!-- ============================================================= -->
+<!-- FRAME 2 — config staged (Theme → nord), Apply active           -->
+<!-- ============================================================= -->
+<figure class="frame">
+  <figcaption><b>2 · Config staged</b> — Theme changed to <code>nord</code> · Apply active (writes .env + restarts once)</figcaption>
+  <div class="screen">
+
+    <div class="cell ahead">
+      <button class="back" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
+      <span class="title">Admin</span>
+    </div>
+
+    <div class="cell panel config">
+      <div class="kick">01 / Config</div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Layout</span><span class="knob-live">Live: <b>swiss-mono</b></span></div>
+        <div class="opts">
+          <span class="opt">classic</span>
+          <span class="opt">hud</span>
+          <span class="opt is-current">swiss-mono</span>
+          <span class="opt">paper-editorial</span>
+          <span class="opt">neo-brutalist</span>
+          <span class="opt">soft-scandi</span>
+        </div>
+      </div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Theme</span><span class="knob-live">Live: <b>default</b></span></div>
+        <div class="opts">
+          <span class="opt was-current">default</span>
+          <span class="opt">catppuccin</span>
+          <span class="opt">gruvbox</span>
+          <span class="opt is-staged">nord</span>
+          <span class="opt">synthwave</span>
+        </div>
+      </div>
+
+      <div class="knob">
+        <div class="knob-top"><span class="knob-name">Icon pack</span><span class="knob-live">Live: <b>weather-icons</b></span></div>
+        <div class="opts">
+          <span class="opt is-current">weather-icons</span>
+          <span class="opt">meteocons</span>
+          <span class="opt">meteocons-flat</span>
+          <span class="opt">meteocons-line</span>
+          <span class="opt">meteocons-mono</span>
+        </div>
+      </div>
+
+      <div class="apply-bar">
+        <span class="apply-summary has-staged">1 change staged</span>
+        <button class="apply-btn is-on" type="button">Apply</button>
+      </div>
+    </div>
+
+    <div class="cell panel health">
+      <div class="kick">02 / Device health</div>
+      <div class="metrics">
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>CPU</div><div class="v">22%</div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="9"/><path d="M7 17v3M12 17v3M17 17v3"/></svg>RAM</div><div class="v">1.4<small> / 3.8 GB</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg>Temp</div><div class="v">48.3<small> °C</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><path d="M7 20V9h10v11M10 13h.01"/></svg>Disk (SD)</div><div class="v">4.1<small> / 29 GB</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Uptime</div><div class="v">8h 46m</div></div>
+        <div class="metric host"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16"/><path d="M9 9h6v6H9z"/></svg>Host</div><div class="v">raspberrypi</div></div>
+        <div class="metric wide"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>Throttle</div><div class="flags"><span class="flag ok">No throttling</span><span class="hex">0x0</span></div></div>
+        <div class="metric wide net"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a16 16 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="0.6"/></svg>Network</div><div class="v">192.168.1.42 <small>/24 · wlan0</small></div></div>
+      </div>
+    </div>
+
+    <div class="cell panel acts">
+      <div class="kick">03 / Device</div>
+      <div class="actions">
+        <button class="act" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v4h-4"/></svg></span><span class="lbl">Restart dashboard</span></button>
+        <button class="act danger" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></span><span class="lbl">Reboot Pi</span></button>
+      </div>
+    </div>
+
+  </div>
+</figure>
+
+<!-- ============================================================= -->
+<!-- FRAME 3 — reboot confirm dialog (solid) over dimmed admin      -->
+<!-- ============================================================= -->
+<figure class="frame">
+  <figcaption><b>3 · Confirm</b> — explicit confirm guards both lifecycle actions (reboot shown)</figcaption>
+  <div class="screen">
+
+    <div class="cell ahead">
+      <button class="back" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
+      <span class="title">Admin</span>
+    </div>
+
+    <div class="cell panel config">
+      <div class="kick">01 / Config</div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Layout</span><span class="knob-live">Live: <b>swiss-mono</b></span></div><div class="opts"><span class="opt">classic</span><span class="opt">hud</span><span class="opt is-current">swiss-mono</span><span class="opt">paper-editorial</span><span class="opt">neo-brutalist</span><span class="opt">soft-scandi</span></div></div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Theme</span><span class="knob-live">Live: <b>default</b></span></div><div class="opts"><span class="opt is-current">default</span><span class="opt">catppuccin</span><span class="opt">gruvbox</span><span class="opt">nord</span><span class="opt">synthwave</span></div></div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Icon pack</span><span class="knob-live">Live: <b>weather-icons</b></span></div><div class="opts"><span class="opt is-current">weather-icons</span><span class="opt">meteocons</span><span class="opt">meteocons-flat</span><span class="opt">meteocons-line</span><span class="opt">meteocons-mono</span></div></div>
+      <div class="apply-bar"><span class="apply-summary">No changes staged</span><button class="apply-btn is-off" type="button">Apply</button></div>
+    </div>
+
+    <div class="cell panel health">
+      <div class="kick">02 / Device health</div>
+      <div class="metrics">
+        <div class="metric"><div class="k">CPU</div><div class="v">22%</div></div>
+        <div class="metric"><div class="k">RAM</div><div class="v">1.4<small> / 3.8 GB</small></div></div>
+        <div class="metric"><div class="k">Temp</div><div class="v">48.3<small> °C</small></div></div>
+        <div class="metric"><div class="k">Disk (SD)</div><div class="v">4.1<small> / 29 GB</small></div></div>
+        <div class="metric"><div class="k">Uptime</div><div class="v">8h 46m</div></div>
+        <div class="metric host"><div class="k">Host</div><div class="v">raspberrypi</div></div>
+        <div class="metric wide"><div class="k">Throttle</div><div class="flags"><span class="flag ok">No throttling</span><span class="hex">0x0</span></div></div>
+        <div class="metric wide net"><div class="k">Network</div><div class="v">192.168.1.42 <small>/24 · wlan0</small></div></div>
+      </div>
+    </div>
+
+    <div class="cell panel acts">
+      <div class="kick">03 / Device</div>
+      <div class="actions">
+        <button class="act" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v4h-4"/></svg></span><span class="lbl">Restart dashboard</span></button>
+        <button class="act danger" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></span><span class="lbl">Reboot Pi</span></button>
+      </div>
+    </div>
+
+    <!-- confirm overlay: dimmed background + solid modal -->
+    <div class="scrim">
+      <div class="dialog">
+        <span class="dico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></span>
+        <h3>Reboot the Pi?</h3>
+        <p>The screen will go dark for about 40 seconds, then return to the dashboard.</p>
+        <div class="btns">
+          <button class="dbtn ghost" type="button">Cancel</button>
+          <button class="dbtn danger" type="button">Reboot</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</figure>
+
+<!-- ============================================================= -->
+<!-- FRAME 4 — transition state (Apply / Restart dashboard)          -->
+<!-- ============================================================= -->
+<figure class="frame">
+  <figcaption><b>4 · Transition</b> — shown during Apply and Restart dashboard, while the backend restarts and Chromium waits on <code>/healthz</code> before reloading. Reboot reuses this overlay, but only for the moment before the screen goes dark.</figcaption>
+  <div class="screen transition">
+    <div class="terminal">
+      <div class="spin" aria-hidden="true"></div>
+      <div class="big">Restarting dashboard…</div>
+      <div class="small">The display will reload when it's back.</div>
+    </div>
+  </div>
+</figure>
+
+<!-- ============================================================= -->
+<!-- FRAME 5 — device health, degraded variant                      -->
+<!-- ============================================================= -->
+<figure class="frame">
+  <figcaption><b>5 · Degraded health</b> — hot, near-full, throttling; decoded flags not raw hex</figcaption>
+  <div class="screen">
+
+    <div class="cell ahead">
+      <button class="back" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
+      <span class="title">Admin</span>
+    </div>
+
+    <div class="cell panel config">
+      <div class="kick">01 / Config</div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Layout</span><span class="knob-live">Live: <b>swiss-mono</b></span></div><div class="opts"><span class="opt">classic</span><span class="opt">hud</span><span class="opt is-current">swiss-mono</span><span class="opt">paper-editorial</span><span class="opt">neo-brutalist</span><span class="opt">soft-scandi</span></div></div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Theme</span><span class="knob-live">Live: <b>default</b></span></div><div class="opts"><span class="opt is-current">default</span><span class="opt">catppuccin</span><span class="opt">gruvbox</span><span class="opt">nord</span><span class="opt">synthwave</span></div></div>
+      <div class="knob"><div class="knob-top"><span class="knob-name">Icon pack</span><span class="knob-live">Live: <b>weather-icons</b></span></div><div class="opts"><span class="opt is-current">weather-icons</span><span class="opt">meteocons</span><span class="opt">meteocons-flat</span><span class="opt">meteocons-line</span><span class="opt">meteocons-mono</span></div></div>
+      <div class="apply-bar"><span class="apply-summary">No changes staged</span><button class="apply-btn is-off" type="button">Apply</button></div>
+    </div>
+
+    <div class="cell panel health">
+      <div class="kick">02 / Device health</div>
+      <div class="metrics">
+        <div class="metric is-warn"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>CPU</div><div class="v">96%</div></div>
+        <div class="metric is-warn"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="9"/><path d="M7 17v3M12 17v3M17 17v3"/></svg>RAM</div><div class="v">3.6<small> / 3.8 GB</small></div></div>
+        <div class="metric is-warn"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg>Temp</div><div class="v">82.4<small> °C</small></div></div>
+        <div class="metric is-warn"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><path d="M7 20V9h10v11M10 13h.01"/></svg>Disk (SD)</div><div class="v">27.3<small> / 29 GB</small></div></div>
+        <div class="metric"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Uptime</div><div class="v">8h 46m</div></div>
+        <div class="metric host"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16"/><path d="M9 9h6v6H9z"/></svg>Host</div><div class="v">raspberrypi</div></div>
+        <div class="metric wide"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>Throttle</div><div class="flags"><span class="flag bad">Under-voltage</span><span class="flag bad">Throttled</span><span class="flag muted">now &amp; earlier</span><span class="hex">0x50005</span></div></div>
+        <div class="metric wide net"><div class="k"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a16 16 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="0.6"/></svg>Network</div><div class="v">192.168.1.42 <small>/24 · wlan0</small></div></div>
+      </div>
+    </div>
+
+    <div class="cell panel acts">
+      <div class="kick">03 / Device</div>
+      <div class="actions">
+        <button class="act" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v4h-4"/></svg></span><span class="lbl">Restart dashboard</span></button>
+        <button class="act danger" type="button"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg></span><span class="lbl">Reboot Pi</span></button>
+      </div>
+    </div>
+
+  </div>
+</figure>
+
+</body>
+</html>

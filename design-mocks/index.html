@@ -6,10 +6,11 @@
 <title>pi-dashboard — design mock gallery</title>
 <style>
   :root { color-scheme: dark; }
-  body { margin: 0; padding: 40px; background: #16181d; color: #e8e8e8;
-         font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  body { margin: 0; padding: 40px; background: #16181d; color: #e8e8e8; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  p.sub { color: #9aa0aa; margin: 0 0 32px; max-width: 70ch; }
+  p.sub { color: #9aa0aa; margin: 0 0 8px; max-width: none; }
+  h2.section { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #cfd4dc; margin: 40px 0 4px; }
+  p.note { color: #9aa0aa; margin: 0 0 24px; max-width: none; font-size: 13.5px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 32px; }
   .card { background: #1e2128; border: 1px solid #2c3038; border-radius: 10px; overflow: hidden; }
   .card img { display: block; width: 100%; height: auto; background: #000; }
@@ -22,50 +23,98 @@
 </head>
 <body>
   <h1>pi-dashboard — design mock gallery</h1>
-  <p class="sub">Layout mocks for the dashboard — one per candidate LAYOUT (the color THEME is a
-  separate axis). Each is a self-contained HTML file at the 1280×800 kiosk viewport, sharing the
-  CONTENT.md fixture. Click a title to open one.</p>
+  <p class="sub">Self-contained HTML mocks at the 1280×800 kiosk viewport, sharing the CONTENT.md fixture — the dashboard <b>layouts</b> (one per candidate LAYOUT; colour THEME is a separate axis) and the <b>Admin screen</b> in each layout's idiom. Click a title to open one.</p>
+
+  <h2 class="section">Dashboard layouts</h2>
+  <p class="note">One per candidate LAYOUT. Each carries the approved Admin cog at the bottom-left of its footer.</p>
   <div class="grid">
     <div class="card">
       <a href="dark-bento.html"><img src="dark-bento.png" alt="Dark bento layout mock" /></a>
       <div class="meta">
-        <h2><a href="dark-bento.html">Dark bento — the <code>classic</code> layout</a></h2>
+        <h2><a href="dark-bento.html">dark-bento</a></h2>
         <p>Dark glass bento cards over an ambient corner-glow canvas.</p>
       </div>
     </div>
     <div class="card">
       <a href="paper-editorial.html"><img src="paper-editorial.png" alt="Paper editorial mock" /></a>
       <div class="meta">
-        <h2><a href="paper-editorial.html">Paper editorial</a></h2>
+        <h2><a href="paper-editorial.html">paper-editorial</a></h2>
         <p>Warm-paper broadsheet: ink palette with one oxblood accent, Playfair / Newsreader serif.</p>
       </div>
     </div>
     <div class="card">
       <a href="neo-brutalist.html"><img src="neo-brutalist.png" alt="Neo-brutalist mock" /></a>
       <div class="meta">
-        <h2><a href="neo-brutalist.html">Neo-brutalist</a></h2>
+        <h2><a href="neo-brutalist.html">neo-brutalist</a></h2>
         <p>Flat saturated panels, thick black borders, hard offset shadows, Archivo Black numerals.</p>
       </div>
     </div>
     <div class="card">
       <a href="swiss-mono.html"><img src="swiss-mono.png" alt="Swiss mono grid mock" /></a>
       <div class="meta">
-        <h2><a href="swiss-mono.html">Swiss / mono exposed grid</a></h2>
+        <h2><a href="swiss-mono.html">swiss-mono</a></h2>
         <p>Engineering-sheet modular grid, JetBrains Mono metadata, huge grotesque numerals, one Swiss-red accent.</p>
       </div>
     </div>
     <div class="card">
       <a href="instrument-hud.html"><img src="instrument-hud.png" alt="Instrument HUD layout" /></a>
       <div class="meta">
-        <h2><a href="instrument-hud.html">Instrument HUD — the <code>hud</code> layout</a></h2>
+        <h2><a href="instrument-hud.html">instrument-hud</a></h2>
         <p>Green-phosphor instrument cluster: temp dial, solar day-tape, channel-row forecast.</p>
       </div>
     </div>
     <div class="card">
       <a href="soft-scandi.html"><img src="soft-scandi.png" alt="Soft Scandinavian mock" /></a>
       <div class="meta">
-        <h2><a href="soft-scandi.html">Warm Scandinavian light mode</a></h2>
+        <h2><a href="soft-scandi.html">soft-scandi</a></h2>
         <p>Linen canvas, Fraunces display type, muted sage / terracotta / dusty-blue palette.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section">Admin screen</h2>
+  <p class="note">Theme-aware and layout-skinned — one admin design per layout, in that layout's idiom. Frame 1 (shown) is the resting view; each file's remaining frames document the staged, confirm, transition, and degraded-health states.</p>
+  <div class="grid">
+    <div class="card">
+      <a href="admin-dark-bento.html"><img src="admin-dark-bento.png" alt="Admin screen — dark bento" /></a>
+      <div class="meta">
+        <h2><a href="admin-dark-bento.html">admin-dark-bento</a></h2>
+        <p>Glass panels over ambient glow; amber live-value chips, cyan staged.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="admin-paper-editorial.html"><img src="admin-paper-editorial.png" alt="Admin screen — paper editorial" /></a>
+      <div class="meta">
+        <h2><a href="admin-paper-editorial.html">admin-paper-editorial</a></h2>
+        <p>Broadsheet serif, ink hairlines, oxblood for staged / danger.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="admin-neo-brutalist.html"><img src="admin-neo-brutalist.png" alt="Admin screen — neo-brutalist" /></a>
+      <div class="meta">
+        <h2><a href="admin-neo-brutalist.html">admin-neo-brutalist</a></h2>
+        <p>Thick ink borders, hard offset shadows; mustard live, cobalt staged, coral reboot.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="admin-swiss-mono.html"><img src="admin-swiss-mono.png" alt="Admin screen — Swiss / mono" /></a>
+      <div class="meta">
+        <h2><a href="admin-swiss-mono.html">admin-swiss-mono</a></h2>
+        <p>Numbered sections on an exposed grid; one Swiss-red accent carries all chip states.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="admin-instrument-hud.html"><img src="admin-instrument-hud.png" alt="Admin screen — instrument HUD" /></a>
+      <div class="meta">
+        <h2><a href="admin-instrument-hud.html">admin-instrument-hud</a></h2>
+        <p>Phosphor cluster with corner brackets; bright = live, amber = caution / reboot.</p>
+      </div>
+    </div>
+    <div class="card">
+      <a href="admin-soft-scandi.html"><img src="admin-soft-scandi.png" alt="Admin screen — warm Scandinavian" /></a>
+      <div class="meta">
+        <h2><a href="admin-soft-scandi.html">admin-soft-scandi</a></h2>
+        <p>Linen, soft pills, Fraunces headings; terracotta live, dusty-blue staged, rust alarm.</p>
       </div>
     </div>
   </div>

@@ -40,3 +40,52 @@ whatever suits the design direction. Condition text must remain readable.
 - Clock and current temp are the loudest elements.
 - Forecast highs and event titles readable at a glance.
 - Don't shrink body text below ~14px equivalent at 1280×800.
+
+## Admin screen (admin mocks only)
+
+The admin mocks (`admin-*.html`) render the Admin screen in each layout's idiom.
+It is theme-aware AND layout-skinned (one admin per layout). Three panels + a
+top-left back arrow. Every admin mock renders EXACTLY the values below so the
+mocks compare apples-to-apples, same as the dashboard fixture above.
+
+### Config panel — the three editable knobs
+Each knob shows its current value and a set of selectable options (no free-text;
+the real picker is driven by the server's `_available_slugs`). Changes stage,
+then a single **Apply** writes `.env` + restarts. Current (live) value is marked.
+
+- **Layout** — current: `classic`. Options: classic, hud, swiss-mono,
+  paper-editorial, neo-brutalist, soft-scandi.
+  (Each admin mock marks ITS OWN layout as current, e.g. the neo-brutalist mock → `neo-brutalist`.)
+- **Theme** — current: `default`. Options: default, catppuccin, gruvbox, nord, synthwave.
+- **Icon pack** — current: `weather-icons`. Options: weather-icons, meteocons,
+  meteocons-flat, meteocons-line, meteocons-mono.
+
+### Device health panel — two fixture variants
+Pi-only fields (temperature, throttle) read "unavailable" off-Pi; mocks show the
+on-Pi values. Render the **nominal** set as the primary; show the **degraded**
+set as a secondary state frame.
+
+| Metric        | Nominal                        | Degraded                                              |
+|---------------|--------------------------------|-------------------------------------------------------|
+| CPU           | 22%                            | 96%                                                   |
+| RAM           | 1.4 / 3.8 GB                   | 3.6 / 3.8 GB                                          |
+| Temperature   | 48.3 °C                        | 82.4 °C                                               |
+| Disk (SD)     | 4.1 / 29 GB                    | 27.3 / 29 GB                                          |
+| Uptime        | 8h 46m (since 06:00 reboot)    | 8h 46m                                                |
+| Host          | raspberrypi                    | raspberrypi                                           |
+| Throttle      | No throttling (`0x0`)          | Under-voltage + Throttled, now & earlier (`0x50005`)  |
+| Network       | 192.168.1.42 /24 · wlan0       | 192.168.1.42 /24 · wlan0                              |
+
+Throttle is shown as **decoded flags**, never raw hex alone. `0x50005` decodes to
+under-voltage (now + occurred) and throttled (now + occurred).
+
+### Device actions panel
+- **Restart dashboard** — reloads the display, no reboot. No-root user-service restart.
+- **Reboot Pi** — full restart, ~40s dark. Both require an explicit on-screen confirm.
+
+### States to depict (storyboard frames)
+1. Resting — nominal health, nothing staged, Apply inactive.
+2. Config staged — one knob changed (Theme → `nord`), Apply active.
+3. Reboot confirm — dialog over a dimmed admin screen.
+4. Rebooting — terminal "rebooting…" state (screen goes dark until the Pi returns).
+5. Device health — degraded variant.
