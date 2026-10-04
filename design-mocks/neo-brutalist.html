@@ -262,10 +262,17 @@
     margin:0 11px 0 4px; padding:6px 12px; cursor:pointer;
     font-weight:800; font-size:13px; line-height:1; letter-spacing:2px;
     text-transform:uppercase; color:var(--ink);
-    background:var(--mustard); border:3px solid var(--white);
+    background:var(--mustard); border:0;
   }
   .ticker .refresh svg { width:14px; height:14px; stroke:var(--ink);
     stroke-width:2.4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  /* admin cog slab — pushed to the far left; matches the mustard refresh */
+  .ticker .admin {
+    flex:none; display:inline-flex; align-items:center; justify-content:center;
+    margin:0 auto 0 11px; padding:6px; cursor:pointer;
+    color:var(--ink); background:var(--mustard); border:0; }
+  .ticker .admin svg { width:15px; height:15px; stroke:var(--ink);
+    stroke-width:2.4; fill:none; stroke-linecap:round; stroke-linejoin:round; display:block; }
 </style>
 </head>
 <body>
@@ -442,6 +449,9 @@
 
   <!-- ===== STATUS TICKER ===== -->
   <footer class="ticker">
+    <button class="admin" type="button" title="Admin" aria-label="Admin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
     <div class="seq">
       <span><span class="dot"></span>Weather OK</span>
       <span class="sep">///</span>

@@ -295,6 +295,17 @@
                  fill: none; stroke-linecap: round; stroke-linejoin: round; }
   .refresh:hover { background: var(--ink); color: var(--paper); }
   .refresh:hover svg { stroke: var(--paper); }
+
+  /* admin cog — ink-outlined, matched to .refresh, pushed to the far left */
+  .status .admin {
+    margin-right: auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink); background: var(--paper); border: 1px solid var(--ink);
+    padding: 6px; cursor: pointer; }
+  .status .admin svg { width: 14px; height: 14px; stroke: var(--ink); stroke-width: 1.7;
+    fill: none; stroke-linecap: round; stroke-linejoin: round; display: block; }
+  .status .admin:hover { background: var(--ink); }
+  .status .admin:hover svg { stroke: var(--paper); }
 </style>
 </head>
 <body>
@@ -335,6 +346,11 @@
     <symbol id="i-refresh" viewBox="0 0 24 24">
       <path d="M19.5 12 A7.5 7.5 0 1 1 16.6 6.2"/>
       <polyline points="16.9 2.6 16.9 6.5 13 6.5"/>
+    </symbol>
+    <!-- admin cog (Lucide settings) -->
+    <symbol id="i-admin" viewBox="0 0 24 24">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      <circle cx="12" cy="12" r="3"/>
     </symbol>
   </defs>
 </svg>
@@ -462,6 +478,9 @@
 
     <!-- STATUS -->
     <footer class="cell status">
+      <button class="admin" type="button" title="Admin" aria-label="Admin">
+        <svg viewBox="0 0 24 24"><use href="#i-admin"/></svg>
+      </button>
       <span class="st-item"><span class="st-sq"></span>Weather ok</span>
       <span class="st-item"><span class="st-sq"></span>Calendar ok</span>
       <span class="st-updated">Updated 2:46 PM</span>

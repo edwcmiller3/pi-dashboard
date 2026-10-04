@@ -155,6 +155,13 @@
   .status .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 60%, transparent); }
   .status .refresh { display: inline-flex; align-items: center; background: none; border: 0; padding: 0; cursor: pointer; }
   .status .refresh svg { width: 1.2rem; height: 1.2rem; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* admin: pressable cog anchoring the bottom-left of the page, mirroring .status */
+  .admin { position: absolute; left: 1.8rem; bottom: 1rem; display: inline-flex; align-items: center;
+    background: none; border: 0; padding: 0; cursor: pointer; color: var(--faint); }
+  .admin svg { width: 1.3rem; height: 1.3rem; stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; display: block; }
+  .admin:hover { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -305,6 +312,11 @@
         </div>
 
       </div>
+
+      <!-- admin: pressable cog at the bottom-left of the page -->
+      <button class="admin" type="button" title="Admin" aria-label="Admin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
 
       <!-- status -->
       <div class="status">
