@@ -383,7 +383,7 @@
     padding-top: 9px;
     display: flex;
     justify-content: center;
-    align-items: baseline;
+    align-items: center;
     gap: 26px;
     font-size: 12.5px;
     letter-spacing: 0.22em;
@@ -392,6 +392,17 @@
   }
   footer .ok { color: var(--ink); font-weight: 600; }
   footer .dot { color: var(--ink-40); letter-spacing: 0; }
+  /* manual refresh — drafted ink-outline, rides at the end of the folio */
+  footer .refresh {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--serif-text);
+    font-size: 12.5px; font-weight: 600; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink);
+    background: none; border: 0; padding: 0; cursor: pointer;
+  }
+  footer .refresh svg { width: 13px; height: 13px; stroke: currentColor;
+    stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  footer .refresh:hover { color: var(--oxblood); }
 </style>
 </head>
 <body>
@@ -598,6 +609,9 @@
     <span>Calendar <span class="ok">ok</span></span>
     <span class="dot">·</span>
     <span>Updated 2:46 PM</span>
+    <button class="refresh" type="button" title="Refresh">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12 A7.5 7.5 0 1 1 16.6 6.2"/><polyline points="16.9 2.6 16.9 6.5 13 6.5"/></svg>Refresh
+    </button>
   </footer>
 
 </div>

@@ -408,6 +408,17 @@
   }
   .status .sep { color: var(--hairline); }
   .status .updated { letter-spacing: 0.02em; text-transform: none; }
+  /* manual refresh — soft pill, rides at the end of the status row */
+  .status .refresh {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: none; color: var(--ink); background: var(--card);
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 6px 13px; cursor: pointer; box-shadow: var(--shadow);
+  }
+  .status .refresh svg { width: 13px; height: 13px; stroke: var(--sage);
+    stroke-width: 1.9; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .status .refresh:hover { border-color: var(--sage); }
 </style>
 </head>
 <body>
@@ -622,6 +633,9 @@
     <span class="svc"><span class="ok-dot"></span>Calendar ok</span>
     <span class="sep">·</span>
     <span class="updated">Updated 2:46 PM</span>
+    <button class="refresh" type="button" title="Refresh">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12 A7.5 7.5 0 1 1 16.6 6.2"/><polyline points="16.9 2.6 16.9 6.5 13 6.5"/></svg>Refresh
+    </button>
   </footer>
 
 </main>

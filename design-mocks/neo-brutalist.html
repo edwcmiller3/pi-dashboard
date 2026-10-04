@@ -244,7 +244,7 @@
     background:var(--ink); color:var(--white);
     border:4px solid var(--ink);
     box-shadow:7px 7px 0 var(--coral);
-    display:flex; align-items:center; overflow:hidden;
+    display:flex; align-items:center; justify-content:flex-end; overflow:hidden;
     font-size:14px; font-weight:600; letter-spacing:2.5px;
     text-transform:uppercase; white-space:nowrap;
   }
@@ -256,6 +256,16 @@
   }
   .ticker .sep { color:var(--coral); letter-spacing:0; font-weight:700; }
   .ticker .upd { color:var(--mustard); }
+  /* static refresh slab at the right end of the status row */
+  .ticker .refresh {
+    flex:none; display:inline-flex; align-items:center; gap:8px;
+    margin:0 11px 0 4px; padding:6px 12px; cursor:pointer;
+    font-weight:800; font-size:13px; line-height:1; letter-spacing:2px;
+    text-transform:uppercase; color:var(--ink);
+    background:var(--mustard); border:3px solid var(--white);
+  }
+  .ticker .refresh svg { width:14px; height:14px; stroke:var(--ink);
+    stroke-width:2.4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
 </style>
 </head>
 <body>
@@ -438,21 +448,10 @@
       <span><span class="dot"></span>Calendar OK</span>
       <span class="sep">///</span>
       <span class="upd">Updated 2:46 PM</span>
-      <span class="sep">///</span>
     </div>
-    <div class="seq">
-      <span><span class="dot"></span>Weather OK</span>
-      <span class="sep">///</span>
-      <span><span class="dot"></span>Calendar OK</span>
-      <span class="sep">///</span>
-      <span class="upd">Updated 2:46 PM</span>
-      <span class="sep">///</span>
-    </div>
-    <div class="seq">
-      <span><span class="dot"></span>Weather OK</span>
-      <span class="sep">///</span>
-      <span><span class="dot"></span>Calendar OK</span>
-    </div>
+    <button class="refresh" type="button" title="Refresh">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12 A7.5 7.5 0 1 1 16.6 6.2"/><polyline points="16.9 2.6 16.9 6.5 13 6.5"/></svg>Refresh
+    </button>
   </footer>
 
 </div>

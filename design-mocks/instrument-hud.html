@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>pi-dashboard mock — instrument HUD D-empty (light calendar week)</title>
+<title>pi-dashboard mock — instrument HUD D (dial + channel rows)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -191,22 +191,6 @@
   .more{padding:2px 8px 3px 100px;font-size:13px;letter-spacing:.16em;color:var(--ph3)}
   .more::before{content:"▸ ";color:var(--ph4)}
 
-  /* light-week states (empty-agenda reference) ------------------------------ */
-  /* "no entries" row — same grid as .ev so day heads keep their rhythm; blank
-     time column, faint legend in the title column. Reads as data, not a hole. */
-  .noev{display:grid;grid-template-columns:78px 1fr auto;gap:14px;align-items:baseline;
-        padding:4.5px 8px;font-size:16px}
-  .noev .t{text-align:right;color:var(--ph4);font-size:14.5px;letter-spacing:.06em}
-  .noev .n{font-size:13px;letter-spacing:.24em;color:var(--ph3)}
-  /* end-of-manifest closure: short centered tick-rules bracketing a faint
-     terminal legend (same motif as .drule / .fticks). */
-  .eom{display:flex;align-items:center;justify-content:center;gap:14px;
-       margin:18px 8px 0;font-size:12px;letter-spacing:.26em;color:var(--ph3);
-       white-space:nowrap}
-  .eom .erule{width:130px;height:5px;background:
-      repeating-linear-gradient(90deg, var(--ph4) 0 1px, transparent 1px 10px),
-      linear-gradient(var(--ph4),var(--ph4)) left bottom / 100% 1px no-repeat}
-
   /* ---------- status footer ---------- */
   footer{flex:0 0 26px;display:flex;align-items:center;gap:18px;
          font-size:13.5px;letter-spacing:.14em;color:var(--ph3)}
@@ -222,6 +206,15 @@
               text-shadow:0 0 10px rgba(92,255,197,.45)}
   footer .rfr::before{content:"⟳ ";color:var(--ph0)}
   footer .fticks{flex:1}
+  /* admin entry: a pressable cog at the far bottom-left of the status row,
+     ahead of the ruler strip so it anchors the left edge. Reads pressable
+     like RESYNC (full-brightness border, inset fill, phosphor glow). */
+  footer .cog{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+              width:21px;height:21px;color:var(--ph1);border:1px solid var(--ph2);
+              background:rgba(92,255,197,.09);cursor:pointer;user-select:none;
+              box-shadow:inset 0 0 8px rgba(92,255,197,.14);
+              filter:drop-shadow(0 0 6px rgba(92,255,197,.4))}
+  footer .cog svg{width:13px;height:13px;display:block}
 </style>
 </head>
 <body>
@@ -319,40 +312,42 @@
       <div class="arows">
 
         <div class="dhead"><span class="dname">TODAY</span><span class="ddate">JUL 11</span>
-          <span class="drule"></span></div>
-        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+          <span class="drule"></span><span class="hol">SUMMER FESTIVAL</span></div>
+        <div class="ev allday"><span class="t">ALL DAY</span><span class="n">Cabin trip</span></div>
+        <div class="more">+5 EARLIER</div>
+        <div class="ev active"><span class="t">1:30P</span>
+          <span class="n">Focus block</span>
+          <span class="atag">◂ ACTIVE</span></div>
+        <div class="ev"><span class="t">3:30P</span><span class="n">School pickup</span></div>
+        <div class="ev"><span class="t">4:45P</span><span class="n">Vet appointment</span></div>
+        <div class="ev"><span class="t">5:30P</span><span class="n">Swim practice</span></div>
+        <div class="ev"><span class="t">7:00P</span><span class="n">Dinner reservation</span></div>
+        <div class="more">+2 MORE</div>
 
         <div class="dhead"><span class="dname">SUNDAY</span><span class="ddate">JUL 12</span>
           <span class="drule"></span></div>
+        <div class="ev allday"><span class="t">ALL DAY</span><span class="n">Cabin trip</span></div>
         <div class="ev"><span class="t">9:00A</span><span class="n">Farmers market</span></div>
+        <div class="ev"><span class="t">2:00P</span><span class="n">Bike ride</span></div>
 
         <div class="dhead"><span class="dname">MONDAY</span><span class="ddate">JUL 13</span>
           <span class="drule"></span><span class="hol">INDEPENDENCE DAY</span></div>
-        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
+        <div class="ev"><span class="t">11:00A</span><span class="n">Neighborhood parade</span></div>
+        <div class="ev"><span class="t">8:30P</span><span class="n">Fireworks picnic</span></div>
 
-        <div class="dhead"><span class="dname">TUESDAY</span><span class="ddate">JUL 14</span>
-          <span class="drule"></span></div>
-        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
-
-        <div class="dhead"><span class="dname">WEDNESDAY</span><span class="ddate">JUL 15</span>
-          <span class="drule"></span></div>
-        <div class="ev"><span class="t">6:30P</span><span class="n">Book club</span></div>
-
-        <div class="dhead"><span class="dname">THURSDAY</span><span class="ddate">JUL 16</span>
-          <span class="drule"></span></div>
-        <div class="noev"><span class="t"></span><span class="n">— NO ENTRIES —</span></div>
-
-        <div class="dhead"><span class="dname">FRIDAY</span><span class="ddate">JUL 17</span>
-          <span class="drule"></span></div>
-        <div class="ev"><span class="t">5:30P</span><span class="n">Pizza night</span></div>
-
-        <div class="eom"><span class="erule"></span><span>END OF SCHEDULE</span><span class="erule"></span></div>
+        <div class="more">+2 MORE DAYS</div>
       </div>
     </section>
   </main>
 
   <!-- ============ SYSTEM STATUS ============ -->
   <footer>
+    <span class="cog" role="button" title="Admin" aria-label="Admin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </span>
     <span class="fticks"></span>
     <span class="ok">WEATHER OK</span>
     <span class="ok">CALENDAR OK</span>
