@@ -28,6 +28,7 @@ fetch, no real calendar.*
 
 - Python 3.13.5 (pinned via `.python-version`; provisioned by `uv`)
 - [`uv`](https://docs.astral.sh/uv/) for dependency / venv management
+- Node (dev-only, for `tsc` and JS tests; pinned via `.tool-versions`, provisioned by `mise`)
 
 ## Setup
 
