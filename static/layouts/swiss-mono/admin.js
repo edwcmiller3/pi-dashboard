@@ -30,7 +30,7 @@ let configEl = null;
 let scrimEl = null;
 
 /**
- * A grid cell carrying a numbered mono kicker, then the id'd panel body the
+ * A grid cell carrying a mono kicker heading, then the id'd panel body the
  * render hooks fill. `area` places it in the screen grid.
  * @param {string} kicker @param {string} bodyId @param {string} area
  * @returns {{ cell: HTMLElement, body: HTMLElement }}
@@ -56,12 +56,12 @@ function mount(root, ctx) {
   back.addEventListener("click", ctx.back); // tap → click (synthesized from wl_touch)
   head.append(back, el("span", "admin-title", "Admin"));
 
-  const config = panel("01 / Config", "admin-config", "admin-area-config");
+  const config = panel("Appearance", "admin-config", "admin-area-config");
   screen.append(
     head,
     config.cell,
-    panel("02 / Device health", "admin-health", "admin-area-health").cell,
-    panel("03 / Device", "admin-actions", "admin-area-actions").cell,
+    panel("Device health", "admin-health", "admin-area-health").cell,
+    panel("Device", "admin-actions", "admin-area-actions").cell,
   );
   root.append(screen);
   adminCtx = ctx;
