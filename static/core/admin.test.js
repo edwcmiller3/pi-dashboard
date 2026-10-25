@@ -89,6 +89,9 @@ const GET_CONFIG = "GET /api/admin/config";
 const POST_CONFIG = "POST /api/admin/config";
 const HEALTHZ = "GET /healthz";
 const GET_STATS = "GET /api/admin/stats";
+const GET_REBOOT = "GET /api/admin/reboot";
+const POST_RESTART = "POST /api/admin/restart";
+const POST_REBOOT = "POST /api/admin/reboot";
 
 const STATS = {
   cpu_percent: 22,
@@ -135,11 +138,21 @@ function recordingSkin() {
   const transitions = [];
   /** @type {any[]} */
   const stats = [];
+  /** @type {any[]} */
+  const actions = [];
   return {
     ...base,
     views,
     transitions,
     stats,
+    actions,
+    /** @param {any} a */
+    renderActions(a) {
+      actions.push(a);
+    },
+    get act() {
+      return actions[actions.length - 1];
+    },
     /** @param {any} s */
     renderStats(s) {
       stats.push(s);
@@ -170,6 +183,7 @@ async function opened(script = {}) {
   const fetch = fakeFetch({
     [GET_CONFIG]: [{ status: 200, body: CONFIG }],
     [GET_STATS]: [{ status: 200, body: STATS }],
+    [GET_REBOOT]: [{ status: 200, body: { available: true } }],
     ...script,
   });
   let t = 0;
@@ -434,4 +448,140 @@ test("stats: a tick while the last poll is still in flight is skipped", async ()
   await flush();
   ticks[0]();
   assert.equal(held, 2, "the next tick after it settles polls again");
+});
+
+// ── device actions + confirm gate ────────────────────────────────────────────
+
+const HEALTHY_AGAIN = [{ status: 200, body: { status: "ok", boot: NEW_BOOT } }];
+
+test("actions: open asks, uncached, whether reboot is available", async () => {
+  const { skin, fetch } = await opened();
+  const ask = fetch.calls.find((c) => c.url === "/api/admin/reboot");
+  assert.deepEqual(ask, { url: "/api/admin/reboot", init: { cache: "no-store" } });
+  assert.deepEqual(skin.act, { reboot: true, confirming: null, busy: false, error: null });
+});
+
+test("actions: reboot reads unavailable when the check says so, fails, or isn't 200", async () => {
+  for (const reply of [{ status: 200, body: { available: false } }, new TypeError("refused"), { status: 500, body: {} }]) {
+    const { skin } = await opened({ [GET_REBOOT]: [reply] });
+    assert.equal(skin.act.reboot, false);
+  }
+});
+
+test("confirm gate: the first tap only asks; nothing fires until the second", async () => {
+  const { skin, fetch } = await opened({ [POST_RESTART]: [RESTARTED], [HEALTHZ]: HEALTHY_AGAIN });
+  skin.ctx.request("restart");
+  assert.equal(skin.act.confirming, "restart");
+  assert.equal(posts(fetch).length, 0, "one tap must not drop the wall");
+  await skin.ctx.confirm();
+  assert.equal(posts(fetch).length, 1);
+});
+
+test("confirm gate: cancel drops the pending action without firing", async () => {
+  const { skin, fetch } = await opened();
+  skin.ctx.request("reboot");
+  skin.ctx.cancel();
+  assert.equal(skin.act.confirming, null);
+  await skin.ctx.confirm();
+  assert.equal(posts(fetch).length, 0, "a confirm after cancel has nothing to fire");
+});
+
+test("confirm gate: re-opening admin drops a pending confirm", async () => {
+  const { admin, skin } = await opened();
+  skin.ctx.request("reboot");
+  admin.close();
+  admin.open();
+  await flush();
+  assert.equal(skin.act.confirming, null);
+});
+
+test("restart: posts a JSON body, then reloads only once a NEW process is healthy", async () => {
+  const { skin, fetch, reloads } = await opened({
+    [POST_RESTART]: [RESTARTED],
+    [HEALTHZ]: [{ status: 200, body: { status: "ok", boot: OLD_BOOT } }, new TypeError("refused"), ...HEALTHY_AGAIN],
+  });
+  skin.ctx.request("restart");
+  await skin.ctx.confirm();
+  const [post] = posts(fetch);
+  assert.equal(post.url, "/api/admin/restart");
+  assert.equal(post.init.headers["Content-Type"], "application/json");
+  assert.equal(post.init.body, "{}");
+  assert.equal(skin.act.confirming, null, "the dialog closes once confirmed");
+  assert.deepEqual(skin.transitions, [["applying", undefined]]);
+  assert.equal(fetch.calls.filter((c) => c.url === "/healthz").length, 3);
+  assert.equal(reloads(), 1);
+});
+
+test("restart: a refused restart surfaces the server's reason and stays put", async () => {
+  const { skin, reloads } = await opened({ [POST_RESTART]: [{ status: 500, body: { detail: "the restart failed" } }] });
+  skin.ctx.request("restart");
+  await skin.ctx.confirm();
+  assert.equal(skin.act.error, "the restart failed");
+  assert.equal(skin.act.busy, false);
+  assert.deepEqual(skin.transitions, []);
+  assert.equal(reloads(), 0);
+});
+
+test("restart: an unreachable backend is an error, not a throw", async () => {
+  const { skin } = await opened({ [POST_RESTART]: [new TypeError("refused")] });
+  skin.ctx.request("restart");
+  await skin.ctx.confirm();
+  assert.match(String(skin.act.error), /reach/);
+  assert.equal(skin.act.busy, false);
+});
+
+test("restart: a backend that never comes back shows the error state; dismiss recovers", async () => {
+  const { skin, reloads } = await opened({
+    [POST_RESTART]: [RESTARTED],
+    [HEALTHZ]: [new TypeError("connection refused")],
+  });
+  skin.ctx.request("restart");
+  await skin.ctx.confirm();
+  assert.equal(reloads(), 0);
+  assert.equal(skin.transitions[skin.transitions.length - 1][0], "error");
+  skin.ctx.dismiss();
+  await flush();
+  assert.deepEqual(skin.transitions[skin.transitions.length - 1], [null, undefined]);
+  assert.equal(skin.act.busy, false);
+  assert.equal(skin.act.error, null);
+});
+
+test("reboot: confirmed, it posts then shows the terminal rebooting state", async () => {
+  const { skin, fetch, reloads } = await opened({ [POST_REBOOT]: [{ status: 200, body: { rebooting: true } }] });
+  skin.ctx.request("reboot");
+  await skin.ctx.confirm();
+  const [post] = posts(fetch);
+  assert.equal(post.url, "/api/admin/reboot");
+  assert.equal(post.init.body, "{}");
+  assert.deepEqual(skin.transitions, [["rebooting", undefined]]);
+  assert.equal(reloads(), 0, "the Pi going down is the end state; boot brings the dashboard back");
+});
+
+test("reboot: a denied reboot never shows 'rebooting'; it explains and greys out", async () => {
+  const detail = "reboot unavailable - is the polkit rule installed?";
+  const { skin } = await opened({ [POST_REBOOT]: [{ status: 503, body: { detail } }] });
+  skin.ctx.request("reboot");
+  await skin.ctx.confirm();
+  assert.deepEqual(skin.transitions, []);
+  assert.equal(skin.act.error, detail);
+  assert.equal(skin.act.reboot, false);
+  assert.equal(skin.act.busy, false);
+});
+
+test("reboot: can't even be asked for while it's unavailable", async () => {
+  const { skin, fetch } = await opened({ [GET_REBOOT]: [{ status: 200, body: { available: false } }] });
+  skin.ctx.request("reboot");
+  assert.equal(skin.act.confirming, null);
+  await skin.ctx.confirm();
+  assert.equal(posts(fetch).length, 0);
+});
+
+test("actions: inert while a config apply is in flight, and vice versa", async () => {
+  const { skin, fetch } = await opened({ [POST_CONFIG]: [RESTARTED], [HEALTHZ]: HEALTHY_AGAIN });
+  skin.ctx.stage("layout", "hud");
+  const applying = skin.ctx.apply();
+  skin.ctx.request("restart");
+  assert.equal(skin.act.confirming, null, "no action while applying");
+  await applying;
+  assert.equal(posts(fetch).length, 1);
 });

@@ -1,13 +1,14 @@
 """The dashboard's control over its own systemd user service (impure edges).
 
-Shared by the admin config Apply and (Phase 4) the restart action.
+Shared by the admin config Apply and the admin device actions (restart, reboot).
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
-from typing import Final
+from typing import Final, Literal
 
 log = logging.getLogger("pi_dashboard.service")
 
@@ -46,3 +47,74 @@ def restart_dashboard() -> bool:
         )
         return False
     return True
+
+
+# Reboot goes through logind over D-Bus, authorized by the polkit rule in
+# deploy/49-pi-dashboard-reboot.rules. Non-interactive, so a missing rule fails
+# fast with "Interactive authentication required" instead of waiting on an
+# authentication agent a kiosk doesn't have.
+_LOGIND: Final = (
+    "busctl",
+    "--allow-interactive-authorization=no",
+    "call",
+    "org.freedesktop.login1",
+    "/org/freedesktop/login1",
+    "org.freedesktop.login1.Manager",
+)
+
+# The polkit denials; anything else is a real failure worth a 500.
+_DENIED: Final = ("Interactive authentication required", "Access denied")
+
+RebootOutcome = Literal["rebooting", "unavailable", "failed"]
+
+
+def _logind(*call: str) -> subprocess.CompletedProcess[str]:
+    """Run one logind Manager method; raises as subprocess.run does."""
+    return subprocess.run(
+        (*_LOGIND, *call), capture_output=True, text=True, timeout=5, check=False
+    )
+
+
+def parse_can_reboot(stdout: str) -> str | None:
+    """busctl prints a string reply as `s "yes"`; anything else is None."""
+    match = re.fullmatch(r's "([a-z-]+)"', stdout.strip())
+    return match.group(1) if match else None
+
+
+def can_reboot() -> str | None:
+    """logind's CanReboot answer for this user ("yes", "challenge", "no", "na"),
+    or None when it can't be asked. Never raises."""
+    try:
+        proc = _logind("CanReboot")
+    except FileNotFoundError:
+        return None  # no busctl: the dev Mac
+    except (OSError, subprocess.SubprocessError):
+        log.exception("could not ask logind CanReboot")
+        return None
+    return parse_can_reboot(proc.stdout) if proc.returncode == 0 else None
+
+
+def reboot_available() -> bool:
+    """True only on "yes": "challenge" means a password prompt, which the kiosk
+    can't answer (the polkit rule isn't in place)."""
+    return can_reboot() == "yes"
+
+
+def reboot() -> RebootOutcome:
+    """Ask logind to reboot now. Never raises: "unavailable" when polkit denies
+    it or busctl is absent (the dev Mac), "failed" on anything else."""
+    try:
+        proc = _logind("Reboot", "b", "false")
+    except FileNotFoundError:
+        return "unavailable"
+    except (OSError, subprocess.SubprocessError):
+        log.exception("could not request the reboot")
+        return "failed"
+    if proc.returncode == 0:
+        return "rebooting"
+    stderr = proc.stderr.strip()
+    if any(reason in stderr for reason in _DENIED):
+        log.warning("reboot denied by polkit: %s", stderr)
+        return "unavailable"
+    log.error("busctl exited %d requesting the reboot: %s", proc.returncode, stderr)
+    return "failed"

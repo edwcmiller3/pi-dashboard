@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { configPanel, healthPanel, transitionScrim } from "./admin-panels.js";
+import { actionsPanel, configPanel, confirmDialog, healthPanel, transitionScrim } from "./admin-panels.js";
 
 // ── minimal DOM stub (local, dep-free) ────────────────────────────────────────
 
@@ -101,6 +101,10 @@ function fakeCtx() {
     stage: (k, v) => calls.push(["stage", k, v]),
     apply: () => calls.push(["apply"]),
     dismiss: () => calls.push(["dismiss"]),
+    /** @param {string} a */
+    request: (a) => calls.push(["request", a]),
+    confirm: () => calls.push(["confirm"]),
+    cancel: () => calls.push(["cancel"]),
   };
 }
 
@@ -327,4 +331,77 @@ test("healthPanel: a failed poll (null) renders one unavailable message", () => 
   assert.equal(nodes.length, 1);
   assert.ok(nodes[0].classList.contains("admin-empty"));
   assert.match(nodes[0].textContent, /unavailable/i);
+});
+
+// ── device actions + confirm dialog ──────────────────────────────────────────
+
+/** @param {any} [over] */
+const actions = (over = {}) => ({ reboot: true, confirming: null, busy: false, error: null, ...over });
+
+/** label -> action button */
+function acts(/** @type {any[]} */ nodes) {
+  return new Map(withClass(root(nodes), "admin-act").map((b) => [withClass(b, "admin-lbl")[0].textContent, b]));
+}
+
+test("actionsPanel: Restart and Reboot, each tap only asks to confirm", () => {
+  const ctx = fakeCtx();
+  const btns = acts(actionsPanel(actions(), ctx));
+  assert.deepEqual([...btns.keys()], ["Restart dashboard", "Reboot Pi"]);
+  assert.ok(btns.get("Reboot Pi")._classes.has("admin-danger"));
+  assert.ok(!btns.get("Restart dashboard")._classes.has("admin-danger"));
+  btns.get("Restart dashboard").click();
+  btns.get("Reboot Pi").click();
+  assert.deepEqual(ctx.calls, [["request", "restart"], ["request", "reboot"]]);
+});
+
+test("actionsPanel: reboot is disabled and says so when unavailable; restart still works", () => {
+  const btns = acts(actionsPanel(actions({ reboot: false }), fakeCtx()));
+  assert.equal(btns.get("Reboot Pi").disabled, true);
+  assert.equal(withClass(btns.get("Reboot Pi"), "admin-act-note")[0].textContent, "unavailable");
+  assert.equal(btns.get("Restart dashboard").disabled, false);
+});
+
+test("actionsPanel: reboot waits, disabled, while availability is still unknown", () => {
+  const btns = acts(actionsPanel(actions({ reboot: null }), fakeCtx()));
+  assert.equal(btns.get("Reboot Pi").disabled, true);
+  assert.equal(withClass(btns.get("Reboot Pi"), "admin-act-note").length, 0);
+});
+
+test("actionsPanel: inert while an action is in flight", () => {
+  const btns = acts(actionsPanel(actions({ busy: true }), fakeCtx()));
+  assert.ok([...btns.values()].every((b) => b.disabled));
+});
+
+test("actionsPanel: the last failure is shown, flagged as an error", () => {
+  const nodes = actionsPanel(actions({ error: "the restart failed" }), fakeCtx());
+  const [err] = withClass(root(nodes), "admin-act-error");
+  assert.equal(err.textContent, "the restart failed");
+  assert.equal(withClass(root(actionsPanel(actions(), fakeCtx())), "admin-act-error").length, 0);
+});
+
+test("confirmDialog: nothing pending, no dialog", () => {
+  assert.equal(confirmDialog(actions(), fakeCtx()), null);
+});
+
+test("confirmDialog: reboot asks as the mock does; Cancel cancels, Reboot confirms", () => {
+  const ctx = fakeCtx();
+  const scrim = confirmDialog(actions({ confirming: "reboot" }), ctx);
+  assert.ok(scrim);
+  assert.equal(scrim.attrs.role, "alertdialog");
+  assert.match(scrim.textContent, /Reboot the Pi\?/);
+  assert.match(scrim.textContent, /dark for about 40 seconds/);
+  const [cancel, go] = withClass(scrim, "admin-dbtn");
+  assert.equal(cancel.textContent, "Cancel");
+  assert.equal(go.textContent, "Reboot");
+  assert.ok(go._classes.has("admin-danger"));
+  cancel.click();
+  go.click();
+  assert.deepEqual(ctx.calls, [["cancel"], ["confirm"]]);
+});
+
+test("confirmDialog: restart names what it does and that the Pi stays up", () => {
+  const scrim = confirmDialog(actions({ confirming: "restart" }), fakeCtx());
+  assert.ok(scrim);
+  assert.match(scrim.textContent, /Restart the dashboard\?/);
+  assert.equal(withClass(scrim, "admin-dbtn")[1].textContent, "Restart");
 });

@@ -186,6 +186,7 @@ it. At a healthy signal no adapter helps - the problem is association, not radio
 | `80acquire-retries` | `/etc/apt/apt.conf.d/` | system | apt fetch retries + timeouts so the 06:00 run survives Wi-Fi flakiness instead of aborting. |
 | `nightly-halt.sh` | `/usr/local/bin/` | system | Pre-halt script: hour-guard, RTC wakealarm 06:00 (plug-fails backup), `systemctl poweroff`. |
 | `nightly-halt.{service,timer}` | `/etc/systemd/system/` | system | Runs the pre-halt at 01:00, before the plug cuts power at 01:05. `Persistent=false` is load-bearing (see timer comment). |
+| `49-pi-dashboard-reboot.rules` | `/etc/polkit-1/rules.d/` | system | polkit grant letting the kiosk account reboot (and only reboot) from the admin screen, with no password prompt. `KIOSK_USER` is substituted at install; must be `root:root 0644`. |
 
 ## Nightly power-off window (1a–6a)
 
@@ -305,10 +306,24 @@ sudo install -m755 deploy/nightly-halt.sh /usr/local/bin/
 sudo install -m644 deploy/nightly-halt.service deploy/nightly-halt.timer \
   /etc/systemd/system/
 
+# Admin-screen "Reboot Pi" - a polkit grant for exactly the two logind reboot
+# actions, for the account that runs pi-dashboard.service (Bookworm no longer
+# guarantees a `pi` user). Without it the admin screen shows Reboot as
+# unavailable; everything else works. Needs polkitd, which Raspberry Pi OS Lite
+# may omit (`systemctl status polkit`; `sudo apt install -y polkitd` if absent).
+sudo install -o root -g root -m644 deploy/49-pi-dashboard-reboot.rules \
+  /etc/polkit-1/rules.d/
+sudo sed -i "s/KIOSK_USER/$USER/" /etc/polkit-1/rules.d/49-pi-dashboard-reboot.rules
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now nightly-halt.timer
 sudo systemctl restart systemd-journald
 ```
+
+polkit picks up rule changes on its own; no restart is needed. To check it from
+the service account: `busctl call org.freedesktop.login1 /org/freedesktop/login1
+org.freedesktop.login1.Manager CanReboot` should print `s "yes"` (it prints
+`s "challenge"` without the rule).
 
 ### 3. Quiet boot - kernel cmdline (manual, box-specific)
 
@@ -474,6 +489,14 @@ These need the physical Pi + panel and can't be validated from a dev machine:
 - **Deploy pickup:** `git pull` a visible change, trigger the reload
   (`systemctl --user start chromium-reload.service`), and confirm the new bundle
   renders (no-cache static headers + reload - no manual hard refresh needed).
+- **Admin reboot (polkit):** the backend logs `logind CanReboot: <answer>` at
+  every start. Cold-boot the Pi, do NOT SSH in, then read `journalctl --user -u
+  pi-dashboard | grep CanReboot` - it should say `yes`, which proves the rule
+  reaches the session-less, lingering service. Negative control: move the rule
+  aside, cold-boot, expect `challenge` and Reboot shown as unavailable; restore
+  it. Least privilege: `CanPowerOff` / `CanSuspend` still answer `challenge`,
+  and `stat /etc/polkit-1/rules.d/49-pi-dashboard-reboot.rules` shows
+  `root root` and `0644`.
 - **Thermals under load:** `vcgencmd get_throttled` stays `0x0` with the kiosk
   running. This is the check the *classic* layout (the production default) is
   held to. The `hud` layout adds glow `text-shadow` layers and large SVG

@@ -341,6 +341,124 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- device actions ---- */
+.admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.admin-act {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  padding: 1rem 1.1rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--card-hi) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--edge) 10%, transparent);
+  color: var(--text);
+}
+.admin-act:hover:enabled {
+  border-color: color-mix(in srgb, var(--edge) 20%, transparent);
+}
+.admin-act:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.admin-ico {
+  display: inline-flex;
+  width: 2.3rem;
+  height: 2.3rem;
+  flex: none;
+  border-radius: 0.6rem;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--cool) 14%, transparent);
+}
+.admin-ico svg,
+.admin-dico svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  stroke: var(--cool);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-lbl {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.admin-act.admin-danger .admin-ico {
+  background: color-mix(in srgb, var(--stale) 16%, transparent);
+}
+.admin-act.admin-danger .admin-ico svg {
+  stroke: var(--stale);
+}
+.admin-act.admin-danger:hover:enabled {
+  border-color: color-mix(in srgb, var(--stale) 45%, transparent);
+}
+.admin-act-note {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 0.95rem;
+}
+.admin-act-error {
+  margin-top: 0.8rem;
+  color: var(--stale);
+  font-size: 1rem;
+}
+
+/* ---- confirm dialog (solid, not glass), on the shared scrim ---- */
+.admin-dialog {
+  width: 30rem;
+  padding: 1.8rem 1.8rem 1.5rem;
+  background: #141b25;
+  border: 1px solid color-mix(in srgb, var(--edge) 12%, transparent);
+  border-radius: 1.2rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.admin-dico {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  background: color-mix(in srgb, var(--stale) 16%, transparent);
+}
+.admin-dialog .admin-dico svg {
+  width: 1.6rem;
+  height: 1.6rem;
+  stroke: var(--stale);
+}
+.admin-dialog h3 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  margin: 0 0 0.5rem;
+}
+.admin-dialog p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.45;
+  margin: 0;
+}
+.admin-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.6rem;
+}
+.admin-dbtn.admin-danger {
+  color: #190a08;
+  background: var(--stale);
+  border: 1px solid transparent;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--stale) 30%, transparent);
+}
+
 /* ---- transition overlay (apply / restart / reboot / error) ---- */
 .admin-scrim {
   position: absolute;

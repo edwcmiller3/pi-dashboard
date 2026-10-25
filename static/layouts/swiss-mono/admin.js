@@ -13,8 +13,9 @@
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
-import { configPanel, healthPanel, transitionScrim } from "../../core/admin-panels.js";
+import { actionsPanel, configPanel, confirmDialog, healthPanel, transitionScrim } from "../../core/admin-panels.js";
 
+/** @typedef {import("../../core/contract.js").ActionsView} ActionsView */
 /** @typedef {import("../../core/contract.js").AdminCtx} AdminCtx */
 /** @typedef {import("../../core/contract.js").AdminStats} AdminStats */
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
@@ -29,6 +30,10 @@ let screenEl = null;
 let configEl = null;
 /** @type {HTMLElement | null} */
 let healthEl = null;
+/** @type {HTMLElement | null} */
+let actionsEl = null;
+/** @type {HTMLElement | null} */
+let dialogEl = null;
 /** @type {HTMLElement | null} */
 let scrimEl = null;
 
@@ -61,17 +66,19 @@ function mount(root, ctx) {
 
   const config = panel("Appearance", "admin-config", "admin-area-config");
   const health = panel("Device health", "admin-health", "admin-area-health");
+  const actions = panel("Device", "admin-actions", "admin-area-actions");
   screen.append(
     head,
     config.cell,
     health.cell,
-    panel("Device", "admin-actions", "admin-area-actions").cell,
+    actions.cell,
   );
   root.append(screen);
   adminCtx = ctx;
   screenEl = screen;
   configEl = config.body;
   healthEl = health.body;
+  actionsEl = actions.body;
 }
 
 /** @param {ConfigView} view */
@@ -92,8 +99,15 @@ function renderStats(stats) {
   healthEl?.replaceChildren(...healthPanel(stats));
 }
 
-// Stub until its panel lands (Phase 4).
-function renderActions() {}
+/** @param {ActionsView} view */
+function renderActions(view) {
+  if (!screenEl || !actionsEl || !adminCtx) return;
+  actionsEl.replaceChildren(...actionsPanel(view, adminCtx));
+  dialogEl?.remove();
+  dialogEl = confirmDialog(view, adminCtx);
+  // Before any transition scrim, so a transition always paints on top.
+  if (dialogEl) screenEl.insertBefore(dialogEl, scrimEl);
+}
 
 /** @type {import("../../core/contract.js").AdminSkin} */
 export const admin = {

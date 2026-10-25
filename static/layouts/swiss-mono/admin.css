@@ -328,6 +328,128 @@
   color: var(--ink-40);
 }
 
+/* ---- device actions ---- */
+.admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-act {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+}
+.admin-ico {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+}
+.admin-ico svg,
+.admin-dico svg {
+  width: 22px;
+  height: 22px;
+  stroke: var(--ink);
+  fill: none;
+  stroke-width: 1.8;
+}
+.admin-lbl {
+  font: 700 13.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.admin-act:hover:enabled {
+  background: var(--ink);
+}
+.admin-act:hover:enabled .admin-lbl {
+  color: var(--paper);
+}
+.admin-act:hover:enabled .admin-ico svg {
+  stroke: var(--paper);
+}
+.admin-act.admin-danger {
+  border-color: var(--red);
+}
+.admin-act.admin-danger .admin-ico svg {
+  stroke: var(--red);
+}
+.admin-act.admin-danger .admin-lbl {
+  color: var(--red);
+}
+.admin-act.admin-danger:hover:enabled {
+  background: var(--red);
+}
+.admin-act.admin-danger:hover:enabled .admin-lbl {
+  color: #fff;
+}
+.admin-act.admin-danger:hover:enabled .admin-ico svg {
+  stroke: #fff;
+}
+.admin-act:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.admin-act-note {
+  margin-left: auto;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+.admin-act-error {
+  margin-top: 10px;
+  font: 500 12px var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--red);
+}
+
+/* ---- confirm dialog (solid paper, sharp) over a dimmed grid ---- */
+.admin-scrim.admin-confirm {
+  background: rgba(22, 22, 19, 0.52);
+}
+.admin-dialog {
+  width: 460px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 32px 32px 26px;
+  box-shadow: 0 28px 70px rgba(22, 22, 19, 0.4);
+}
+.admin-dico {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--red);
+  margin-bottom: 18px;
+}
+.admin-dialog .admin-dico svg {
+  stroke: var(--red);
+}
+.admin-dialog h3 {
+  font: 800 24px var(--grot);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.admin-dialog p {
+  font: 400 15px var(--grot);
+  color: var(--ink-60);
+  line-height: 1.5;
+}
+.admin-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
 /* ---- transition overlay: a full paper sheet over the grid ---- */
 .admin-scrim {
   position: absolute;
@@ -383,4 +505,9 @@
   border-color: var(--ink);
   background: var(--paper);
   color: var(--ink);
+}
+.admin-dbtn.admin-danger {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
 }

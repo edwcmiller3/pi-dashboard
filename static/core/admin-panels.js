@@ -1,5 +1,5 @@
-// Shared admin panel DOM - the config editor, device health, and the transition
-// overlay.
+// Shared admin panel DOM - the config editor, device health, device actions with
+// their confirm dialog, and the transition overlay.
 //
 // The accepted mocks give every live skin identical panel markup (only the CSS
 // differs), so it is built once here instead of copied into each skin. A skin
@@ -11,6 +11,8 @@
 
 import { el } from "./dom.js";
 
+/** @typedef {import("./contract.js").ActionsView} ActionsView */
+/** @typedef {import("./contract.js").AdminAction} AdminAction */
 /** @typedef {import("./contract.js").AdminCtx} AdminCtx */
 /** @typedef {import("./contract.js").AdminStats} AdminStats */
 /** @typedef {import("./contract.js").ThrottleFlag} ThrottleFlag */
@@ -228,6 +230,86 @@ export function healthPanel(stats) {
     metric(GLYPH.network, "Network", network(stats.network), { wide: true, kind: "net" }),
   );
   return [grid];
+}
+
+// ── device actions ───────────────────────────────────────────────────────────
+
+const RESTART_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v4h-4"/></svg>';
+const POWER_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>';
+
+/** @type {Record<AdminAction, { svg: string, label: string, ask: string, why: string, go: string }>} */
+const ACTION = {
+  restart: {
+    svg: RESTART_SVG,
+    label: "Restart dashboard",
+    ask: "Restart the dashboard?",
+    why: "The display will reload in a few seconds. The Pi stays on.",
+    go: "Restart",
+  },
+  reboot: {
+    svg: POWER_SVG,
+    label: "Reboot Pi",
+    ask: "Reboot the Pi?",
+    why: "The screen will go dark for about 40 seconds, then return to the dashboard.",
+    go: "Reboot",
+  },
+};
+
+/** @param {string} svg @param {string} className */
+function glyph(svg, className) {
+  const g = el("span", className);
+  g.innerHTML = svg; // trusted own SVG only
+  return g;
+}
+
+/** @param {AdminAction} action @param {ActionsView} view @param {AdminCtx} ctx */
+function actionButton(action, view, ctx) {
+  const { svg, label } = ACTION[action];
+  const b = /** @type {HTMLButtonElement} */ (button("", "admin-act"));
+  b.append(glyph(svg, "admin-ico"), el("span", "admin-lbl", label));
+  if (action === "reboot") {
+    b.classList.add("admin-danger");
+    if (view.reboot === false) b.append(el("span", "admin-act-note", "unavailable"));
+  }
+  b.disabled = view.busy || (action === "reboot" && view.reboot !== true);
+  b.addEventListener("click", () => ctx.request(action));
+  return b;
+}
+
+/**
+ * The #admin-actions panel body. A tap only asks to confirm (see confirmDialog);
+ * Reboot is disabled unless the server says polkit allows it.
+ * @param {ActionsView} view @param {AdminCtx} ctx @returns {HTMLElement[]}
+ */
+export function actionsPanel(view, ctx) {
+  const list = el("div", "admin-actions");
+  list.append(actionButton("restart", view, ctx), actionButton("reboot", view, ctx));
+  return view.error ? [list, el("p", "admin-act-error", view.error)] : [list];
+}
+
+/**
+ * The explicit confirm over a dimmed admin screen (the mocks' frame 3), or null
+ * when nothing is pending. Both actions go through it.
+ * @param {ActionsView} view @param {AdminCtx} ctx @returns {HTMLElement | null}
+ */
+export function confirmDialog(view, ctx) {
+  if (!view.confirming) return null;
+  const { svg, ask, why, go } = ACTION[view.confirming];
+  const cancel = button("Cancel", "admin-dbtn admin-ghost");
+  cancel.addEventListener("click", () => ctx.cancel());
+  const confirm = button(go, "admin-dbtn admin-danger");
+  confirm.addEventListener("click", () => ctx.confirm());
+  const btns = el("div", "admin-btns");
+  btns.append(cancel, confirm);
+
+  const dialog = el("div", "admin-dialog");
+  dialog.append(glyph(svg, "admin-dico"), el("h3", null, ask), el("p", null, why), btns);
+  // admin-confirm: a skin whose transition scrim is opaque dims instead here.
+  const scrim = el("div", "admin-scrim admin-confirm");
+  scrim.setAttribute("role", "alertdialog");
+  scrim.setAttribute("aria-modal", "true");
+  scrim.append(dialog);
+  return scrim;
 }
 
 /** @type {Record<Exclude<AdminTransition, "error">, [string, string]>} */

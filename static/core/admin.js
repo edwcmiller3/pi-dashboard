@@ -10,6 +10,7 @@
 
 import { go } from "./router.js";
 
+/** @typedef {import("./contract.js").AdminAction} AdminAction */
 /** @typedef {import("./contract.js").AdminSkin} AdminSkin */
 /** @typedef {import("./contract.js").AdminConfig} AdminConfig */
 /** @typedef {import("./contract.js").AdminStats} AdminStats */
@@ -29,6 +30,7 @@ import { go } from "./router.js";
  */
 
 /** @typedef {{ restarted: boolean, boot?: string }} ApplyReply POST /api/admin/config */
+/** @typedef {{ ok: boolean, status: number, body: any }} PostReply */
 
 const HEALTH_POLL_MS = 1000;
 const HEALTH_TIMEOUT_MS = 30_000;
@@ -68,9 +70,35 @@ export function createAdmin(skin, { root, io = {} }) {
   /** @type {(() => void) | null} */
   let stopStats = null;
   let statsInFlight = false;
+  /** @type {boolean | null} */
+  let rebootOk = null;
+  /** @type {AdminAction | null} */
+  let confirming = null;
+  let acting = false;
+  /** @type {string | null} */
+  let actionError = null;
 
   function render() {
     skin.renderConfig({ config, staged: { ...staged }, pending: Object.keys(staged).length, busy, notice });
+  }
+
+  function renderActions() {
+    skin.renderActions({ reboot: rebootOk, confirming, busy: acting, error: actionError });
+  }
+
+  /**
+   * POST a JSON body (one is required server-side, which blocks cross-origin
+   * simple POSTs). Rejects only when the service is unreachable.
+   * @param {string} url @param {object} payload @returns {Promise<PostReply>}
+   */
+  async function post(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+    return { ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) };
   }
 
   async function loadConfig() {
@@ -84,6 +112,16 @@ export function createAdmin(skin, { root, io = {} }) {
       notice = { kind: "error", text: "Settings unavailable" };
     }
     render();
+  }
+
+  async function loadRebootAvailable() {
+    try {
+      const res = await fetch("/api/admin/reboot", { cache: "no-store" });
+      rebootOk = res.ok && (await res.json()).available === true;
+    } catch {
+      rebootOk = false;
+    }
+    renderActions();
   }
 
   async function pollStats() {
@@ -104,7 +142,7 @@ export function createAdmin(skin, { root, io = {} }) {
 
   /** @param {ConfigKey} key @param {string} value */
   function stage(key, value) {
-    if (busy || !config) return;
+    if (busy || acting || !config) return;
     const { [key]: _, ...rest } = staged;
     staged = value === config[key].current ? rest : { ...rest, [key]: value };
     notice = null;
@@ -136,7 +174,7 @@ export function createAdmin(skin, { root, io = {} }) {
   }
 
   async function apply() {
-    if (busy || Object.keys(staged).length === 0) return;
+    if (busy || acting || Object.keys(staged).length === 0) return;
     busy = true;
     notice = null;
     render();
@@ -144,14 +182,8 @@ export function createAdmin(skin, { root, io = {} }) {
     /** @type {ApplyReply} */
     let reply;
     try {
-      const res = await fetch("/api/admin/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(staged),
-        cache: "no-store",
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return fail(body.detail ?? `Apply failed (HTTP ${res.status})`);
+      const { ok, status, body } = await post("/api/admin/config", staged);
+      if (!ok) return fail(body.detail ?? `Apply failed (HTTP ${status})`);
       reply = body;
     } catch {
       return fail("Couldn't reach the dashboard service");
@@ -169,27 +201,85 @@ export function createAdmin(skin, { root, io = {} }) {
     else skin.renderTransition("error", "The dashboard did not come back healthy.");
   }
 
+  // The confirm gate: request() only opens the dialog; confirm() fires. A stray
+  // tap can at worst open a dialog, never drop the wall.
+  /** @param {AdminAction} action */
+  function request(action) {
+    if (busy || acting || (action === "reboot" && !rebootOk)) return;
+    confirming = action;
+    actionError = null;
+    renderActions();
+  }
+
+  function cancel() {
+    confirming = null;
+    renderActions();
+  }
+
+  /** @param {string} text */
+  function actionFailed(text) {
+    acting = false;
+    actionError = text;
+    renderActions();
+  }
+
+  async function confirm() {
+    const action = confirming;
+    if (!action || busy || acting) return;
+    confirming = null;
+    acting = true;
+    actionError = null;
+    renderActions();
+
+    /** @type {PostReply} */
+    let reply;
+    try {
+      reply = await post(`/api/admin/${action}`, {});
+    } catch {
+      return actionFailed("Couldn't reach the dashboard service");
+    }
+    if (!reply.ok) {
+      // 503 = polkit refused: the availability check was stale.
+      if (action === "reboot" && reply.status === 503) rebootOk = false;
+      const name = action === "reboot" ? "Reboot" : "Restart";
+      return actionFailed(reply.body.detail ?? `${name} failed (HTTP ${reply.status})`);
+    }
+    // Terminal: the screen goes dark, and boot brings the dashboard back.
+    if (action === "reboot") return skin.renderTransition("rebooting");
+    skin.renderTransition("applying");
+    if (await restarted(reply.body.boot)) reload();
+    else skin.renderTransition("error", "The dashboard did not come back healthy.");
+  }
+
   function dismiss() {
     skin.renderTransition(null);
     busy = false;
     staged = {};
     notice = null;
+    acting = false;
+    actionError = null;
+    confirming = null;
+    renderActions();
     void loadConfig();
   }
 
   function open() {
     // Mount lazily and once: the shell persists across open/close.
     if (!mounted) {
-      skin.mount(root, { back: () => go(""), stage, apply, dismiss });
+      skin.mount(root, { back: () => go(""), stage, apply, dismiss, request, confirm, cancel });
       mounted = true;
     }
     root.hidden = false;
-    // A fresh read each open: a stale stage must never survive a revisit.
-    if (!busy) {
+    // A fresh read each open: a stale stage or confirm must never survive a revisit.
+    if (!busy && !acting) {
       staged = {};
       notice = null;
+      confirming = null;
+      actionError = null;
       render();
+      renderActions();
       void loadConfig();
+      void loadRebootAvailable();
     }
     stopStats?.();
     void pollStats();

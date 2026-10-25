@@ -327,6 +327,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # request, so a typo/case-mismatch is otherwise invisible on a headless Pi).
     _warn_on_unknown_layout()
     _warn_on_unknown_pack()
+    # Settles on hardware whether the polkit rule reaches a lingering, session-less
+    # boot-time service: expect "yes" in the journal after a cold boot. WARNING
+    # because nothing configures logging, so INFO never reaches the journal.
+    log.warning("logind CanReboot: %s", await asyncio.to_thread(service.can_reboot))
     task = asyncio.create_task(_refresh_loop())
     app.state.refresh_task = task  # strong ref so the loop isn't GC'd mid-flight
     task.add_done_callback(_loop_exited)
@@ -829,6 +833,53 @@ def admin_stats() -> JSONResponse:
         log.exception("stats collection failed")
         snapshot = stats.UNAVAILABLE
     return JSONResponse(snapshot, headers={"Cache-Control": "no-store"})
+
+
+# ── admin actions: restart the dashboard, reboot the Pi ─────────────────────
+
+
+class ActionRequest(BaseModel):
+    """An action takes no options. Requiring a JSON body (even `{}`) rejects
+    cross-origin "simple" POSTs, which can't send application/json."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+@app.post("/api/admin/restart")
+def admin_restart(_: ActionRequest) -> JSONResponse:
+    """Schedule the same detached restart Apply uses; the reply carries this
+    process's boot id so the client can wait for a different one."""
+    log.info("admin requested a dashboard restart")
+    if not service.restart_dashboard():
+        return JSONResponse({"detail": "the restart failed"}, status_code=500)
+    return JSONResponse({"restarted": True, "boot": _BOOT_ID})
+
+
+@app.get("/api/admin/reboot")
+def admin_reboot_available() -> JSONResponse:
+    """Whether the Reboot button can work (logind CanReboot == "yes")."""
+    return JSONResponse(
+        {"available": service.reboot_available()},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+_REBOOT_FAILED: Final[dict[service.RebootOutcome, tuple[int, str]]] = {
+    "unavailable": (503, "reboot unavailable - is the polkit rule installed?"),
+    "failed": (500, "the reboot request failed"),
+}
+
+
+@app.post("/api/admin/reboot")
+def admin_reboot(_: ActionRequest) -> JSONResponse:
+    """Reboot the Pi via logind. 200 only once logind accepted it, so the client
+    never shows "rebooting" for a reboot that won't happen."""
+    log.warning("admin requested a reboot")
+    outcome = service.reboot()
+    if outcome == "rebooting":
+        return JSONResponse({"rebooting": True})
+    status, detail = _REBOOT_FAILED[outcome]
+    return JSONResponse({"detail": detail}, status_code=status)
 
 
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last

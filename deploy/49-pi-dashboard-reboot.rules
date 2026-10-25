@@ -1,0 +1,17 @@
+// Lets the kiosk service account reboot the Pi (and ONLY reboot) from the admin
+// screen, including from the session-less, lingering `systemctl --user` service
+// started at boot. polkit.Result.YES authorizes WITHOUT authentication, so it
+// does not depend on subject.active / subject.local / a seat session - which a
+// lingering boot-time user service does not have. Scope is exactly the two
+// reboot action ids; power-off, suspend and ignore-inhibit stay denied.
+//
+// Installs to /etc/polkit-1/rules.d/ as root:root 0644 (so the service account
+// can't rewrite its own grant). KIOSK_USER is replaced with the account that
+// runs pi-dashboard.service at install - see deploy/README.md.
+polkit.addRule(function (action, subject) {
+    if ((action.id == "org.freedesktop.login1.reboot" ||
+         action.id == "org.freedesktop.login1.reboot-multiple-sessions") &&
+        subject.user == "KIOSK_USER") {
+        return polkit.Result.YES;
+    }
+});

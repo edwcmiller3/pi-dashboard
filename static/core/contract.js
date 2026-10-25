@@ -126,8 +126,7 @@
 
 // ── admin skin ───────────────────────────────────────────────────────────────
 // Admin is not data-driven by /api/data, so it gets its own thin contract rather
-// than stretching Layout. The actions payload lands with Phase 4; until then
-// that hook is typed loosely.
+// than stretching Layout.
 
 /** @typedef {"layout" | "theme" | "icon_pack"} ConfigKey */
 
@@ -195,6 +194,19 @@
  * @property {NetworkInfo | null} network
  */
 
+/** @typedef {"restart" | "reboot"} AdminAction a device action */
+
+/**
+ * The device actions panel's render input, derived by the controller.
+ * @typedef {object} ActionsView
+ * @property {boolean | null} reboot whether Reboot can work (polkit grants it);
+ *   null while still asking
+ * @property {AdminAction | null} confirming the action awaiting its explicit
+ *   confirm; the skin shows the confirm dialog while set
+ * @property {boolean} busy an action is in flight; the panel is inert
+ * @property {string | null} error why the last action didn't go through
+ */
+
 /**
  * What the controller hands a skin at mount.
  * @typedef {object} AdminCtx
@@ -204,6 +216,10 @@
  *   (re-selecting the current value un-stages it)
  * @property {() => void} apply apply the staged values
  * @property {() => void} dismiss clear an error transition, back to the panels
+ * @property {(action: AdminAction) => void} request first tap: ask to confirm
+ *   `action` (nothing fires yet)
+ * @property {() => void} confirm second tap: fire the action being confirmed
+ * @property {() => void} cancel drop the pending confirm
  */
 
 /**
@@ -223,7 +239,8 @@
  * @property {(view: ConfigView) => void} renderConfig
  * @property {(stats: AdminStats | null) => void} renderStats null = the poll
  *   failed (the whole panel is unavailable)
- * @property {(actions: unknown) => void} renderActions
+ * @property {(view: ActionsView) => void} renderActions the #admin-actions
+ *   panel and, while `view.confirming` is set, its confirm dialog
  * @property {(state: AdminTransition | null, message?: string) => void} renderTransition
  */
 

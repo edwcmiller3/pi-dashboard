@@ -176,6 +176,15 @@ or "earlier" since boot, with the raw `get_throttled` hex beside them; healthy i
 `0x0`. Any field whose source is missing reads "unavailable" on its own - on a
 dev Mac that is always temperature and throttle.
 
+**Device actions** - **Restart dashboard** and **Reboot Pi** - each take two
+taps: the first opens a confirm dialog, the second fires, so a stray touch can't
+drop the wall. Restart uses the same detached restart as Apply and reloads once
+the new process answers. Reboot asks logind over D-Bus (`busctl`) without a
+password prompt, which needs the one-time polkit rule in
+`deploy/49-pi-dashboard-reboot.rules` (install steps in `deploy/README.md`).
+Without the rule - or off-Pi - Reboot shows "unavailable", and the wall never
+says "Rebooting..." unless logind actually accepted the reboot.
+
 It is **layout-aware but theme-independent**: each layout can ship its own admin
 skin as `static/layouts/<name>/admin.js` + `admin.css` (served at `/admin.js` /
 `/admin.css`, fail-soft to classic's skin when a layout has none), and the skin's
@@ -191,7 +200,8 @@ one job:
   `/pack.css` (ICON_PACK), `/admin.js` + `/admin.css` (LAYOUT's admin skin),
   `/api/admin/config` (the admin knobs; writes go through `app/envfile.py` and
   the restart through `app/service.py`), `/api/admin/stats` (device health,
-  `app/stats.py`), and the no-cache static mount.
+  `app/stats.py`), `/api/admin/restart` + `/api/admin/reboot` (device actions,
+  `app/service.py`), and the no-cache static mount.
 - **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js` is
   the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
   machine; `router.js` is the hash router overlay screens mount into, and
