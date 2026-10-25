@@ -489,6 +489,14 @@ These need the physical Pi + panel and can't be validated from a dev machine:
 - **Deploy pickup:** `git pull` a visible change, trigger the reload
   (`systemctl --user start chromium-reload.service`), and confirm the new bundle
   renders (no-cache static headers + reload - no manual hard refresh needed).
+- **Admin screen:** tap the cog, stage a different `ICON_PACK` and Apply - the
+  wall shows "Restarting dashboard..." and comes back on the new pack, and
+  `grep -c '^PROTON_ICS_URL=.' .env` still prints `1` (the secret survived the
+  rewrite). Restart from Device does the same round trip with no
+  change. Device health shows a temperature and a throttle reading (`0x0`
+  healthy), not "unavailable". Reboot (once polkit is in, below) shows
+  "Rebooting...", the panel goes dark, and the wall returns to the dashboard
+  unattended.
 - **Admin reboot (polkit):** the backend logs `logind CanReboot: <answer>` at
   every start. Cold-boot the Pi, do NOT SSH in, then read `journalctl --user -u
   pi-dashboard | grep CanReboot` - it should say `yes`, which proves the rule

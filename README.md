@@ -55,7 +55,8 @@ weather/calendar contract the dashboard polls, and `/healthz` returns
 Three independent axes select the look - `LAYOUT`, `THEME`, and `ICON_PACK`, each
 the name of a directory under `static/`. All three are set in `.env`, read **at
 backend startup** (so a change needs a `systemctl --user restart
-pi-dashboard.service`, not just a browser reload), and **fail-soft**: a non-slug
+pi-dashboard.service`, not just a browser reload - or use **Apply** on the
+[admin screen](#admin-screen), which does both), and **fail-soft**: a non-slug
 value or a valid-but-absent target degrades to the default rather than blanking the
 kiosk or 404-ing the module graph. The [weather source](#weather-sources) is
 configured here too (`NWS_STATION`, `WEATHER_MODEL`), though it's data, not look.
