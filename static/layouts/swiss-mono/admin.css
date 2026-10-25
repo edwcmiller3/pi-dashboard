@@ -227,6 +227,107 @@
   color: #fff;
 }
 
+/* ---- device health: ruled rows, no cards ---- */
+.admin-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+}
+.admin-metric {
+  border-top: 1px solid var(--rule);
+  padding: 9px 0 8px;
+}
+.admin-metric-wide {
+  grid-column: 1 / -1;
+}
+.admin-k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+  margin-bottom: 4px;
+}
+.admin-k svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--ink-60);
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The shared glyphs carry rounded rects; the sheet idiom is square-cornered. */
+.admin-k svg rect {
+  rx: 0;
+}
+.admin-v {
+  font: 700 22px var(--grot);
+  letter-spacing: -0.02em;
+}
+.admin-v small {
+  font: 500 13px var(--mono);
+  color: var(--ink-60);
+  letter-spacing: 0;
+}
+.admin-metric-net .admin-v {
+  font: 600 16px var(--mono);
+  letter-spacing: -0.01em;
+}
+.admin-metric-host .admin-v {
+  font: 600 16px var(--mono);
+}
+.admin-unavail .admin-v {
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  padding: 5px 0 4px;
+}
+.admin-metric.admin-is-warn .admin-v,
+.admin-metric.admin-is-warn .admin-k {
+  color: var(--red);
+}
+.admin-metric.admin-is-warn .admin-k svg {
+  stroke: var(--red);
+}
+.admin-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+.admin-flag {
+  font: 700 10.5px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px 3px;
+  border: 1px solid var(--ink);
+}
+.admin-flag.admin-ok {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.admin-flag.admin-bad {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+}
+.admin-flag.admin-muted {
+  border: none;
+  padding: 0;
+  color: var(--ink-40);
+  font-weight: 500;
+}
+.admin-hex {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--ink-40);
+}
+
 /* ---- transition overlay: a full paper sheet over the grid ---- */
 .admin-scrim {
   position: absolute;

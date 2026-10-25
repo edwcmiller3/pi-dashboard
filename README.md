@@ -168,6 +168,14 @@ once `/healthz` answers from the new process; if it doesn't within ~30s, it says
 so and leaves you on admin. Apply needs `systemd-run` (the Pi); on a dev Mac the
 `.env` write still happens but the restart fails, so restart the server by hand.
 
+**Device health** refreshes every 5s while admin is open (and stops when you
+leave): CPU, RAM, disk, uptime, host, and network (IPv4 address, prefix, and
+interface) via `psutil`, plus temperature and throttle state from `vcgencmd` on
+the Pi. Throttle shows named flags (under-voltage, throttled, ...) marked "now"
+or "earlier" since boot, with the raw `get_throttled` hex beside them; healthy is
+`0x0`. Any field whose source is missing reads "unavailable" on its own - on a
+dev Mac that is always temperature and throttle.
+
 It is **layout-aware but theme-independent**: each layout can ship its own admin
 skin as `static/layouts/<name>/admin.js` + `admin.css` (served at `/admin.js` /
 `/admin.css`, fail-soft to classic's skin when a layout has none), and the skin's
@@ -182,7 +190,8 @@ one job:
   `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), `/pack.js` +
   `/pack.css` (ICON_PACK), `/admin.js` + `/admin.css` (LAYOUT's admin skin),
   `/api/admin/config` (the admin knobs; writes go through `app/envfile.py` and
-  the restart through `app/service.py`), and the no-cache static mount.
+  the restart through `app/service.py`), `/api/admin/stats` (device health,
+  `app/stats.py`), and the no-cache static mount.
 - **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js` is
   the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
   machine; `router.js` is the hash router overlay screens mount into, and

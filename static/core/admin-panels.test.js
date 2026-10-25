@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { configPanel, transitionScrim } from "./admin-panels.js";
+import { configPanel, healthPanel, transitionScrim } from "./admin-panels.js";
 
 // ── minimal DOM stub (local, dep-free) ────────────────────────────────────────
 
@@ -202,4 +202,129 @@ test("transitionScrim: error shows the reason and a way back to the panels", () 
   assert.match(scrim.textContent, /did not come back healthy/);
   withClass(scrim, "admin-dbtn")[0].click();
   assert.deepEqual(ctx.calls, [["dismiss"]]);
+});
+
+// ── health panel ──────────────────────────────────────────────────────────────
+
+const gib = (/** @type {number} */ n) => Math.round(n * 2 ** 30);
+
+/** The CONTENT.md nominal fixture, on a Pi. @param {any} [over] */
+const stats = (over = {}) => ({
+  cpu_percent: 22,
+  memory: { used: gib(1.4), total: gib(3.8) },
+  disk: { used: gib(4.1), total: gib(29) },
+  uptime_s: 8 * 3600 + 46 * 60 + 12,
+  host: "raspberrypi",
+  temp_c: 48.3,
+  throttle: { raw: "0x0", flags: [] },
+  network: { iface: "wlan0", ip: "192.168.1.42", netmask: "255.255.255.0", prefix: 24 },
+  ...over,
+});
+
+/** label -> metric node */
+function metrics(/** @type {any[]} */ nodes) {
+  return new Map(withClass(root(nodes), "admin-metric").map((m) => [withClass(m, "admin-k")[0].textContent, m]));
+}
+const value = (/** @type {any} */ m) => withClass(m, "admin-v")[0].textContent;
+
+test("healthPanel: the nominal fixture renders every metric as the mock shows it", () => {
+  const m = metrics(healthPanel(stats()));
+  assert.deepEqual([...m.keys()], ["CPU", "RAM", "Temp", "Disk", "Uptime", "Host", "Throttle", "Network"]);
+  assert.equal(value(m.get("CPU")), "22%");
+  assert.equal(value(m.get("RAM")), "1.4 / 3.8 GB");
+  assert.equal(value(m.get("Temp")), "48.3 °C");
+  assert.equal(value(m.get("Disk")), "4.1 / 29 GB");
+  assert.equal(value(m.get("Uptime")), "8h 46m");
+  assert.equal(value(m.get("Host")), "raspberrypi");
+  assert.equal(value(m.get("Network")), "192.168.1.42 /24 · wlan0");
+  assert.equal(withClass(root(healthPanel(stats())), "admin-is-warn").length, 0);
+});
+
+test("healthPanel: healthy throttle reads 'No throttling' with the raw hex beside it", () => {
+  const t = metrics(healthPanel(stats())).get("Throttle");
+  const [flag] = withClass(t, "admin-flag");
+  assert.equal(flag.textContent, "No throttling");
+  assert.ok(flag.classList.contains("admin-ok"));
+  assert.equal(withClass(t, "admin-hex")[0].textContent, "0x0");
+});
+
+test("healthPanel: off-Pi, temp and throttle read 'unavailable' and nothing else breaks", () => {
+  const m = metrics(healthPanel(stats({ temp_c: null, throttle: null })));
+  for (const k of ["Temp", "Throttle"]) {
+    assert.equal(value(m.get(k)), "unavailable");
+    assert.ok(m.get(k).classList.contains("admin-unavail"));
+  }
+  assert.equal(value(m.get("CPU")), "22%");
+});
+
+test("healthPanel: every field null still renders all eight tiles, each unavailable", () => {
+  const nulls = Object.fromEntries(Object.keys(stats()).map((k) => [k, null]));
+  const m = metrics(healthPanel(/** @type {any} */ (nulls)));
+  assert.equal(m.size, 8);
+  assert.ok([...m.values()].every((x) => value(x) === "unavailable"));
+});
+
+test("healthPanel: the degraded fixture flags CPU, RAM, temp and disk, not uptime", () => {
+  const m = metrics(
+    healthPanel(
+      stats({ cpu_percent: 96, memory: { used: gib(3.6), total: gib(3.8) }, temp_c: 82.4, disk: { used: gib(27.3), total: gib(29) } }),
+    ),
+  );
+  for (const k of ["CPU", "RAM", "Temp", "Disk"]) assert.ok(m.get(k).classList.contains("admin-is-warn"), k);
+  assert.ok(!m.get("Uptime").classList.contains("admin-is-warn"));
+  assert.equal(value(m.get("RAM")), "3.6 / 3.8 GB");
+  assert.equal(value(m.get("Disk")), "27.3 / 29 GB");
+});
+
+test("healthPanel: 0x50005 decodes to named flags, 'now & earlier', never hex alone", () => {
+  const throttle = {
+    raw: "0x50005",
+    flags: [
+      { flag: "under-voltage", now: true, occurred: true },
+      { flag: "throttled", now: true, occurred: true },
+    ],
+  };
+  const t = metrics(healthPanel(stats({ throttle }))).get("Throttle");
+  const flags = withClass(t, "admin-flag");
+  assert.deepEqual(
+    flags.map((f) => f.textContent),
+    ["Under-voltage", "Throttled", "now & earlier"],
+  );
+  assert.ok(flags[0].classList.contains("admin-bad") && flags[1].classList.contains("admin-bad"));
+  assert.ok(flags[2].classList.contains("admin-muted"));
+  assert.equal(withClass(t, "admin-hex")[0].textContent, "0x50005");
+});
+
+test("healthPanel: mixed throttle history qualifies each flag on its own", () => {
+  const throttle = {
+    raw: "0x50001",
+    flags: [
+      { flag: "under-voltage", now: true, occurred: true },
+      { flag: "throttled", now: false, occurred: true },
+    ],
+  };
+  const t = metrics(healthPanel(stats({ throttle }))).get("Throttle");
+  assert.deepEqual(
+    withClass(t, "admin-flag").map((f) => f.textContent),
+    ["Under-voltage · now & earlier", "Throttled · earlier"],
+  );
+});
+
+test("healthPanel: uptime scales from minutes to days", () => {
+  const up = (/** @type {number} */ s) => value(metrics(healthPanel(stats({ uptime_s: s }))).get("Uptime"));
+  assert.equal(up(59), "0m");
+  assert.equal(up(25 * 60), "25m");
+  assert.equal(up(3 * 86400 + 4 * 3600 + 5 * 60), "3d 4h");
+});
+
+test("healthPanel: a network without a usable netmask still shows the address", () => {
+  const network = { iface: "eth0", ip: "10.0.0.5", netmask: null, prefix: null };
+  assert.equal(value(metrics(healthPanel(stats({ network }))).get("Network")), "10.0.0.5 · eth0");
+});
+
+test("healthPanel: a failed poll (null) renders one unavailable message", () => {
+  const nodes = healthPanel(null);
+  assert.equal(nodes.length, 1);
+  assert.ok(nodes[0].classList.contains("admin-empty"));
+  assert.match(nodes[0].textContent, /unavailable/i);
 });

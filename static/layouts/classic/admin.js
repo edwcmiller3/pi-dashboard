@@ -13,9 +13,10 @@
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
-import { configPanel, transitionScrim } from "../../core/admin-panels.js";
+import { configPanel, healthPanel, transitionScrim } from "../../core/admin-panels.js";
 
 /** @typedef {import("../../core/contract.js").AdminCtx} AdminCtx */
+/** @typedef {import("../../core/contract.js").AdminStats} AdminStats */
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
 /** @typedef {import("../../core/contract.js").ConfigView} ConfigView */
 
@@ -26,6 +27,8 @@ let adminCtx = null;
 let screenEl = null;
 /** @type {HTMLElement | null} */
 let configEl = null;
+/** @type {HTMLElement | null} */
+let healthEl = null;
 /** @type {HTMLElement | null} */
 let scrimEl = null;
 
@@ -67,9 +70,9 @@ function mount(root, ctx) {
 
   const body = el("div", "admin-body");
   const right = el("div", "admin-col-right");
-  const health = card(HEALTH_SVG, "Device health", "admin-health").card;
-  health.classList.add("admin-grow");
-  right.append(health, card(DEVICE_SVG, "Device", "admin-actions").card);
+  const health = card(HEALTH_SVG, "Device health", "admin-health");
+  health.card.classList.add("admin-grow");
+  right.append(health.card, card(DEVICE_SVG, "Device", "admin-actions").card);
   const config = card(APPEARANCE_SVG, "Appearance", "admin-config");
   body.append(config.card, right);
 
@@ -78,6 +81,7 @@ function mount(root, ctx) {
   adminCtx = ctx;
   screenEl = screen;
   configEl = config.body;
+  healthEl = health.body;
 }
 
 /** @param {ConfigView} view */
@@ -93,8 +97,12 @@ function renderTransition(state, message) {
   if (scrimEl) screenEl.append(scrimEl);
 }
 
-// Stubs until their panels land (stats: Phase 3, actions: Phase 4).
-function renderStats() {}
+/** @param {AdminStats | null} stats */
+function renderStats(stats) {
+  healthEl?.replaceChildren(...healthPanel(stats));
+}
+
+// Stub until its panel lands (Phase 4).
 function renderActions() {}
 
 /** @type {import("../../core/contract.js").AdminSkin} */

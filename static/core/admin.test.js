@@ -10,6 +10,14 @@ import assert from "node:assert/strict";
 import { createAdmin } from "./admin.js";
 
 /** A fake AdminSkin recording every mount; exposes the ctx it was handed. */
+/** Offline, timer-free edges for the open/close tests (no real fetch/interval). */
+const QUIET = {
+  fetch: async () => {
+    throw new Error("offline");
+  },
+  every: () => () => {},
+};
+
 function fakeSkin() {
   const skin = {
     /** @type {{ root: unknown, ctx: any }[]} */
@@ -28,7 +36,7 @@ function fakeSkin() {
 
 test("admin: open reveals the overlay root; close hides it", () => {
   const root = { hidden: true };
-  const admin = createAdmin(fakeSkin(), { root });
+  const admin = createAdmin(fakeSkin(), { root, io: QUIET });
   admin.open();
   assert.equal(root.hidden, false);
   admin.close();
@@ -38,7 +46,7 @@ test("admin: open reveals the overlay root; close hides it", () => {
 test("admin: the skin mounts into the overlay root once, on first open", () => {
   const root = { hidden: true };
   const skin = fakeSkin();
-  const admin = createAdmin(skin, { root });
+  const admin = createAdmin(skin, { root, io: QUIET });
   assert.equal(skin.mounts.length, 0, "constructing must not touch the DOM");
   admin.open();
   admin.close();
@@ -54,7 +62,7 @@ test("admin: the skin's back hook returns to the dashboard route", (t) => {
   });
   globalThis.location = /** @type {any} */ ({ hash: "#admin" });
   const skin = fakeSkin();
-  createAdmin(skin, { root: { hidden: true } }).open();
+  createAdmin(skin, { root: { hidden: true }, io: QUIET }).open();
   skin.mounts[0].ctx.back();
   assert.equal(globalThis.location.hash, "");
 });
@@ -62,7 +70,7 @@ test("admin: the skin's back hook returns to the dashboard route", (t) => {
 test("admin: close before any open is harmless", () => {
   const root = { hidden: true };
   const skin = fakeSkin();
-  createAdmin(skin, { root }).close();
+  createAdmin(skin, { root, io: QUIET }).close();
   assert.equal(root.hidden, true);
   assert.equal(skin.mounts.length, 0);
 });
@@ -80,6 +88,18 @@ const NEW_BOOT = "boot-new";
 const GET_CONFIG = "GET /api/admin/config";
 const POST_CONFIG = "POST /api/admin/config";
 const HEALTHZ = "GET /healthz";
+const GET_STATS = "GET /api/admin/stats";
+
+const STATS = {
+  cpu_percent: 22,
+  memory: { used: 1, total: 4 },
+  disk: { used: 4, total: 29 },
+  uptime_s: 31_560,
+  host: "pi",
+  temp_c: null,
+  throttle: null,
+  network: null,
+};
 
 /** @typedef {{ status: number, body?: unknown } | Error} Reply */
 
@@ -113,10 +133,17 @@ function recordingSkin() {
   const views = [];
   /** @type {[string | null, string | undefined][]} */
   const transitions = [];
+  /** @type {any[]} */
+  const stats = [];
   return {
     ...base,
     views,
     transitions,
+    stats,
+    /** @param {any} s */
+    renderStats(s) {
+      stats.push(s);
+    },
     /** @param {any} v */
     renderConfig(v) {
       views.push(v);
@@ -140,21 +167,33 @@ function recordingSkin() {
  * @param {Record<string, Reply[]>} [script]
  */
 async function opened(script = {}) {
-  const fetch = fakeFetch({ [GET_CONFIG]: [{ status: 200, body: CONFIG }], ...script });
+  const fetch = fakeFetch({
+    [GET_CONFIG]: [{ status: 200, body: CONFIG }],
+    [GET_STATS]: [{ status: 200, body: STATS }],
+    ...script,
+  });
   let t = 0;
   let reloads = 0;
+  /** @type {{ ms: number, fn: () => void, cancelled: boolean }[]} */
+  const timers = [];
   const io = {
     fetch,
     reload: () => void reloads++,
     /** @param {number} ms */
     sleep: async (ms) => void (t += ms),
     now: () => t,
+    /** @param {number} ms @param {() => void} fn */
+    every: (ms, fn) => {
+      const timer = { ms, fn, cancelled: false };
+      timers.push(timer);
+      return () => void (timer.cancelled = true);
+    },
   };
   const skin = recordingSkin();
   const admin = createAdmin(skin, { root: { hidden: true }, io });
   admin.open();
   await flush();
-  return { admin, skin, fetch, reloads: () => reloads, elapsed: () => t };
+  return { admin, skin, fetch, timers, reloads: () => reloads, elapsed: () => t };
 }
 
 /** @param {{ calls: { url: string, init: any }[] }} fetch */
@@ -310,7 +349,7 @@ test("apply: the panel is inert while an apply is in flight", async () => {
         })
       : inner(url, init);
   skin.mounts.length = 0;
-  const admin = createAdmin(skin, { root: { hidden: true }, io: { fetch: held } });
+  const admin = createAdmin(skin, { root: { hidden: true }, io: { fetch: held, every: QUIET.every } });
   admin.open();
   await flush();
   skin.ctx.stage("layout", "hud");
@@ -322,4 +361,77 @@ test("apply: the panel is inert while an apply is in flight", async () => {
   release({ ok: true, status: 200, json: async () => ({ restarted: false }) });
   await pending;
   assert.equal(skin.last.busy, false);
+});
+
+// ── stats auto-poll ──────────────────────────────────────────────────────────
+
+/** @param {{ calls: { url: string }[] }} fetch */
+const statsCalls = (fetch) => fetch.calls.filter((c) => c.url === "/api/admin/stats");
+
+test("stats: open fetches uncached right away and renders, then polls every 5s", async () => {
+  const { skin, fetch, timers } = await opened();
+  assert.deepEqual(statsCalls(fetch)[0], { url: "/api/admin/stats", init: { cache: "no-store" } });
+  assert.deepEqual(skin.stats, [STATS]);
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].ms, 5000);
+  timers[0].fn();
+  await flush();
+  assert.equal(statsCalls(fetch).length, 2);
+  assert.equal(skin.stats.length, 2);
+});
+
+test("stats: close stops the poll; re-open restarts exactly one", async () => {
+  const { admin, timers } = await opened();
+  admin.close();
+  assert.equal(timers[0].cancelled, true);
+  admin.open();
+  await flush();
+  assert.equal(timers.filter((t) => !t.cancelled).length, 1);
+});
+
+test("stats: a repeated open without close never stacks a second poll", async () => {
+  const { admin, timers } = await opened();
+  admin.open();
+  await flush();
+  assert.equal(timers.filter((t) => !t.cancelled).length, 1);
+});
+
+test("stats: a failed poll renders the panel unavailable, not a throw", async () => {
+  const { skin, timers } = await opened({ [GET_STATS]: [{ status: 200, body: STATS }, new TypeError("refused")] });
+  timers[0].fn();
+  await flush();
+  assert.deepEqual(skin.stats, [STATS, null]);
+});
+
+test("stats: a non-200 poll is unavailable too", async () => {
+  const { skin } = await opened({ [GET_STATS]: [{ status: 500, body: {} }] });
+  assert.deepEqual(skin.stats, [null]);
+});
+
+test("stats: a tick while the last poll is still in flight is skipped", async () => {
+  /** @type {(v: any) => void} */
+  let release = () => {};
+  let held = 0;
+  /** @type {(() => void)[]} */
+  const ticks = [];
+  /** @param {string} url */
+  const fetch = (url) => {
+    if (url !== "/api/admin/stats") return Promise.reject(new Error("offline"));
+    held++;
+    return new Promise((r) => {
+      release = r;
+    });
+  };
+  const admin = createAdmin(recordingSkin(), {
+    root: { hidden: true },
+    io: { fetch, every: (_ms, fn) => (ticks.push(fn), () => {}) },
+  });
+  admin.open();
+  ticks[0]();
+  ticks[0]();
+  assert.equal(held, 1, "ticks during the held call send nothing");
+  release({ ok: true, status: 200, json: async () => STATS });
+  await flush();
+  ticks[0]();
+  assert.equal(held, 2, "the next tick after it settles polls again");
 });

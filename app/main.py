@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.responses import Response
 from starlette.types import Scope
 
-from app import cache, service
+from app import cache, service, stats
 from app.config import settings
 from app.contract import (
     DashboardDoc,
@@ -813,6 +813,22 @@ def admin_config_apply(update: ConfigUpdate) -> JSONResponse:
             status_code=500,
         )
     return JSONResponse({"restarted": True, "boot": _BOOT_ID})
+
+
+# ── admin stats: device health ──────────────────────────────────────────────
+
+
+@app.get("/api/admin/stats")
+def admin_stats() -> JSONResponse:
+    """A live health snapshot for the admin panel's 5s poll. Sync on purpose:
+    the ~0.1s CPU sample blocks a threadpool worker, not the event loop. Each
+    field fail-softs to null; this never 500s."""
+    try:
+        snapshot = stats.collect()
+    except Exception:
+        log.exception("stats collection failed")
+        snapshot = stats.UNAVAILABLE
+    return JSONResponse(snapshot, headers={"Cache-Control": "no-store"})
 
 
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last

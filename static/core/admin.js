@@ -12,6 +12,7 @@ import { go } from "./router.js";
 
 /** @typedef {import("./contract.js").AdminSkin} AdminSkin */
 /** @typedef {import("./contract.js").AdminConfig} AdminConfig */
+/** @typedef {import("./contract.js").AdminStats} AdminStats */
 /** @typedef {import("./contract.js").ConfigKey} ConfigKey */
 /** @typedef {import("./contract.js").ConfigView} ConfigView */
 
@@ -23,12 +24,17 @@ import { go } from "./router.js";
  * @property {() => void} reload
  * @property {(ms: number) => Promise<void>} sleep
  * @property {() => number} now ms clock
+ * @property {(ms: number, fn: () => void) => () => void} every repeating timer;
+ *   returns its cancel
  */
 
 /** @typedef {{ restarted: boolean, boot?: string }} ApplyReply POST /api/admin/config */
 
 const HEALTH_POLL_MS = 1000;
 const HEALTH_TIMEOUT_MS = 30_000;
+// Runs for as long as admin stays open (no idle auto-return), so it is kept slow
+// for the Pi's thermal budget; each poll also costs a ~0.1s CPU sample server-side.
+const STATS_POLL_MS = 5000;
 
 /** @type {AdminIO} */
 const BROWSER_IO = {
@@ -36,6 +42,10 @@ const BROWSER_IO = {
   reload: () => globalThis.location.reload(),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now: () => Date.now(),
+  every: (ms, fn) => {
+    const id = setInterval(fn, ms);
+    return () => clearInterval(id);
+  },
 };
 
 /**
@@ -45,7 +55,7 @@ const BROWSER_IO = {
  * @returns {{ open: () => void, close: () => void }}
  */
 export function createAdmin(skin, { root, io = {} }) {
-  const { fetch, reload, sleep, now } = { ...BROWSER_IO, ...io };
+  const { fetch, reload, sleep, now, every } = { ...BROWSER_IO, ...io };
   let mounted = false;
 
   /** @type {AdminConfig | null} */
@@ -55,6 +65,9 @@ export function createAdmin(skin, { root, io = {} }) {
   let busy = false;
   /** @type {ConfigView["notice"]} */
   let notice = null;
+  /** @type {(() => void) | null} */
+  let stopStats = null;
+  let statsInFlight = false;
 
   function render() {
     skin.renderConfig({ config, staged: { ...staged }, pending: Object.keys(staged).length, busy, notice });
@@ -71,6 +84,22 @@ export function createAdmin(skin, { root, io = {} }) {
       notice = { kind: "error", text: "Settings unavailable" };
     }
     render();
+  }
+
+  async function pollStats() {
+    // A slow probe must not stack requests behind it.
+    if (statsInFlight) return;
+    statsInFlight = true;
+    try {
+      const res = await fetch("/api/admin/stats", { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      skin.renderStats(/** @type {AdminStats} */ (await res.json()));
+    } catch {
+      // Includes the restart window under an apply; the next tick recovers.
+      skin.renderStats(null);
+    } finally {
+      statsInFlight = false;
+    }
   }
 
   /** @param {ConfigKey} key @param {string} value */
@@ -162,10 +191,15 @@ export function createAdmin(skin, { root, io = {} }) {
       render();
       void loadConfig();
     }
+    stopStats?.();
+    void pollStats();
+    stopStats = every(STATS_POLL_MS, () => void pollStats());
   }
 
   function close() {
     root.hidden = true;
+    stopStats?.();
+    stopStats = null;
   }
 
   return { open, close };

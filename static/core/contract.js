@@ -126,9 +126,8 @@
 
 // ── admin skin ───────────────────────────────────────────────────────────────
 // Admin is not data-driven by /api/data, so it gets its own thin contract rather
-// than stretching Layout. Payload shapes for stats/actions land with the phases
-// that serve them (GET /api/admin/stats, Phase 3/4); until then those hooks are
-// typed loosely.
+// than stretching Layout. The actions payload lands with Phase 4; until then
+// that hook is typed loosely.
 
 /** @typedef {"layout" | "theme" | "icon_pack"} ConfigKey */
 
@@ -151,6 +150,49 @@
  * @property {number} pending count of staged changes
  * @property {boolean} busy an apply is in flight; the panel is inert
  * @property {{ kind: "info" | "error", text: string } | null} notice
+ */
+
+// GET /api/admin/stats (mirrors app/stats.py). Every field is null when its
+// probe is unavailable - temp/throttle always are off-Pi.
+
+/**
+ * Must match app/stats.py ThrottleFlag; tests/test_stats.py diffs the two.
+ * @typedef {"under-voltage" | "arm-frequency-capped" | "throttled" | "soft-temp-limit"} ThrottleFlag
+ */
+
+/**
+ * @typedef {object} ThrottleState
+ * @property {ThrottleFlag} flag
+ * @property {boolean} now set right now
+ * @property {boolean} occurred set at some point since boot (sticky)
+ */
+
+/**
+ * @typedef {object} Throttle
+ * @property {string} raw the get_throttled hex, e.g. "0x50005"
+ * @property {ThrottleState[]} flags only the set flags; empty = healthy
+ */
+
+/** @typedef {{ used: number, total: number }} Usage bytes */
+
+/**
+ * @typedef {object} NetworkInfo
+ * @property {string} iface
+ * @property {string} ip
+ * @property {string | null} netmask
+ * @property {number | null} prefix
+ */
+
+/**
+ * @typedef {object} AdminStats
+ * @property {number | null} cpu_percent
+ * @property {Usage | null} memory
+ * @property {Usage | null} disk
+ * @property {number | null} uptime_s
+ * @property {string | null} host
+ * @property {number | null} temp_c
+ * @property {Throttle | null} throttle
+ * @property {NetworkInfo | null} network
  */
 
 /**
@@ -179,7 +221,8 @@
  *   header with back arrow + the #admin-config / #admin-health / #admin-actions
  *   panel containers
  * @property {(view: ConfigView) => void} renderConfig
- * @property {(stats: unknown) => void} renderStats
+ * @property {(stats: AdminStats | null) => void} renderStats null = the poll
+ *   failed (the whole panel is unavailable)
  * @property {(actions: unknown) => void} renderActions
  * @property {(state: AdminTransition | null, message?: string) => void} renderTransition
  */

@@ -254,6 +254,93 @@
   box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
+/* ---- device health ---- */
+.admin-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.95rem 1.4rem;
+}
+.admin-metric-wide {
+  grid-column: 1 / -1;
+}
+.admin-k {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+.admin-k svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  stroke: var(--muted);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-v {
+  font-size: 1.4rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.admin-v small {
+  font-size: 0.95rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+.admin-metric-host .admin-v {
+  font-size: 1.15rem;
+}
+.admin-metric-net .admin-v {
+  font-size: 1.2rem;
+}
+.admin-unavail .admin-v {
+  color: var(--faint);
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+.admin-metric.admin-is-warn .admin-v {
+  color: var(--stale);
+}
+.admin-metric.admin-is-warn .admin-k svg {
+  stroke: var(--stale);
+}
+.admin-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+.admin-flag {
+  font-size: 0.86rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.admin-flag.admin-ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.admin-flag.admin-bad {
+  color: var(--stale);
+  background: color-mix(in srgb, var(--stale) 16%, transparent);
+}
+.admin-flag.admin-muted {
+  color: var(--faint);
+  background: none;
+  font-weight: 400;
+}
+.admin-hex {
+  color: var(--faint);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- transition overlay (apply / restart / reboot / error) ---- */
 .admin-scrim {
   position: absolute;

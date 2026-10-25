@@ -271,6 +271,105 @@
   text-shadow: 0 0 10px rgba(92, 255, 197, 0.45);
 }
 
+/* ---- device health ---- */
+.admin-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem 1.3rem;
+}
+.admin-metric-wide {
+  grid-column: 1 / -1;
+}
+.admin-k {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--f2);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ph3);
+  margin-bottom: 0.25rem;
+}
+.admin-k svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  stroke: var(--ph3);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-v {
+  font-family: var(--f1);
+  font-size: 1.5rem;
+  color: var(--ph0);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(92, 255, 197, 0.35);
+}
+.admin-v small {
+  font-size: 0.9rem;
+  color: var(--ph2);
+}
+.admin-metric-host .admin-v {
+  font-size: 1.2rem;
+}
+.admin-metric-net .admin-v {
+  font-size: 1.25rem;
+}
+.admin-unavail .admin-v {
+  font-family: var(--f2);
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ph3);
+  text-shadow: none;
+}
+.admin-metric.admin-is-warn .admin-v {
+  color: var(--amb);
+  text-shadow: 0 0 12px rgba(255, 180, 84, 0.4);
+}
+.admin-metric.admin-is-warn .admin-k svg {
+  stroke: var(--amb);
+}
+.admin-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+.admin-flag {
+  font-family: var(--f2);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid;
+}
+.admin-flag.admin-ok {
+  color: var(--ph1);
+  border-color: var(--ph4);
+  background: rgba(92, 255, 197, 0.05);
+}
+.admin-flag.admin-bad {
+  color: var(--amb);
+  border-color: var(--amb2);
+  background: rgba(255, 180, 84, 0.08);
+}
+.admin-flag.admin-muted {
+  color: var(--ph3);
+  border-color: transparent;
+  background: none;
+}
+.admin-hex {
+  font-family: var(--f2);
+  color: var(--ph3);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- transition overlay, above the CRT fx ---- */
 .admin-scrim {
   position: absolute;

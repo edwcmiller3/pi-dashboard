@@ -13,9 +13,10 @@
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
-import { configPanel, transitionScrim } from "../../core/admin-panels.js";
+import { configPanel, healthPanel, transitionScrim } from "../../core/admin-panels.js";
 
 /** @typedef {import("../../core/contract.js").AdminCtx} AdminCtx */
+/** @typedef {import("../../core/contract.js").AdminStats} AdminStats */
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
 /** @typedef {import("../../core/contract.js").ConfigView} ConfigView */
 
@@ -26,6 +27,8 @@ let adminCtx = null;
 let screenEl = null;
 /** @type {HTMLElement | null} */
 let configEl = null;
+/** @type {HTMLElement | null} */
+let healthEl = null;
 /** @type {HTMLElement | null} */
 let scrimEl = null;
 
@@ -57,16 +60,18 @@ function mount(root, ctx) {
   head.append(back, el("span", "admin-title", "Admin"));
 
   const config = panel("Appearance", "admin-config", "admin-area-config");
+  const health = panel("Device health", "admin-health", "admin-area-health");
   screen.append(
     head,
     config.cell,
-    panel("Device health", "admin-health", "admin-area-health").cell,
+    health.cell,
     panel("Device", "admin-actions", "admin-area-actions").cell,
   );
   root.append(screen);
   adminCtx = ctx;
   screenEl = screen;
   configEl = config.body;
+  healthEl = health.body;
 }
 
 /** @param {ConfigView} view */
@@ -82,8 +87,12 @@ function renderTransition(state, message) {
   if (scrimEl) screenEl.append(scrimEl);
 }
 
-// Stubs until their panels land (stats: Phase 3, actions: Phase 4).
-function renderStats() {}
+/** @param {AdminStats | null} stats */
+function renderStats(stats) {
+  healthEl?.replaceChildren(...healthPanel(stats));
+}
+
+// Stub until its panel lands (Phase 4).
 function renderActions() {}
 
 /** @type {import("../../core/contract.js").AdminSkin} */
