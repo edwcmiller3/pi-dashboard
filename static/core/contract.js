@@ -126,15 +126,42 @@
 
 // ── admin skin ───────────────────────────────────────────────────────────────
 // Admin is not data-driven by /api/data, so it gets its own thin contract rather
-// than stretching Layout. Payload shapes for config/stats/actions land with the
-// phases that serve them (GET /api/admin/config, /api/admin/stats); until then
-// the hooks are typed loosely.
+// than stretching Layout. Payload shapes for stats/actions land with the phases
+// that serve them (GET /api/admin/stats, Phase 3/4); until then those hooks are
+// typed loosely.
+
+/** @typedef {"layout" | "theme" | "icon_pack"} ConfigKey */
+
+/**
+ * One knob from GET /api/admin/config (mirrors app/main.py ConfigKnob). A THEME
+ * of "" is the built-in palette.
+ * @typedef {object} ConfigKnob
+ * @property {string} current the value actually rendering
+ * @property {string[]} options every selectable value
+ */
+
+/** @typedef {Record<ConfigKey, ConfigKnob>} AdminConfig GET /api/admin/config */
+
+/**
+ * The config panel's render input, derived by the controller.
+ * @typedef {object} ConfigView
+ * @property {AdminConfig | null} config null while loading or when unavailable
+ * @property {Partial<Record<ConfigKey, string>>} staged pending values, only
+ *   those differing from current
+ * @property {number} pending count of staged changes
+ * @property {boolean} busy an apply is in flight; the panel is inert
+ * @property {{ kind: "info" | "error", text: string } | null} notice
+ */
 
 /**
  * What the controller hands a skin at mount.
  * @typedef {object} AdminCtx
  * @property {() => void} back return to the dashboard; the skin wires its back
  *   arrow to this
+ * @property {(key: ConfigKey, value: string) => void} stage select a knob value
+ *   (re-selecting the current value un-stages it)
+ * @property {() => void} apply apply the staged values
+ * @property {() => void} dismiss clear an error transition, back to the panels
  */
 
 /**
@@ -151,7 +178,7 @@
  * @property {(root: HTMLElement, ctx: AdminCtx) => void} mount builds the shell -
  *   header with back arrow + the #admin-config / #admin-health / #admin-actions
  *   panel containers
- * @property {(config: unknown) => void} renderConfig
+ * @property {(view: ConfigView) => void} renderConfig
  * @property {(stats: unknown) => void} renderStats
  * @property {(actions: unknown) => void} renderActions
  * @property {(state: AdminTransition | null, message?: string) => void} renderTransition

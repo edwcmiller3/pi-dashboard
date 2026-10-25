@@ -13,22 +13,28 @@ a done-callback logs loudly if it ever exits unexpectedly.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
 import re
+import stat
+import tempfile
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Final, TypeVar, cast
+from typing import Final, Literal, TypedDict, TypeVar, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict
 from starlette.responses import Response
 from starlette.types import Scope
 
-from app import cache
+from app import cache, service
 from app.config import settings
 from app.contract import (
     DashboardDoc,
@@ -36,6 +42,7 @@ from app.contract import (
     as_calendar_block,
     as_weather_block,
 )
+from app.envfile import EnvKey, with_values
 from app.sources.calendar import get_calendar
 from app.sources.weather import get_weather
 
@@ -54,6 +61,11 @@ _BACKOFF_START_SECONDS: Final = 30
 # tests can repoint it; the dashboard's live wall-clock is only trustworthy once
 # this exists on a Pi without a hardware RTC.
 _TIMESYNC_MARKER = Path("/run/systemd/timesync/synchronized")
+
+# Identifies this process to the admin screen: after Apply schedules a restart,
+# the client waits for /healthz to report a DIFFERENT boot id, so a reply from
+# the not-yet-stopped old process can't pass for the restarted one.
+_BOOT_ID: Final = uuid.uuid4().hex
 
 # Each refresh source yields a contract block of its own shape (weather vs.
 # calendar). `_refresh_source` is generic over that block type so the per-source
@@ -329,8 +341,8 @@ app = FastAPI(title="pi-dashboard", version="0.1.0", lifespan=lifespan)
 
 @app.get("/healthz")
 def healthz() -> JSONResponse:
-    """Liveness probe."""
-    return JSONResponse({"status": "ok"})
+    """Liveness probe; `boot` changes on every process start."""
+    return JSONResponse({"status": "ok", "boot": _BOOT_ID})
 
 
 @app.get("/api/data")
@@ -654,7 +666,156 @@ def admin_js() -> Response:
     )
 
 
+# ── admin config: the three presentation knobs ──────────────────────────────
+
+ConfigKey = Literal["layout", "theme", "icon_pack"]
+
+_CONFIG_ENV_KEYS: Final[dict[ConfigKey, EnvKey]] = {
+    "layout": "LAYOUT",
+    "theme": "THEME",
+    "icon_pack": "ICON_PACK",
+}
+
+# The same CWD-relative file config.py's Settings reads. Module-level so tests
+# can repoint it away from the real .env.
+_ENV_FILE = Path(".env")
+
+
+class ConfigKnob(TypedDict):
+    current: str
+    options: list[str]
+
+
+class AdminConfig(TypedDict):
+    layout: ConfigKnob
+    theme: ConfigKnob
+    icon_pack: ConfigKnob
+
+
+class ConfigUpdate(BaseModel):
+    """Staged values from the admin panel; an omitted knob is unchanged. Unknown
+    keys are rejected so a typo can't pass as a successful no-op."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    layout: str | None = None
+    theme: str | None = None
+    icon_pack: str | None = None
+
+
+def _available_themes() -> list[str]:
+    """Selectable THEME values: "" (the built-in palette) plus each stylesheet
+    stem under static/themes/. Themes are flat .css files, not dirs with an
+    index.js, so _available_slugs doesn't cover them."""
+    try:
+        stems = sorted(
+            p.stem for p in (_static_dir / "themes").iterdir() if p.suffix == ".css"
+        )
+    except OSError:
+        stems = []
+    return ["", *stems]
+
+
+def _selectable(names: list[str]) -> list[str]:
+    """Only names a setting can actually resolve to (the routes lowercase the
+    value), and that are safe to write bare into .env."""
+    return [n for n in names if _SLUG_RE.fullmatch(n) and n == n.lower()]
+
+
+def _knob(raw: str, options: list[str], default: str) -> ConfigKnob:
+    # "current" is what actually renders: an unresolvable value fail-softs to
+    # the built-in default, so report that rather than the typo.
+    name = _normalized(raw)
+    return {"current": name if name in options else default, "options": options}
+
+
+def _admin_config() -> AdminConfig:
+    return {
+        "layout": _knob(
+            settings.layout, _selectable(_available_slugs("layouts")), "classic"
+        ),
+        # _selectable drops "" (not a slug); the built-in palette is re-added first.
+        "theme": _knob(settings.theme, ["", *_selectable(_available_themes())], ""),
+        "icon_pack": _knob(
+            settings.icon_pack, _selectable(_available_slugs("packs")), "weather-icons"
+        ),
+    }
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    """Replace `path` with `text` via a same-dir temp file + os.replace, keeping
+    its permissions (.env holds a secret and is often 0600), so a crash or full
+    disk mid-write can never leave a truncated .env."""
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        mode = 0o600
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def _read_env(path: Path) -> str:
+    # newline="" keeps CRLF intact so untouched lines round-trip byte for byte.
+    try:
+        with path.open(encoding="utf-8", newline="") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
+
+
+@app.get("/api/admin/config")
+def admin_config() -> JSONResponse:
+    """The three knobs only - current value + selectable options. Built from a
+    whitelist, so the secret and every other setting are structurally absent."""
+    return JSONResponse(_admin_config())
+
+
+@app.post("/api/admin/config")
+def admin_config_apply(update: ConfigUpdate) -> JSONResponse:
+    """Apply staged knob values: validate all, write only the diff to .env, then
+    schedule a detached restart (the new values load on the next start). An
+    empty diff writes nothing and doesn't restart."""
+    config = _admin_config()
+    staged: dict[ConfigKey, str | None] = {
+        "layout": update.layout,
+        "theme": update.theme,
+        "icon_pack": update.icon_pack,
+    }
+    for key, value in staged.items():
+        if value is not None and value not in config[key]["options"]:
+            return JSONResponse({"detail": f"unknown {key}: {value!r}"}, status_code=400)
+    changes: dict[EnvKey, str] = {
+        _CONFIG_ENV_KEYS[key]: value
+        for key, value in staged.items()
+        if value is not None and value != config[key]["current"]
+    }
+    if not changes:
+        return JSONResponse({"restarted": False})
+    try:
+        _write_atomic(_ENV_FILE, with_values(_read_env(_ENV_FILE), changes))
+    except (OSError, UnicodeError):
+        log.exception("could not write %s", _ENV_FILE)
+        return JSONResponse({"detail": "could not save settings"}, status_code=500)
+    log.info("admin applied %s; restarting", ", ".join(sorted(changes)))
+    if not service.restart_dashboard():
+        return JSONResponse(
+            {"detail": "saved, but the restart failed - restart the service to apply"},
+            status_code=500,
+        )
+    return JSONResponse({"restarted": True, "boot": _BOOT_ID})
+
+
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz, /api/*, /theme.css, /layout.css, /layout.js, /pack.css, /pack.js,
+# so /healthz, /api/* (incl. /api/admin/*), /theme.css, /layout.css, /layout.js, /pack.css, /pack.js,
 # /admin.css, and /admin.js take precedence over the catch-all static mount.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

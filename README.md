@@ -48,7 +48,7 @@ uv run uvicorn app.main:app --reload    # dev (Mac): http://127.0.0.1:8000
 `/` serves the static dashboard (with `Cache-Control: no-cache`, so a deploy's new
 bundle loads instead of a stale copy), `/api/data` serves the normalized
 weather/calendar contract the dashboard polls, and `/healthz` returns
-`{"status": "ok"}`. For production on the Pi, see [Deploy](#deploy-pi).
+`{"status": "ok", "boot": "<id>"}` (`boot` changes on every process start). For production on the Pi, see [Deploy](#deploy-pi).
 
 ## Configuration
 
@@ -157,9 +157,16 @@ underneath, so it is current the moment you return. A reload or cold boot always
 lands on the dashboard, never on admin.
 
 The admin screen edits the three look knobs - `LAYOUT`, `THEME`, `ICON_PACK` -
-on-device (Apply writes them to `.env` and restarts the service), shows device
-health, and offers restart / reboot actions. *Status: the shell, cog, and back
-navigation are in place; the config, health, and actions panels land next.*
+on-device, shows device health, and offers restart / reboot actions. Each knob
+lists only the values installed under `static/` (selection only, no free text).
+Tap values to stage them, then **Apply**: the backend rewrites just those three
+lines of `.env` (every other line, including `PROTON_ICS_URL`, is left byte for
+byte) and schedules a restart of `pi-dashboard.service` via a transient
+`systemd-run --user` timer, so the reply reaches the browser before the service
+goes down. The wall shows "Restarting dashboard..." and reloads onto the new skin
+once `/healthz` answers from the new process; if it doesn't within ~30s, it says
+so and leaves you on admin. Apply needs `systemd-run` (the Pi); on a dev Mac the
+`.env` write still happens but the restart fails, so restart the server by hand.
 
 It is **layout-aware but theme-independent**: each layout can ship its own admin
 skin as `static/layouts/<name>/admin.js` + `admin.css` (served at `/admin.js` /
@@ -173,12 +180,14 @@ one job:
 
 - **Server routes** (`app/main.py`) pick the skin from config and serve it:
   `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), `/pack.js` +
-  `/pack.css` (ICON_PACK), `/admin.js` + `/admin.css` (LAYOUT's admin skin), and
-  the no-cache static mount.
+  `/pack.css` (ICON_PACK), `/admin.js` + `/admin.css` (LAYOUT's admin skin),
+  `/api/admin/config` (the admin knobs; writes go through `app/envfile.py` and
+  the restart through `app/service.py`), and the no-cache static mount.
 - **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js` is
   the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
   machine; `router.js` is the hash router overlay screens mount into, and
-  `admin.js` the admin controller (behavior only - the skin renders);
+  `admin.js` the admin controller (behavior only - the skin renders), with
+  `admin-panels.js` the panel markup every admin skin shares;
   `contract.js` mirrors the backend data contract as JSDoc typedefs;
   `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
 - **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all their

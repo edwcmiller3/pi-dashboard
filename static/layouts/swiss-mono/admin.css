@@ -1,0 +1,285 @@
+/* swiss-mono admin skin - engineering-sheet idiom
+   (design-mocks/admin-swiss-mono.html). Single Swiss-red accent; no blur/glow.
+
+   Theme-independent by construction: every token is declared on #admin-root,
+   not :root, so /theme.css's :root palette override never reaches the admin
+   subtree. Values are the mock's fixed light palette (the same one swiss-mono's
+   layout.css scopes to .swiss-mono). The typefaces come from the vendored
+   fonts.css swiss-mono's layout.css already imports - this skin only loads
+   alongside that layout. */
+
+#admin-root {
+  --paper: #f5f4f0;
+  --paper-dim: #efeee9;
+  --ink: #161613;
+  --ink-60: rgba(22, 22, 19, 0.6);
+  --ink-40: rgba(22, 22, 19, 0.4);
+  --rule: rgba(22, 22, 19, 0.16);
+  --red: #e30613;
+  --surround: #d9d8d2;
+  --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --grot: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background: var(--surround);
+  color: var(--ink);
+  font-family: var(--grot);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---- canvas: the exposed modular grid (ink bg -> 1px gaps read as rules) ---- */
+.admin-screen {
+  width: 80rem;
+  height: 50rem;
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  grid-template-rows: 60px 1fr auto;
+  gap: 1px;
+}
+.admin-cell {
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+.admin-screen svg {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- header: back + ADMIN ---- */
+.admin-head {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+}
+.admin-back {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+}
+.admin-back svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  display: block;
+}
+.admin-back:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.admin-title {
+  font: 800 24px var(--grot);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ---- panel cells + mono kicker (in place of a card heading) ---- */
+.admin-panel-cell {
+  padding: 30px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.admin-area-config {
+  grid-column: 1;
+  grid-row: 2 / 4;
+}
+.admin-area-health {
+  grid-column: 2;
+  grid-row: 2;
+}
+.admin-area-actions {
+  grid-column: 2;
+  grid-row: 3;
+}
+.admin-kick {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 20px;
+}
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.admin-empty {
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+/* ---- config knobs ---- */
+.admin-knob {
+  padding: 14px 0;
+}
+.admin-knob + .admin-knob {
+  border-top: 1px solid var(--rule);
+}
+.admin-knob-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.admin-knob-name {
+  font: 700 19px var(--grot);
+  letter-spacing: -0.01em;
+}
+.admin-knob-live {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.admin-knob-live b {
+  color: var(--ink-60);
+  font-weight: 700;
+}
+.admin-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-opt {
+  font: 500 13.5px var(--mono);
+  letter-spacing: 0.02em;
+  padding: 7px 12px 6px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+/* solid red = the selected value (current when resting, staged when pending) */
+.admin-opt.admin-current,
+.admin-opt.admin-staged {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  font-weight: 700;
+}
+/* red outline = the value that was live, when a different one is staged */
+.admin-opt.admin-was-current {
+  background: var(--paper);
+  border-color: var(--red);
+  color: var(--ink);
+}
+.admin-opt:disabled {
+  cursor: default;
+}
+
+/* ---- apply bar ---- */
+.admin-apply-bar {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.admin-apply-summary {
+  font: 500 11.5px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.admin-apply-summary.admin-has-staged,
+.admin-apply-summary.admin-is-error {
+  color: var(--red);
+  font-weight: 700;
+}
+.admin-apply-btn {
+  font: 700 12px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 10px 20px 9px;
+  border: 1px solid;
+  cursor: pointer;
+}
+.admin-apply-btn.admin-off {
+  border-color: var(--rule);
+  background: var(--paper-dim);
+  color: var(--ink-40);
+  cursor: default;
+}
+.admin-apply-btn.admin-on {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+}
+
+/* ---- transition overlay: a full paper sheet over the grid ---- */
+.admin-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-terminal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+}
+.admin-spin {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--rule);
+  border-top-color: var(--red);
+  animation: admin-spin 1s linear infinite;
+}
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.admin-big {
+  font: 800 28px var(--grot);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+.admin-terminal.admin-is-error .admin-big {
+  color: var(--red);
+}
+.admin-small {
+  font: 500 12px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+.admin-dbtn {
+  font: 700 12px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 11px 18px 10px;
+  border: 1px solid;
+  cursor: pointer;
+}
+.admin-dbtn.admin-ghost {
+  border-color: var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}

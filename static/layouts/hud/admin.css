@@ -1,0 +1,336 @@
+/* HUD admin skin - green-phosphor instrument idiom
+   (design-mocks/admin-instrument-hud.html). Amber is the change / caution colour.
+
+   Theme-independent by construction: every token is declared on #admin-root,
+   not :root, so /theme.css's :root palette override never reaches the admin
+   subtree. Values are the mock's fixed phosphor palette (the dashboard's hud
+   layout.css derives its ramp from the themable base vars; admin deliberately
+   does not). The typefaces come from the vendored fonts.css hud's layout.css
+   already imports - this skin only loads alongside that layout. */
+
+#admin-root {
+  --bg: #03080a;
+  --ph0: #eafff6;
+  --ph1: #5cffc5;
+  --ph2: rgba(92, 255, 197, 0.66);
+  --ph3: rgba(92, 255, 197, 0.42);
+  --ph4: rgba(92, 255, 197, 0.16);
+  --amb: #ffb454;
+  --amb2: rgba(255, 180, 84, 0.45);
+  --f1: "Share Tech Mono", monospace;
+  --f2: "IBM Plex Mono", monospace;
+  background: var(--bg);
+  color: var(--ph1);
+  font-family: var(--f1);
+}
+
+/* The fixed 1280x800 canvas, matching the dashboard's .screen. */
+.admin-screen {
+  width: 80rem;
+  height: 50rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 40%, rgba(92, 255, 197, 0.045), transparent 60%),
+    var(--bg);
+  padding: 1.3rem 1.4rem;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1.1rem;
+}
+
+/* Cheap CRT dressing: scanlines + vignette, one static overlay. */
+.admin-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(140% 110% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+/* ---- header: back arrow + title ---- */
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0 0.2rem 0.6rem;
+  border-bottom: 1px solid var(--ph4);
+}
+.admin-back {
+  width: 2.6rem;
+  height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ph1);
+  border: 1px solid var(--ph2);
+  background: rgba(92, 255, 197, 0.09);
+  cursor: pointer;
+  box-shadow: inset 0 0 8px rgba(92, 255, 197, 0.14);
+  filter: drop-shadow(0 0 6px rgba(92, 255, 197, 0.4));
+}
+.admin-back svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: block;
+}
+.admin-title {
+  font-family: var(--f1);
+  font-size: 1.9rem;
+  color: var(--ph0);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px rgba(92, 255, 197, 0.4);
+}
+
+/* ---- body grid: config (left) + health/actions column (right) ---- */
+.admin-body {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 1.1rem;
+  min-height: 0;
+}
+.admin-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-height: 0;
+}
+
+/* ---- bracket panels (echo the dashboard's .brk: two diagonal corner marks) ---- */
+.admin-card {
+  position: relative;
+  border: 1px solid var(--ph4);
+  background: rgba(92, 255, 197, 0.025);
+  padding: 1.2rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.admin-card::before,
+.admin-card::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+}
+.admin-card::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--ph2);
+  border-left: 2px solid var(--ph2);
+}
+.admin-card::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid var(--ph2);
+  border-right: 2px solid var(--ph2);
+}
+.admin-grow {
+  flex: 1;
+}
+.admin-card > h2 {
+  font-family: var(--f1);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ph3);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--ph4);
+}
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.admin-empty {
+  font-family: var(--f2);
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ph3);
+}
+
+/* ---- config knobs ---- */
+.admin-knob {
+  padding: 0.9rem 0;
+}
+.admin-knob + .admin-knob {
+  border-top: 1px solid var(--ph4);
+}
+.admin-knob-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+.admin-knob-name {
+  font-family: var(--f1);
+  font-size: 1.15rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ph1);
+}
+.admin-knob-live {
+  font-family: var(--f2);
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ph3);
+}
+.admin-knob-live b {
+  color: var(--ph2);
+  font-weight: 500;
+}
+.admin-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.admin-opt {
+  font-family: var(--f2);
+  font-size: 0.92rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ph4);
+  color: var(--ph3);
+  background: rgba(92, 255, 197, 0.03);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+/* live/current value: full-brightness annunciator */
+.admin-opt.admin-current {
+  color: var(--ph0);
+  border-color: var(--ph2);
+  background: rgba(92, 255, 197, 0.1);
+  box-shadow: inset 0 0 8px rgba(92, 255, 197, 0.14);
+  text-shadow: 0 0 10px rgba(92, 255, 197, 0.4);
+}
+/* a different value is staged: the live one dims to an outline */
+.admin-opt.admin-was-current {
+  color: var(--ph3);
+  border-color: var(--ph4);
+  background: none;
+}
+/* staged (pending apply): amber is the HUD's change colour */
+.admin-opt.admin-staged {
+  color: var(--amb);
+  border-color: var(--amb2);
+  background: rgba(255, 180, 84, 0.08);
+  box-shadow: inset 0 0 8px rgba(255, 180, 84, 0.14);
+}
+.admin-opt:disabled {
+  cursor: default;
+}
+
+/* ---- apply bar ---- */
+.admin-apply-bar {
+  margin-top: auto;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--ph4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.admin-apply-summary {
+  font-family: var(--f2);
+  font-size: 0.86rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ph3);
+}
+.admin-apply-summary.admin-has-staged,
+.admin-apply-summary.admin-is-error {
+  color: var(--amb);
+}
+.admin-apply-btn {
+  font-family: var(--f1);
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.3rem;
+  border: 1px solid var(--ph4);
+  background: rgba(92, 255, 197, 0.03);
+  color: var(--ph3);
+  cursor: pointer;
+}
+.admin-apply-btn.admin-off {
+  cursor: default;
+}
+.admin-apply-btn.admin-on {
+  color: var(--ph0);
+  border-color: var(--ph2);
+  background: rgba(92, 255, 197, 0.12);
+  box-shadow: inset 0 0 10px rgba(92, 255, 197, 0.16);
+  text-shadow: 0 0 10px rgba(92, 255, 197, 0.45);
+}
+
+/* ---- transition overlay, above the CRT fx ---- */
+.admin-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(1, 4, 3, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-terminal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  text-align: center;
+}
+.admin-spin {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  border: 3px solid var(--ph4);
+  border-top-color: var(--ph1);
+  filter: drop-shadow(0 0 8px rgba(92, 255, 197, 0.4));
+  animation: admin-spin 1s linear infinite;
+}
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.admin-big {
+  font-family: var(--f1);
+  font-size: 1.9rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ph0);
+  text-shadow: 0 0 14px rgba(92, 255, 197, 0.45);
+}
+.admin-terminal.admin-is-error .admin-big {
+  color: var(--amb);
+  text-shadow: 0 0 14px rgba(255, 180, 84, 0.4);
+}
+.admin-small {
+  font-family: var(--f2);
+  font-size: 1.05rem;
+  color: var(--ph2);
+  letter-spacing: 0.06em;
+}
+.admin-dbtn {
+  font-family: var(--f1);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid;
+  cursor: pointer;
+}
+.admin-dbtn.admin-ghost {
+  color: var(--ph3);
+  border-color: var(--ph4);
+  background: none;
+}
