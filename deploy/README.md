@@ -502,8 +502,10 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   pi-dashboard | grep CanReboot` - it should say `yes`, which proves the rule
   reaches the session-less, lingering service. Negative control: move the rule
   aside, cold-boot, expect `challenge` and Reboot shown as unavailable; restore
-  it. Least privilege: `CanPowerOff` / `CanSuspend` still answer `challenge`,
-  and `stat /etc/polkit-1/rules.d/49-pi-dashboard-reboot.rules` shows
+  it. Least privilege: `CanPowerOff` still answers `challenge` (`CanSuspend`
+  answers `na` on a Pi - suspend is unsupported, so logind never asks polkit;
+  `pkcheck --action-id org.freedesktop.login1.suspend --process $$` should be
+  denied), and `stat /etc/polkit-1/rules.d/49-pi-dashboard-reboot.rules` shows
   `root root` and `0644`.
 - **Thermals under load:** `vcgencmd get_throttled` stays `0x0` with the kiosk
   running. This is the check the *classic* layout (the production default) is
