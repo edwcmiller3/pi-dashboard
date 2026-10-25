@@ -222,3 +222,88 @@ def test_index_links_layout_between_style_and_theme() -> None:
     assert 'href="layout.css"' in html
     assert html.index('href="style.css"') < html.index('href="layout.css"')
     assert html.index('href="layout.css"') < html.index('href="theme.css"')
+
+
+# ── admin skin routes ────────────────────────────────────────────────────────
+# /admin.js + /admin.css serve the LAYOUT-selected admin skin
+# (static/layouts/<slug>/admin.{js,css}) through the same slug machinery as
+# /layout.js + /layout.css, so they inherit its fail-soft: anything that can't
+# resolve to a skin serves classic's, never a 404 that would strand the overlay.
+
+_CLASSIC_ADMIN_JS = 'export {admin} from "./layouts/classic/admin.js";\n'
+
+
+def _classic_admin_css() -> str:
+    return (_static_dir / "layouts" / "classic" / "admin.css").read_text(
+        encoding="utf-8"
+    )
+
+
+def _has_admin_skin(name: str) -> bool:
+    return (_static_dir / "layouts" / name / "admin.js").is_file()
+
+
+def test_default_admin_skin_is_classic() -> None:
+    status, js, headers = _get("/admin.js")
+    assert status == 200
+    assert js == _CLASSIC_ADMIN_JS
+    assert headers["content-type"].startswith("text/javascript")
+    assert headers["cache-control"] == "no-cache"
+
+    status, css, headers = _get("/admin.css")
+    assert status == 200
+    assert css == _classic_admin_css()
+    assert headers["content-type"].startswith("text/css")
+    assert headers["cache-control"] == "no-cache"
+
+
+# Derived from disk rather than hardcoded, so this stays true as hud/swiss-mono
+# gain their own skins: a layout with an admin.js serves it, one without falls
+# back to classic's skin (module AND css, coherently).
+@pytest.mark.parametrize("name", _BUNDLED_LAYOUTS)
+def test_layout_serves_its_admin_skin_or_classics(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(settings, "layout", name)
+    skin = name if _has_admin_skin(name) else "classic"
+
+    status, js, _ = _get("/admin.js")
+    assert status == 200
+    assert js == f'export {{admin}} from "./layouts/{skin}/admin.js";\n'
+
+    status, css, _ = _get("/admin.css")
+    assert status == 200
+    assert css == (_static_dir / "layouts" / skin / "admin.css").read_text(
+        encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize("bad", ["../classic", "layouts/classic", "..", "ghost"])
+def test_unresolvable_layout_admin_skin_degrades_to_classic(
+    monkeypatch: pytest.MonkeyPatch, bad: str
+) -> None:
+    monkeypatch.setattr(settings, "layout", bad)
+    status, js, headers = _get("/admin.js")
+    assert status == 200
+    assert js == _CLASSIC_ADMIN_JS
+    assert headers["content-type"].startswith("text/javascript")
+
+    status, css, _ = _get("/admin.css")
+    assert status == 200
+    assert css == _classic_admin_css()
+
+
+def test_admin_skin_name_is_case_and_space_insensitive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "layout", " Classic\n")
+    assert _get("/admin.js")[1] == _CLASSIC_ADMIN_JS
+
+
+def test_layout_module_still_keys_off_index_js(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Teaching _serve_module a leaf filename must not change /layout.js: a
+    # layout dir is still selected by its index.js, not by an admin.js.
+    monkeypatch.setattr(settings, "layout", "hud")
+    assert _get("/layout.js")[1] == 'export {layout} from "./layouts/hud/index.js";\n'

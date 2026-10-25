@@ -433,6 +433,30 @@
   color: var(--ink-40);
 }
 
+/* admin entry cog - ink-outlined like .refresh, pushed to the far left of the
+   right-justified status row (design-mocks/swiss-mono.html). */
+.swiss-mono .admin-cog {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 6px;
+  cursor: pointer;
+}
+.swiss-mono .admin-cog svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.7;
+  display: block;
+}
+.swiss-mono .admin-cog:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 /* refresh control - ink-outlined, matching the drafted rule weight */
 .swiss-mono .refresh {
   display: inline-flex;

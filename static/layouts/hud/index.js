@@ -32,6 +32,8 @@ import {
 } from "../../core/agenda.js";
 import { pickUpdated } from "../../core/format.js";
 import { el } from "../../core/dom.js";
+import { go } from "../../core/router.js";
+import { SETTINGS_SVG } from "../../core/chrome.js";
 import { computeScaleWindow } from "./geometry/scale.js";
 import { dialGeometry } from "./geometry/dial.js";
 import { solarGeometry } from "./geometry/solar.js";
@@ -212,7 +214,8 @@ function mount(root, ctx) {
   // ── footer : system status ──
   const footer = el("footer", "hud-footer");
   footer.id = "status";
-  footer.append(el("span", "fticks"));
+  adminCog = cogNode();
+  footer.append(adminCog, el("span", "fticks"));
 
   screen.append(header, main, footer);
   // cheap CRT dressing: scanlines + vignette (one static overlay)
@@ -710,6 +713,23 @@ async function onRefresh() {
   }
 }
 
+// The admin entry cog, built once per mount and re-inserted by every
+// renderStatus rebuild of the footer (replaceChildren would otherwise drop it).
+// A role=button span, matching the RESYNC chip's idiom.
+/** @type {HTMLElement} */
+let adminCog;
+
+/** @returns {HTMLElement} */
+function cogNode() {
+  const cog = el("span", "admin-cog");
+  cog.setAttribute("role", "button");
+  cog.setAttribute("title", "Admin");
+  cog.setAttribute("aria-label", "Admin");
+  cog.innerHTML = SETTINGS_SVG; // trusted own SVG markup only
+  cog.addEventListener("click", () => go("admin")); // tap → click (synthesized from wl_touch)
+  return cog;
+}
+
 // One "● LABEL OK/STALE" annunciator chip.
 /** @param {string} label @param {boolean} ok @returns {HTMLElement} */
 function okChip(label, ok) {
@@ -730,7 +750,7 @@ function renderStatus(data, opts = {}) {
 
   const status = byId("status");
   if (!status) return;
-  status.replaceChildren(el("span", "fticks"));
+  status.replaceChildren(adminCog, el("span", "fticks"));
   for (const [label, s] of sources) status.append(okChip(label, Boolean(!opts.stale && s && s.ok)));
   status.append(el("span", "upd", `UPDATED ${updated}`));
 

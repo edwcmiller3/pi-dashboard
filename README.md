@@ -23,6 +23,8 @@ fetch, no real calendar.*
   calendar, and the UI rolls over at midnight on its own.
 - **Selectable look** - swap the [layout](#layouts), [theme](#themes), and
   [icon pack](#icon-packs) independently, all env-driven.
+- **On-device admin screen** - a keyboard-less [admin overlay](#admin-screen)
+  reached from the footer cog.
 
 ## Requirements
 
@@ -146,6 +148,24 @@ that refresh, and the forecast cards always stay Open-Meteo. See `.env.example` 
 finding your nearest station and the `NWS_USER_AGENT` contact-info note. The
 Open-Meteo forecast model is selectable via `WEATHER_MODEL` (default `best_match`).
 
+## Admin screen
+
+The wall has no keyboard, so its controls live on-screen. Tap the **cog** at the
+bottom-left of the dashboard to open the admin screen; tap the **back arrow**
+(top-left) to return. It is an overlay: the dashboard keeps ticking and polling
+underneath, so it is current the moment you return. A reload or cold boot always
+lands on the dashboard, never on admin.
+
+The admin screen edits the three look knobs - `LAYOUT`, `THEME`, `ICON_PACK` -
+on-device (Apply writes them to `.env` and restarts the service), shows device
+health, and offers restart / reboot actions. *Status: the shell, cog, and back
+navigation are in place; the config, health, and actions panels land next.*
+
+It is **layout-aware but theme-independent**: each layout can ship its own admin
+skin as `static/layouts/<name>/admin.js` + `admin.css` (served at `/admin.js` /
+`/admin.css`, fail-soft to classic's skin when a layout has none), and the skin's
+palette is scoped to the overlay so a `THEME` never restyles the control surface.
+
 ## Frontend architecture
 
 The dashboard is a small ES-module graph, not one script - three layers, each with
@@ -153,10 +173,13 @@ one job:
 
 - **Server routes** (`app/main.py`) pick the skin from config and serve it:
   `/theme.css` (THEME), `/layout.css` + `/layout.js` (LAYOUT), `/pack.js` +
-  `/pack.css` (ICON_PACK), and the no-cache static mount.
+  `/pack.css` (ICON_PACK), `/admin.js` + `/admin.css` (LAYOUT's admin skin), and
+  the no-cache static mount.
 - **Layout-agnostic core** (`static/core/`) owns *when* to render: `machine.js` is
   the fetch / 15-min poll / 30-s retry / midnight-rollover / live-clock state
-  machine; `contract.js` mirrors the backend data contract as JSDoc typedefs;
+  machine; `router.js` is the hash router overlay screens mount into, and
+  `admin.js` the admin controller (behavior only - the skin renders);
+  `contract.js` mirrors the backend data contract as JSDoc typedefs;
   `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
 - **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all their
   own DOM/CSS. A layout is an ES module exporting a `layout` object that implements

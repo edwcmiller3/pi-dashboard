@@ -765,6 +765,28 @@
   background: var(--amb);
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
+/* admin entry cog - far bottom-left, ahead of the ruler strip; reads pressable
+   like RESYNC (design-mocks/instrument-hud.html). */
+.hud-footer .admin-cog {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  color: var(--ph1);
+  border: 1px solid var(--ph2);
+  background: color-mix(in srgb, var(--cool) 9%, transparent);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--cool) 14%, transparent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cool) 40%, transparent));
+}
+.hud-footer .admin-cog svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
 /* manual refresh control - reads pressable vs the .ok annunciators */
 .hud-footer .rfr {
   display: inline-flex;

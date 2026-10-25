@@ -43,6 +43,13 @@ from app.main import app
         "/core/format.js",
         "/core/dom.js",
         "/core/machine.js",
+        # The admin overlay's core modules + classic skin (lazy-loaded on first
+        # open) carry the same contract.
+        "/core/chrome.js",
+        "/core/router.js",
+        "/core/admin.js",
+        "/layouts/classic/admin.js",
+        "/layouts/classic/admin.css",
         # The active icon pack's runtime assets (served under packs/): its glyph
         # module and generated stylesheet carry the same freshness contract so a
         # stale cached pack.css/index.js can't survive a `git pull` on the wall.

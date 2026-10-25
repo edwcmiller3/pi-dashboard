@@ -731,3 +731,24 @@ test("renderForecast([]) makes zero cards without throwing; renderCurrent routes
 
 // t.mock.timers auto-reset per test; reset the top-level mock too for safety.
 test.after(() => mock.timers.reset());
+
+// ── admin cog ────────────────────────────────────────────────────────────────
+
+test("admin cog: leads the status footer at mount and survives every renderStatus rebuild", () => {
+  mountShell();
+  const status = doc.getElementById("status");
+  assert.ok(status.children[0]._classes.has("admin-cog"), "cog is the footer's first item");
+  layout.renderStatus(statusData(), { refresh: async () => {} });
+  layout.renderStatus(null, { stale: true, refresh: async () => {} });
+  assert.equal(withClass(status, "admin-cog").length, 1, "still exactly one cog after repaints");
+  assert.ok(status.children[0]._classes.has("admin-cog"), "still bottom-left");
+});
+
+test("admin cog: a tap routes to #admin", (t) => {
+  const prev = globalThis.location;
+  t.after(() => { globalThis.location = prev; });
+  globalThis.location = /** @type {any} */ ({ hash: "" });
+  mountShell();
+  fire(withClass(doc.getElementById("status"), "admin-cog")[0], "click");
+  assert.equal(globalThis.location.hash, "admin");
+});

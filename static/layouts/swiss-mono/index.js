@@ -26,6 +26,8 @@ import {
 } from "../../core/agenda.js";
 import { pickUpdated, fmtHiLo } from "../../core/format.js";
 import { el } from "../../core/dom.js";
+import { go } from "../../core/router.js";
+import { SETTINGS_SVG } from "../../core/chrome.js";
 
 /** @typedef {import("../../core/contract.js").AgendaItem} AgendaItem */
 /** @typedef {import("../../core/contract.js").WeatherBlock} WeatherBlock */
@@ -86,6 +88,8 @@ function mount(root, ctx) {
   // STATUS - spans both columns (row3).
   const status = el("footer", "cell status");
   status.id = "status";
+  adminCog = cogNode();
+  status.append(adminCog);
 
   screen.append(time, forecast, current, agenda, status);
   root.append(screen);
@@ -427,6 +431,23 @@ async function onRefresh() {
   }
 }
 
+// The admin entry cog, built once per mount and re-inserted by every
+// renderStatus rebuild of the footer (replaceChildren would otherwise drop it).
+// Ink-outlined like the refresh control; CSS pushes it to the far left.
+/** @type {HTMLElement} */
+let adminCog;
+
+/** @returns {HTMLElement} */
+function cogNode() {
+  const cog = el("button", "admin-cog");
+  cog.setAttribute("type", "button");
+  cog.setAttribute("title", "Admin");
+  cog.setAttribute("aria-label", "Admin");
+  cog.innerHTML = SETTINGS_SVG; // trusted own SVG markup only
+  cog.addEventListener("click", () => go("admin")); // tap → click (synthesized from wl_touch)
+  return cog;
+}
+
 // One "■ LABEL OK/STALE" source indicator. The ■ is a styled .st-sq span (not a
 // glyph); the label is an own value but built via el()/textContent for
 // consistency with the safe pattern.
@@ -460,7 +481,7 @@ function renderStatus(data, opts = {}) {
 
   const status = document.getElementById("status");
   if (!status) return;
-  status.replaceChildren();
+  status.replaceChildren(adminCog);
   for (const [label, s] of sources)
     status.append(srcNode(label, Boolean(!opts.stale && s && s.ok)));
   status.append(el("span", "st-updated", `Updated ${updated}`));

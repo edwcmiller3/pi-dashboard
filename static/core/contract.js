@@ -124,4 +124,37 @@
  * @property {() => void} renderUnavailable
  */
 
+// ── admin skin ───────────────────────────────────────────────────────────────
+// Admin is not data-driven by /api/data, so it gets its own thin contract rather
+// than stretching Layout. Payload shapes for config/stats/actions land with the
+// phases that serve them (GET /api/admin/config, /api/admin/stats); until then
+// the hooks are typed loosely.
+
+/**
+ * What the controller hands a skin at mount.
+ * @typedef {object} AdminCtx
+ * @property {() => void} back return to the dashboard; the skin wires its back
+ *   arrow to this
+ */
+
+/**
+ * The full-screen transitional states a skin paints over its panels; null clears.
+ * @typedef {"applying" | "rebooting" | "error"} AdminTransition
+ */
+
+/**
+ * The admin interface the core controller (core/admin.js) drives. A layout's
+ * admin skin is an ES module (layouts/<slug>/admin.js) exporting an `admin`
+ * object implementing these hooks: render-only, all behavior lives in the
+ * controller.
+ * @typedef {object} AdminSkin
+ * @property {(root: HTMLElement, ctx: AdminCtx) => void} mount builds the shell -
+ *   header with back arrow + the #admin-config / #admin-health / #admin-actions
+ *   panel containers
+ * @property {(config: unknown) => void} renderConfig
+ * @property {(stats: unknown) => void} renderStats
+ * @property {(actions: unknown) => void} renderActions
+ * @property {(state: AdminTransition | null, message?: string) => void} renderTransition
+ */
+
 export {};

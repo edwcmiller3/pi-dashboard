@@ -487,6 +487,29 @@
 .status .refresh.is-error svg {
   stroke: var(--stale);
 }
+/* admin entry cog - bottom-left of the agenda card, mirroring .status on the
+   right (design-mocks/dark-bento.html). The padding widens the touch target
+   without moving the glyph off the mock's 1.8rem/1rem anchor. */
+.admin-cog {
+  position: absolute;
+  left: 1.3rem;
+  bottom: 0.5rem;
+  padding: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--faint);
+}
+.admin-cog svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: block;
+}
+.admin-cog:hover {
+  color: var(--muted);
+}
 @keyframes refresh-spin {
   to {
     transform: rotate(360deg);

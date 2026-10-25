@@ -542,3 +542,24 @@ test("renderStatus: a failed refresh flashes the RESYNC error, then clears", asy
   t.mock.timers.tick(1500);
   assert.ok(!document.getElementById("resync").classList.contains("is-error"), "error cleared");
 });
+
+// ── admin cog ────────────────────────────────────────────────────────────────
+
+test("admin cog: leads the footer at mount and survives every renderStatus rebuild", () => {
+  freshMount();
+  const status = document.getElementById("status");
+  assert.ok(status.children[0].classList.contains("admin-cog"), "cog is the footer's first item");
+  layout.renderStatus(STATUS_DOC, {});
+  layout.renderStatus(STATUS_DOC, { stale: true });
+  assert.equal(allByClass(status, "admin-cog").length, 1, "still exactly one cog after repaints");
+  assert.ok(status.children[0].classList.contains("admin-cog"), "still bottom-left");
+});
+
+test("admin cog: a tap routes to #admin", (t) => {
+  const prev = globalThis.location;
+  t.after(() => { globalThis.location = prev; });
+  globalThis.location = /** @type {any} */ ({ hash: "" });
+  freshMount();
+  fire(firstByClass(document.getElementById("status"), "admin-cog"), "click");
+  assert.equal(globalThis.location.hash, "admin");
+});

@@ -29,6 +29,9 @@
        hooks fill every region from /api/data. Designed for the 1280x800
        effective viewport (scale 1.5). -->
   <div id="app"></div>
+  <!-- Admin overlay (#admin route): hidden until first opened; app.js lazy-loads
+       the LAYOUT-selected skin from /admin.js + /admin.css into it. -->
+  <div id="admin-root" hidden></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

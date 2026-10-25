@@ -481,7 +481,9 @@ def _serve_slug_css(
     return Response(body, media_type="text/css", headers=_NO_CACHE)
 
 
-def _serve_module(name: str, subdir: str, default: str, export: str) -> Response:
+def _serve_module(
+    name: str, subdir: str, default: str, export: str, *, leaf: str = "index.js"
+) -> Response:
     """A slug-selected asset's body: a generated one-line ES module re-exporting
     the selected asset - it SELECTS a module rather than serving a stored file, so
     it fail-softs to the valid `default` name, not to an empty body. Both a bad
@@ -491,27 +493,30 @@ def _serve_module(name: str, subdir: str, default: str, export: str) -> Response
     `default` module is missing (a broken deploy), its re-export target would 404
     too, so the last resort is a non-empty inline stub exporting an empty object -
     a body app.js's usage-level try/catch CAN survive, unlike a load-time 404.
-    Shared by /layout.js (export "layout" from layouts/, default "classic") and
-    /pack.js (export "iconPack" from packs/, default "weather-icons"). Shares
-    _normalized, _valid_slug, and the no-cache header with the css reader."""
+    Shared by /layout.js (export "layout" from layouts/, default "classic"),
+    /pack.js (export "iconPack" from packs/, default "weather-icons"), and
+    /admin.js (export "admin", leaf "admin.js" - the layout's admin skin). `leaf`
+    is the module file within the slug dir that must exist for it to resolve.
+    Shares _normalized, _valid_slug, and the no-cache header with the css
+    reader."""
     name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
     slug = name if _valid_slug(name) else default
-    if slug != default and not (_static_dir / subdir / slug / "index.js").is_file():
+    if slug != default and not (_static_dir / subdir / slug / leaf).is_file():
         log.warning(
-            "%s %r has no index.js module; falling back to %r", subdir, slug, default
+            "%s %r has no %s module; falling back to %r", subdir, slug, leaf, default
         )
         slug = default
-    if not (_static_dir / subdir / slug / "index.js").is_file():
+    if not (_static_dir / subdir / slug / leaf).is_file():
         # Even the built-in default is absent: a re-export would 404 the ES-module
         # graph at LOAD time and blank the kiosk (the exact failure the fallback to
         # `default` exists to prevent). Emit a non-empty inline stub instead - an
         # empty export is a body app.js's usage-level try/catch can handle.
         log.warning(
-            "%s default %r has no index.js module; serving inline stub", subdir, default
+            "%s default %r has no %s module; serving inline stub", subdir, default, leaf
         )
         body = f"export const {export} = {{}};\n"
         return Response(body, media_type="text/javascript", headers=_NO_CACHE)
-    body = f'export {{{export}}} from "./{subdir}/{slug}/index.js";\n'
+    body = f'export {{{export}}} from "./{subdir}/{slug}/{leaf}";\n'
     return Response(body, media_type="text/javascript", headers=_NO_CACHE)
 
 
@@ -626,7 +631,30 @@ def pack_js() -> Response:
     return _serve_module(settings.icon_pack, "packs", "weather-icons", "iconPack")
 
 
+@app.get("/admin.css")
+def admin_css() -> Response:
+    """The selected layout's admin-skin stylesheet, lazy-linked by app.js on the
+    first #admin open. Fail-softs to classic's admin skin, coherent with
+    /admin.js."""
+    return _serve_slug_css(
+        settings.layout,
+        "layouts",
+        leaf="admin",
+        fallback=lambda: _builtin_slug_css("layouts", "classic", "admin"),
+    )
+
+
+@app.get("/admin.js")
+def admin_js() -> Response:
+    """The generated ES module selecting the layout's admin skin (see
+    _serve_module); app.js lazy-imports it on the first #admin open. A layout
+    with no admin.js yet falls back to classic's skin, never a 404."""
+    return _serve_module(
+        settings.layout, "layouts", "classic", "admin", leaf="admin.js"
+    )
+
+
 # Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz, /api/*, /theme.css, /layout.css, /layout.js, /pack.css, and
-# /pack.js take precedence over the catch-all static mount.
+# so /healthz, /api/*, /theme.css, /layout.css, /layout.js, /pack.css, /pack.js,
+# /admin.css, and /admin.js take precedence over the catch-all static mount.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

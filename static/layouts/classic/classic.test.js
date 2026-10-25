@@ -487,3 +487,14 @@ test("renderUnavailable: honest placeholders in every data region (cold boot)", 
 
 // t.mock.timers auto-reset per test; reset the top-level mock too for safety.
 test.after(() => mock.timers.reset());
+
+// ── admin cog ─────────────────────────────────────────────────────────────────
+
+test("mount: the admin cog sits in the agenda card, outside #status", () => {
+  const app = mountShell();
+  const cogs = withClass(app, "admin-cog");
+  assert.equal(cogs.length, 1, "exactly one cog");
+  assert.ok(cogs[0].parent._classes.has("agenda-card"), "anchored to the agenda card's bottom-left");
+  assert.equal(withClass(doc.getElementById("status"), "admin-cog").length, 0, "not inside #status");
+  assert.equal(cogs[0]._attrs["aria-label"], "Admin");
+});

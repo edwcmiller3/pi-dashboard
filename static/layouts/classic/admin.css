@@ -1,0 +1,144 @@
+/* Classic admin skin - dark-bento glass idiom (design-mocks/admin-dark-bento.html).
+
+   Theme-independent by construction: every token is declared on #admin-root,
+   not :root, so /theme.css's :root palette override never reaches the admin
+   subtree (custom properties resolve from the nearest declaring ancestor). The
+   glows are re-derived here for the same reason - a :root color-mix() would
+   carry the theme's --cool/--accent in with it. Values are the built-in
+   style.css palette, frozen. */
+
+#admin-root {
+  --text: #eef2f7;
+  --muted: #93a1b1;
+  --faint: #5c6975;
+  --accent: #ffb454;
+  --cool: #5cc8ff;
+  --ok: #4ec9a6;
+  --stale: #e0796b;
+  --violet: #8c6eff;
+  --bg: #000;
+  --canvas: #070a0f;
+  --card-hi: #161e29;
+  --card-lo: #0e141c;
+  --edge: #fff;
+  --glow-cyan: color-mix(in srgb, var(--cool) 18%, transparent);
+  --glow-amber: color-mix(in srgb, var(--accent) 12%, transparent);
+  --glow-violet: color-mix(in srgb, var(--violet) 13%, transparent);
+  --glow-teal: color-mix(in srgb, var(--ok) 10%, transparent);
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* The fixed 1280x800 canvas, matching the dashboard's .screen. */
+.admin-screen {
+  width: 80rem;
+  height: 50rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 55% at 8% -8%, var(--glow-cyan) 0%, transparent 60%),
+    radial-gradient(55% 50% at 70% -10%, var(--glow-amber) 0%, transparent 60%),
+    radial-gradient(70% 60% at 105% 108%, var(--glow-violet) 0%, transparent 60%),
+    radial-gradient(60% 50% at -5% 110%, var(--glow-teal) 0%, transparent 60%),
+    var(--canvas);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1.1rem;
+  padding: 1.3rem;
+}
+
+.admin-glass {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-hi) 70%, transparent) 0%,
+    color-mix(in srgb, var(--card-lo) 78%, transparent) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--edge) 9%, transparent);
+  border-radius: 1.2rem;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--edge) 6%, transparent) inset,
+    0 16px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- header: back arrow + title ---- */
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.1rem 0.4rem;
+}
+.admin-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.8rem;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--card-hi) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--edge) 9%, transparent);
+  color: var(--muted);
+}
+.admin-back:hover {
+  color: var(--text);
+}
+.admin-back svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: block;
+}
+.admin-title {
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* ---- body grid: config (left) + health/actions column (right) ---- */
+.admin-body {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 1.1rem;
+  min-height: 0;
+}
+.admin-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-height: 0;
+}
+.admin-card {
+  padding: 1.3rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.admin-grow {
+  flex: 1;
+}
+.admin-card > h2 {
+  font-size: 0.82rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 680;
+  margin-bottom: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.admin-card > h2 svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}

@@ -63,6 +63,22 @@ body {
   display: contents;
 }
 
+/* Admin overlay root: layered over the still-mounted dashboard (whose timers
+   keep running underneath), centering the skin's own 1280x800 canvas. The
+   [hidden] rule is needed because display:flex would otherwise beat the UA's
+   hidden -> display:none. Palette/skin come from the lazy-loaded /admin.css. */
+#admin-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#admin-root[hidden] {
+  display: none;
+}
+
 /* The fixed 1280x800 canvas - sizing + clipping only. The layout paints its
    own background/structure onto this surface (see layouts/<name>/layout.css). */
 .screen {
