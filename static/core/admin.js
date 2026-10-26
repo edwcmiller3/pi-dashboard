@@ -33,7 +33,8 @@ import { go } from "./router.js";
 /** @typedef {{ ok: boolean, status: number, body: any }} PostReply */
 
 const HEALTH_POLL_MS = 1000;
-const HEALTH_TIMEOUT_MS = 30_000;
+// Restarts take ~2s; the margin covers systemd's 90s stop timeout plus a start.
+const HEALTH_TIMEOUT_MS = 120_000;
 // Runs for as long as admin stays open (no idle auto-return), so it is kept slow
 // for the Pi's thermal budget; each poll also costs a ~0.1s CPU sample server-side.
 const STATS_POLL_MS = 5000;

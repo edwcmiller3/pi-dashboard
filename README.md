@@ -165,7 +165,7 @@ lines of `.env` (every other line, including `PROTON_ICS_URL`, is left byte for
 byte) and schedules a restart of `pi-dashboard.service` via a transient
 `systemd-run --user` timer, so the reply reaches the browser before the service
 goes down. The wall shows "Restarting dashboard..." and reloads onto the new skin
-once `/healthz` answers from the new process; if it doesn't within ~30s, it says
+once `/healthz` answers from the new process; if it doesn't within ~120s, it says
 so and leaves you on admin. Apply needs `systemd-run` (the Pi); on a dev Mac the
 `.env` write still happens but the restart fails, so restart the server by hand.
 

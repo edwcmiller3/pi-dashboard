@@ -16,12 +16,15 @@ _UNIT: Final = "pi-dashboard.service"
 
 # A synchronous `systemctl --user restart` would SIGTERM the very process serving
 # the HTTP reply. A transient timer in the user manager fires ~1s later instead,
-# independent of this process, so the response flushes first.
+# independent of this process, so the response flushes first. AccuracySec pins it:
+# the 1min default let systemd coalesce the fire to a fixed second of the minute,
+# ~30s late on average.
 _RESTART_CMD: Final = (
     "systemd-run",
     "--user",
     "--collect",
     "--on-active=1s",
+    "--timer-property=AccuracySec=100ms",
     "systemctl",
     "--user",
     "restart",

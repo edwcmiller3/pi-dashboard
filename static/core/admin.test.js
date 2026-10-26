@@ -296,7 +296,7 @@ test("apply: a backend that never comes back shows the error state, never reload
   const [state, message] = skin.transitions[skin.transitions.length - 1];
   assert.equal(state, "error");
   assert.match(String(message), /did not come back healthy/);
-  assert.ok(elapsed() >= 30_000 && elapsed() < 32_000, "gives up after ~30s");
+  assert.ok(elapsed() >= 120_000 && elapsed() < 122_000, "gives up after ~120s");
 });
 
 test("apply: dismissing the error returns to a fresh, idle panel", async () => {

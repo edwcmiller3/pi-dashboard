@@ -268,6 +268,7 @@ def test_restart_schedules_a_detached_transient_unit(
             "--user",
             "--collect",
             "--on-active=1s",
+            "--timer-property=AccuracySec=100ms",
             "systemctl",
             "--user",
             "restart",
