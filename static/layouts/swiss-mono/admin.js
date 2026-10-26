@@ -1,15 +1,7 @@
-// swiss-mono admin skin - the admin screen in the engineering-sheet idiom
-// (design-mocks/admin-swiss-mono.html): an exposed modular grid whose 1px ink
-// gaps read as drafted rules, mono kickers in place of card headings. Exports
-// `admin` implementing the AdminSkin contract (core/contract.js): mount() builds
-// the shell into #admin-root; the panel bodies come from core/admin-panels.js
-// (markup shared by every skin - only this skin's CSS differs). Behavior lives
-// in core/admin.js.
-//
-// Every class is `admin-`-prefixed: the overlay shares the document with the
-// dashboard, and swiss-mono's layout.css styles bare .cell/.screen globally.
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js).
+// swiss-mono admin skin (engineering sheet: 1px grid gaps as rules, mono kickers)
+// - AdminSkin shell only; panel markup is core/admin-panels.js, behavior
+// core/admin.js. Classes are `admin-`-prefixed because the overlay shares the
+// document with the dashboard's CSS. Side-effect-free on import.
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
@@ -21,7 +13,7 @@ import { actionsPanel, configPanel, confirmDialog, healthPanel, transitionScrim 
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
 /** @typedef {import("../../core/contract.js").ConfigView} ConfigView */
 
-// Built once per mount (the controller mounts once); the render hooks fill them.
+// Set once in mount(); the render hooks fill them.
 /** @type {AdminCtx | null} */
 let adminCtx = null;
 /** @type {HTMLElement | null} */
@@ -38,8 +30,7 @@ let dialogEl = null;
 let scrimEl = null;
 
 /**
- * A grid cell carrying a mono kicker heading, then the id'd panel body the
- * render hooks fill. `area` places it in the screen grid.
+ * A grid cell with a kicker heading over the id'd panel body; `area` places it.
  * @param {string} kicker @param {string} bodyId @param {string} area
  * @returns {{ cell: HTMLElement, body: HTMLElement }}
  */

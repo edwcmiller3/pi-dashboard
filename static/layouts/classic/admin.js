@@ -1,15 +1,7 @@
-// Classic admin skin - the admin screen in the dark-bento glass idiom
-// (design-mocks/admin-dark-bento.html). Exports `admin` implementing the
-// AdminSkin contract (core/contract.js): mount() builds the shell into
-// #admin-root; the panel bodies come from core/admin-panels.js (markup shared by
-// every skin - only this skin's CSS differs). Behavior (fetch/stage/apply/poll/
-// confirm) lives in core/admin.js, never here.
-//
-// Every class is `admin-`-prefixed: the overlay shares the document with the
-// dashboard, and classic's layout.css styles bare .screen/.glass/.status
-// globally.
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js).
+// Classic admin skin (dark-bento glass) - AdminSkin shell only; panel markup is
+// core/admin-panels.js, behavior core/admin.js. Classes are `admin-`-prefixed
+// because classic's layout.css styles bare .screen/.glass globally.
+// Side-effect-free on import.
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
@@ -21,7 +13,7 @@ import { actionsPanel, configPanel, confirmDialog, healthPanel, transitionScrim 
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
 /** @typedef {import("../../core/contract.js").ConfigView} ConfigView */
 
-// Built once per mount (the controller mounts once); the render hooks fill them.
+// Set once in mount(); the render hooks fill them.
 /** @type {AdminCtx | null} */
 let adminCtx = null;
 /** @type {HTMLElement | null} */
@@ -37,15 +29,14 @@ let dialogEl = null;
 /** @type {HTMLElement | null} */
 let scrimEl = null;
 
-// Card-heading glyphs from the mock (trusted own markup).
+// Card-heading glyphs (trusted own markup).
 const APPEARANCE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/></svg>';
 const HEALTH_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>';
 const DEVICE_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>';
 
 /**
- * A glass card: icon + uppercase heading, then the id'd panel body the render
- * hooks fill.
+ * A glass card with an icon heading over the id'd panel body.
  * @param {string} svg @param {string} title @param {string} bodyId
  * @returns {{ card: HTMLElement, body: HTMLElement }}
  */

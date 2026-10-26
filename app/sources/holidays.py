@@ -1,19 +1,9 @@
-"""Holidays source - `holidays` package + `zoneinfo` DST markers.
+"""Offline holidays source: all-day agenda items for a date window.
 
-Pure and fully offline: no network, no I/O. Produces contract agenda-items
-(`start`/`all_day`/`title`/`kind`, with a date-only `start`) for a date window,
-ready to merge with the Proton personal events into one sorted agenda.
-
-Three tiers (all 10 lesser observances deliberately included):
-  * federal US holidays -> kind="holiday"    (observed=False -> actual dates,
-                                              no shifted "(observed)" ghost)
-  * lesser/unofficial   -> kind="observance" (Valentine's, Halloween, ...),
-                                              plus computed cultural extras the
-                                              lib lacks (Black Friday, Mardi
-                                              Gras, ... - rule-based, never
-                                              hardcoded per year)
-  * DST start/end        -> kind="info"       (from zoneinfo, not the holidays
-                                              lib - DST is not a holiday)
+* federal US holidays -> kind="holiday"
+* unofficial observances, plus rule-based extras the lib lacks (Black
+  Friday, Mardi Gras, ...) -> kind="observance"
+* DST start/end, from zoneinfo -> kind="info"
 """
 
 from __future__ import annotations
@@ -26,38 +16,30 @@ import holidays
 
 from app.contract import AgendaItem, Kind
 
-# The dashboard's display zone - US/Eastern, consistent with the US holiday set
-# and the config lat/long default. A parameter so the DST scan stays testable.
+# Matches the US holiday set and the config lat/long default.
 _DISPLAY_TZ: Final = "America/New_York"
 
 
 def _years(start: date, end: date) -> range:
-    """Calendar years the window touches (handles a year-boundary window)."""
     return range(start.year, end.year + 1)
 
 
 def _us(start: date, end: date, category: str) -> dict[date, str]:
-    """US holidays of one `holidays` category over the window's years, as actual
-    dates (`observed=False` drops the shifted day-off duplicate at the source).
-
-    Uses the `country_holidays` factory rather than `holidays.US` - the country
-    classes are registered dynamically, so the factory is the statically-typed
-    public entry point."""
+    """`observed=False` drops the shifted "(observed)" day-off duplicate. The
+    factory, not `holidays.US`, because country classes are registered
+    dynamically and only the factory is statically typed."""
     return holidays.country_holidays(
         "US", years=list(_years(start, end)), observed=False, categories=(category,)
     )
 
 
 def _dst_title(forward: bool) -> str:
-    """forward = spring-forward (offset increased, e.g. -5h -> -4h)."""
     return "Daylight Saving Time begins" if forward else "Daylight Saving Time ends"
 
 
 def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]:
-    """Each UTC-offset change in [start, end] as (date, title). Pairs each day
-    with the day before (via `zip(offsets, offsets[1:])`) and keeps the days the
-    offset changed. The noon offset sidesteps the ambiguous 1–3am transition
-    window, so a change is attributed to the calendar day it occurs on."""
+    """Each UTC-offset change in [start, end] as (date, title). Sampling at noon
+    sidesteps the ambiguous 1-3am transition window."""
     tz = ZoneInfo(tz_name)
 
     def offset(d: date) -> timedelta:
@@ -77,8 +59,7 @@ def _dst_markers(start: date, end: date, tz_name: str) -> list[tuple[date, str]]
     ]
 
 
-# Cultural observances the `holidays` lib doesn't carry, as (month, day, title)
-# rules - fixed-date, so no per-year dates ever get hardcoded.
+# Observances the `holidays` lib doesn't carry, as (month, day, title).
 _FIXED_EXTRAS: Final = (
     (3, 14, "Pi Day"),
     (4, 1, "April Fools' Day"),
@@ -90,27 +71,22 @@ _FIXED_EXTRAS: Final = (
 
 
 def _named(start: date, end: date, category: str, name: str) -> list[date]:
-    """Dates of one specifically-named US holiday over the window's years. The
-    anchor may itself fall outside [start, end] (e.g. Easter anchors Mardi Gras
-    from a February window), so callers window the *derived* date, not this."""
+    """Unwindowed: the anchor may fall outside [start, end] (Easter anchors Mardi
+    Gras from a February window), so callers window the derived date."""
     return [d for d, n in _us(start, end, category).items() if n == name]
 
 
 def _election_day(year: int) -> date:
-    """US federal general Election Day - the Tuesday after the first Monday of
-    November (= first Monday + 1 day)."""
+    """The Tuesday after the first Monday of November."""
     nov1 = date(year, 11, 1)
     first_monday = nov1 + timedelta(days=(-nov1.weekday()) % 7)
     return first_monday + timedelta(days=1)
 
 
 def _extras(start: date, end: date) -> list[tuple[date, str]]:
-    """Common cultural observances absent from the `holidays` lib, as (date,
-    title). All rule-based - fixed month/day, anchored on Thanksgiving / Easter
-    the lib already gives us, or a weekday rule - so nothing is hardcoded per
-    year. Election Day is computed for every even (election) year, so it isn't
-    limited to the lib's presidential-year-only entry (which `get_holidays`
-    filters out to avoid a duplicate)."""
+    """Rule-based observances absent from the lib, as (date, title); nothing is
+    hardcoded per year. Election Day covers every even year, including midterms
+    the lib omits."""
     fixed = [
         (date(y, month, day), title)
         for y in _years(start, end)
@@ -130,24 +106,20 @@ def _extras(start: date, end: date) -> list[tuple[date, str]]:
 
 
 def _unofficial(start: date, end: date) -> list[tuple[date, str]]:
-    """The lib's unofficial observances minus 'Election Day' - `_extras` owns
-    that (computed biennially, incl. midterms), so it never duplicates the lib's
-    presidential-year-only entry."""
+    """Minus the lib's presidential-year-only Election Day; `_extras` owns it."""
     return [
         (d, n) for d, n in _us(start, end, "unofficial").items() if n != "Election Day"
     ]
 
 
 def _item(d: date, title: str, kind: Kind) -> AgendaItem:
-    """A contract agenda-item. Holidays/markers are always all-day, date-only."""
     return {"start": d.isoformat(), "all_day": True, "title": title, "kind": kind}
 
 
 def get_holidays(
     start: date, end: date, tz_name: str = _DISPLAY_TZ
 ) -> list[AgendaItem]:
-    """Federal holidays + lesser observances + DST markers within [start, end],
-    as contract agenda-items sorted by date. Pure/offline - safe every tick."""
+    """Holidays, observances and DST markers within [start, end], sorted by date."""
     federal = [
         _item(d, title, "holiday")
         for d, title in _us(start, end, "public").items()

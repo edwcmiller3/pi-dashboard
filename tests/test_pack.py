@@ -1,19 +1,8 @@
-"""The icon-pack-selection routes (ICON_PACK setting), mirroring /layout.*.
+"""The icon-pack-selection routes (ICON_PACK setting), mirroring /layout.*
+(see test_layout.py for the shared fail-soft reasoning).
 
-An icon pack is a directory under static/packs/ whose index.js + pack.css the
-server exposes at two fixed URLs: GET /pack.css serves the stylesheet and GET
-/pack.js returns a GENERATED one-line ES module re-exporting the selected pack
-so app.js picks it up with no fetch race and no HTML templating.
-
-This clones test_layout.py's STRUCTURE for the pack axis - parametrized
-valid/invalid inputs (incl. path traversal), a bare `TestClient(app).get(...)`
-(no `with`) so the lifespan's network-touching refresh loop never starts, and
-degrade-to-default - but pivoted from LAYOUT->ICON_PACK and classic->
-weather-icons. A pack is BOTH a module and a stylesheet, so a bad ICON_PACK
-fail-softs to the whole weather-icons EXPERIENCE - its module AND its CSS - not
-to empty CSS: serving the weather-icons module with empty icon CSS would render
-the icons unstyled. ICON_PACK defaults to "weather-icons", so an unset ICON_PACK
-and ICON_PACK=weather-icons must serve the identical built-in experience.
+A bad ICON_PACK fail-softs to weather-icons' module and CSS together - the
+module with empty icon CSS would render the icons unstyled.
 """
 
 from __future__ import annotations
@@ -27,9 +16,7 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.main import _SLUG_RE, _static_dir, app
 
-# The generated module body for the weather-icons pack - the fail-soft target and
-# the unset-ICON_PACK default. Note the relative "./packs/..." specifier: it
-# resolves against /pack.js under the static mount → /packs/weather-icons/index.js.
+# The fail-soft target and unset-ICON_PACK default.
 _WEATHER_ICONS_PACK_JS = 'export {iconPack} from "./packs/weather-icons/index.js";\n'
 
 
@@ -45,30 +32,22 @@ def _weather_icons_css() -> str:
 
 
 def test_default_pack_is_weather_icons() -> None:
-    # settings.icon_pack defaults to "weather-icons" (unset ICON_PACK) - no monkeypatch.
     status, css, headers = _get("/pack.css")
     assert status == 200
     assert css == _weather_icons_css()
-    # The real pack stylesheet, not the empty last-resort body: its base rule and a
-    # condition glyph rule both survive (proves it's the actual weather-icons sheet).
+    # The real sheet, not the empty last-resort body.
     assert ".wx-icon {" in css
     assert ".wx-clear-day::before" in css
     assert headers["content-type"].startswith("text/css")
-    # Same deploy-freshness contract as the static bundle: revalidate every load.
     assert headers["cache-control"] == "no-cache"
 
     status, js, headers = _get("/pack.js")
     assert status == 200
     assert js == _WEATHER_ICONS_PACK_JS
-    # A wrong JS MIME is SILENTLY refused under strict ES-module loading, which
-    # would blank the kiosk - pin the correct type explicitly.
     assert headers["content-type"].startswith("text/javascript")
     assert headers["cache-control"] == "no-cache"
 
 
-# Every icon pack selectable today: the built-in weather-icons reference pack plus
-# the three meteocons variants, each an index.js + pack.css under static/packs/
-# <name>/. Appended one line at a time, exactly like _BUNDLED_LAYOUTS.
 _BUNDLED_PACKS = ["weather-icons", "meteocons-flat", "meteocons-line", "meteocons-mono"]
 
 
@@ -92,8 +71,6 @@ def test_configured_pack_serves_its_css_and_module(
 def test_unset_pack_equals_explicit_weather_icons(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # An unset ICON_PACK and ICON_PACK=weather-icons serve byte-identical CSS +
-    # module bodies (the built-in-pack default equivalence).
     default_css = _get("/pack.css")[1]
     default_js = _get("/pack.js")[1]
     monkeypatch.setattr(settings, "icon_pack", "weather-icons")
@@ -115,15 +92,9 @@ def test_invalid_pack_degrades_to_weather_icons(
     monkeypatch: pytest.MonkeyPatch, bad: str
 ) -> None:
     monkeypatch.setattr(settings, "icon_pack", bad)
-    # CSS: fail-softs to the weather-icons stylesheet (NOT empty) so the icons the
-    # module fallback serves keep their styling - never a 4xx/5xx, and never
-    # someone else's file contents smuggled out via traversal.
     status, css, _ = _get("/pack.css")
     assert status == 200
     assert css == _weather_icons_css()
-    # Module: a pack SELECTS a module (not a served stylesheet), so its fail-soft is
-    # the weather-icons re-export, not an empty body - otherwise app.js's
-    # `import {iconPack}` would resolve to nothing and blank the kiosk.
     status, js, headers = _get("/pack.js")
     assert status == 200
     assert js == _WEATHER_ICONS_PACK_JS
@@ -134,37 +105,22 @@ def test_invalid_pack_degrades_to_weather_icons(
 def test_valid_slug_but_absent_pack_falls_back_to_weather_icons(
     monkeypatch: pytest.MonkeyPatch, ghost: str
 ) -> None:
-    # Distinct from the bad-slug/traversal case: `ghost` IS a legal slug, so it
-    # clears the regex - but no static/packs/<ghost>/ dir exists. Both the module
-    # and the CSS must fail-soft to the weather-icons experience, coherently.
-    assert _SLUG_RE.fullmatch(ghost)  # guard: really is a legal slug
+    assert _SLUG_RE.fullmatch(ghost)
     assert not (_static_dir / "packs" / ghost).exists()
     monkeypatch.setattr(settings, "icon_pack", ghost)
 
-    # Module: emitting a re-export of the missing index.js would 404 the ES-module
-    # graph at LOAD time (which app.js's usage-level try/catch cannot catch → blank
-    # kiosk), so /pack.js verifies existence and falls back to weather-icons.
     status, js, headers = _get("/pack.js")
     assert status == 200
-    assert js == _WEATHER_ICONS_PACK_JS  # weather-icons, NOT a re-export of the missing module
+    assert js == _WEATHER_ICONS_PACK_JS
     assert headers["content-type"].startswith("text/javascript")
 
-    # CSS: the absent static/packs/<ghost>/pack.css must degrade to the
-    # weather-icons stylesheet (NOT empty), matching the module fallback -
-    # otherwise the served icons would render with no styling.
     status, css, _ = _get("/pack.css")
     assert status == 200
     assert css == _weather_icons_css()
 
 
-# The same dev/prod parity trap the layout routes fold away: the Mac's filesystem
-# is case-INSENSITIVE so ICON_PACK=Meteocons-Flat "works" in dev, but the Pi's is
-# case-SENSITIVE so packs/Meteocons-Flat/ doesn't exist there and it silently falls
-# back. The routes fold case (and stray .env whitespace) before touching disk, so
-# every variant of a real pack resolves to the same asset on either filesystem.
-# Pointed at meteocons-flat, a NON-default pack, so a correct fold resolves to the
-# meteocons-flat assets - visibly DISTINCT from the weather-icons experience a
-# mis-fold would fail-soft to, which folding at weather-icons could not have shown.
+# The same case-insensitive-macOS trap as layouts. Uses a non-default pack so a
+# mis-fold (which fail-softs to weather-icons) can't pass.
 @pytest.mark.parametrize(
     "name",
     ["METEOCONS-FLAT", "Meteocons-Flat", "meteocons-FLAT", " meteocons-flat ", "meteocons-flat\n"],
@@ -185,8 +141,7 @@ def test_pack_name_is_case_and_space_insensitive(
     )
 
 
-# Matches the payload of every url(...) in a stylesheet, stripping optional single
-# or double quotes around the reference.
+# The payload of each url(...), minus optional quotes.
 _URL_RE = re.compile(r"""url\(\s*['"]?([^'")]+?)['"]?\s*\)""")
 
 
@@ -194,12 +149,9 @@ _URL_RE = re.compile(r"""url\(\s*['"]?([^'")]+?)['"]?\s*\)""")
 def test_served_css_url_references_all_resolve_to_200(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
-    # The guard the suite lacked: every asset url() in the SERVED /pack.css must
-    # resolve to a real 200 when the browser resolves it against the /pack.css
-    # route path. A relative url() would resolve against / and 404 (the meteocons
-    # bug), so resolving each ref the way a browser does - urljoin against the
-    # ROUTE, not the on-disk file - and re-fetching it through the app is the only
-    # check that catches a route-vs-disk path mismatch in any pack.
+    # Resolve each url() against the /pack.css route, as a browser does, not the
+    # on-disk path - the only check that catches a route-vs-disk mismatch (a
+    # relative url() resolves against / and 404s).
     monkeypatch.setattr(settings, "icon_pack", name)
     status, css, _ = _get("/pack.css")
     assert status == 200

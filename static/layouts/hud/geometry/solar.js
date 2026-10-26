@@ -1,14 +1,6 @@
-// HUD geometry - solar linear day-progress tape.
-//
-// Pure, DOM-free: maps sunrise/sunset/now (as minutes-of-day) to the daylight
-// fraction, the "now" x position on the tape, and the marker/tick element
-// specs. The renderer extracts minutes-of-day from the contract's ISO
-// sunrise/sunset strings (via the core time helpers) before calling in.
-//
-// Ported math-identical from the SOLAR LINEAR TAPE IIFE in
-// design-mocks/instrument-hud-d.html (lines 459-506). The mock's layout
-// constants (tape endpoints xr/xs, baseline, idle ticks, sun-marker cross
-// ticks) become SolarConfig with the mock values as defaults.
+// HUD geometry - solar day-progress tape: sunrise/sunset/now (minutes-of-day) to
+// tape positions and marker specs. Pure, DOM-free. Math and SolarConfig defaults
+// from the SOLAR LINEAR TAPE block in design-mocks/instrument-hud.html.
 
 /**
  * @typedef {object} SolarPoint
@@ -25,20 +17,20 @@
  */
 
 /**
- * Tape layout constants (the mock's hardcoded numbers, viewBox 0 0 552 47).
+ * Tape layout constants, in the viewBox 0 0 552 47.
  * @typedef {object} SolarConfig
- * @property {number} sunriseX left daylight bug / tape start (mock: 52)
- * @property {number} sunsetX right daylight bug / tape end (mock: 488)
- * @property {number} ty tape line y (mock: 20)
- * @property {number} baselineX1 dashed baseline start (mock: 8)
- * @property {number} baselineX2 dashed baseline end (mock: 544)
- * @property {number} idleTickStart first idle tick x (mock: 16)
- * @property {number} idleTickEnd last idle tick x, inclusive (mock: 540)
- * @property {number} idleTickStep idle tick spacing (mock: 24)
- * @property {number} idleTickLen idle tick length downward (mock: 4)
- * @property {number} bugHalf half-height of a sunrise/sunset bug (mock: 6)
- * @property {number} haloR sun-marker halo radius (mock: 6)
- * @property {number} ringR sun-marker ring radius (mock: 4)
+ * @property {number} sunriseX left daylight bug / tape start
+ * @property {number} sunsetX right daylight bug / tape end
+ * @property {number} ty tape line y
+ * @property {number} baselineX1 dashed baseline start
+ * @property {number} baselineX2 dashed baseline end
+ * @property {number} idleTickStart first idle tick x
+ * @property {number} idleTickEnd last idle tick x, inclusive
+ * @property {number} idleTickStep idle tick spacing
+ * @property {number} idleTickLen idle tick length downward
+ * @property {number} bugHalf half-height of a sunrise/sunset bug
+ * @property {number} haloR sun-marker halo radius
+ * @property {number} ringR sun-marker ring radius
  */
 
 /** @type {SolarConfig} */
@@ -57,8 +49,7 @@ export const DEFAULT_SOLAR_CONFIG = {
   ringR: 4,
 };
 
-// Sun-marker cross ticks: [dx1, dy1, dx2, dy2] offsets from the marker center
-// (mock lines 491-494), the "~25% smaller than v1" set.
+// Sun-marker cross ticks: [dx1, dy1, dx2, dy2] offsets from the marker center.
 const CROSS_TICK_OFFSETS = [
   [0, -8, 0, -5.5],
   [0, 8, 0, 5.5],
@@ -68,9 +59,8 @@ const CROSS_TICK_OFFSETS = [
 
 /**
  * @typedef {object} SolarGeometry
- * @property {number} fraction daylight fraction (now-sunrise)/(sunset-sunrise);
- *   RAW like the mock - NOT clamped, so it is <0 before sunrise and >1 after
- *   sunset (see module note)
+ * @property {number} fraction daylight fraction; unclamped (<0 before sunrise,
+ *   >1 after sunset)
  * @property {number} daylightMinutes sunset − sunrise, in minutes
  * @property {number} ty tape line y
  * @property {number} sunriseX
@@ -83,13 +73,8 @@ const CROSS_TICK_OFFSETS = [
  */
 
 /**
- * Solar tape geometry for a moment in the day.
- *
- * Note: `fraction`/`nowX` are the mock's raw values and are intentionally NOT
- * clamped to the daylight span - at night (now before sunrise or after sunset)
- * `nowX` falls outside [sunriseX, sunsetX]. Night handling is out of scope for
- * the layout (plan: night mode not desired); the renderer can clamp or hide the
- * marker if desired. Flagged so the caller decides, rather than baking a policy.
+ * Tape geometry for a moment in the day. `fraction`/`nowX` are deliberately
+ * unclamped - at night `nowX` falls off the tape and the renderer decides.
  *
  * @param {object} t minutes-of-day (0-1439) for each moment
  * @param {number} t.sunriseMin

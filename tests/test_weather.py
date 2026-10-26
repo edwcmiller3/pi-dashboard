@@ -1,15 +1,8 @@
-"""Weather adapter tests.
+"""Weather adapter tests: the pure `normalize_weather` transform, plus the
+`get_weather` wrapper with the network monkeypatched out.
 
-The heart of this is `normalize_weather`, the pure transform from raw Open-Meteo
-JSON to the contract's `weather` block (written test-first). `get_weather` is the
-thin async wrapper around the offloaded `requests` fetch; it's exercised with the
-network call monkeypatched out so the suite stays offline.
-
-`RAW` stays `dict[str, Any]`: it models the *raw external* Open-Meteo response,
-the one genuinely-untyped boundary (the contract docstring blesses `Any` there),
-and `normalize_weather` takes `dict[str, Any]`. Variants are built through the
-`with_current`/`with_daily` helpers so the pervasive `{**RAW, "current": {...}}`
-spreading lives in one place.
+`RAW` stays `dict[str, Any]` because it models the raw Open-Meteo response, the
+one genuinely untyped boundary.
 """
 
 from __future__ import annotations
@@ -24,8 +17,7 @@ from app.config import Settings, settings
 from app.sources import weather
 from app.sources.nws import Observation
 
-# A realistic single-call Open-Meteo response (shape captured from a live API
-# response). timezone=auto -> naive-local time strings;
+# Shape captured from a live response. timezone=auto gives naive-local times;
 # utc_offset_seconds carries the offset. 5 daily entries: today + 4 future.
 RAW: dict[str, Any] = {
     "latitude": 36.0,
@@ -67,13 +59,12 @@ RAW: dict[str, Any] = {
 
 
 def with_current(**overrides: Any) -> dict[str, Any]:
-    """A copy of RAW with `current` fields overridden - collapses the repeated
-    `{**RAW, "current": {**RAW["current"], ...}}` fixture-building."""
+    """A copy of RAW with `current` fields overridden."""
     return {**RAW, "current": {**RAW["current"], **overrides}}
 
 
 def with_daily(**overrides: Any) -> dict[str, Any]:
-    """A copy of RAW with `daily` series overridden (same idea as with_current)."""
+    """A copy of RAW with `daily` series overridden."""
     return {**RAW, "daily": {**RAW["daily"], **overrides}}
 
 
@@ -126,16 +117,13 @@ def test_current_icon_uses_night_variant_when_not_day() -> None:
 
 
 def test_current_precip_prob_is_todays_daily_max() -> None:
-    # precip_prob for the hero comes from daily.precipitation_probability_max[0].
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["precip_prob_pct"] == 10
 
 
 def test_current_sunrise_sunset_emitted_with_offset() -> None:
-    # Contract rule: every emitted time is ISO-local-WITH-offset. Open-Meteo
-    # returns naive-local strings (timezone=auto), so we attach the location's
-    # utc_offset_seconds (-14400 -> -04:00) - uniform with fetched_at/events,
-    # and correct for any consumer that does `new Date(sunrise)`.
+    # Contract: every emitted time carries an offset, so `new Date(sunrise)` is
+    # correct; Open-Meteo's naive-local strings get utc_offset_seconds attached.
     cur = weather.normalize_weather(RAW)["current"]
     assert cur["sunrise"] == "2026-06-29T06:18:00-04:00"
     assert cur["sunset"] == "2026-06-29T20:51:00-04:00"
@@ -145,8 +133,8 @@ def test_current_sunrise_sunset_emitted_with_offset() -> None:
 
 
 def test_current_above_forecast_high_widens_high() -> None:
-    # Open-Meteo's `current` and `daily` max are different products and can
-    # disagree; the hero must never show now > H.
+    # `current` and `daily` max are different products and can disagree; the
+    # hero must never show now > H.
     cur = weather.normalize_weather(with_current(temperature_2m=78.6))["current"]
     assert cur["temp_f"] == 79
     assert cur["high_f"] == 79  # widened from the forecast's 75
@@ -191,15 +179,13 @@ def test_forecast_fields_resolved() -> None:
 
 
 def test_forecast_precip_expected_tracks_the_weather_code() -> None:
-    # The precip line is gated on is_wet(code), not the % - a dry code hides it
-    # even at a nonzero %, a wet code shows it. daily[2] (forecast[1]) is code 63.
+    # Gated on is_wet(code), not the %: a dry code hides the line even at 20%.
     fc = weather.normalize_weather(RAW)["forecast"]
     assert fc[1]["code"] == 63 and fc[1]["precip_expected"] is True  # rain
     assert all(f["precip_expected"] is False for f in (fc[0], fc[2], fc[3]))
 
 
 def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:
-    # Even fetched at night, the look-ahead cards show day glyphs.
     fc = weather.normalize_weather(with_current(is_day=0))["forecast"]
     assert fc[1]["icon"] == "rain-day"  # code 63 daytime
 
@@ -223,35 +209,28 @@ def test_unknown_code_falls_back_to_not_available() -> None:
 
 
 def test_short_daily_response_raises_clear_valueerror() -> None:
-    # A truncated Open-Meteo payload (<5 daily entries) used to raise a cryptic
-    # IndexError from the daily[1:5] slice / daily[0] index. Guard it into a
-    # descriptive ValueError so the refresh loop logs an intelligible cause and
-    # keeps the last-good doc (all-or-nothing keep-last-good is deliberate - the
-    # frontend never renders a half-built weather block). Truncate ONLY `time`
-    # (the field the guard measures) so the assertion pins that specific guard.
+    # A legible error (not an IndexError) for the refresh log; the loop keeps
+    # last-good, never a half-built block. Only `time` is truncated - the field
+    # the guard measures.
     raw = with_daily(time=RAW["daily"]["time"][:2])  # 2 days, other series full
     with pytest.raises(ValueError, match="too short"):
         weather.normalize_weather(raw)
 
 
 def test_missing_current_block_raises_clear_valueerror() -> None:
-    # A response missing `current` -> a legible ValueError, not a bare KeyError.
     with pytest.raises(ValueError, match="current"):
         weather.normalize_weather({"daily": RAW["daily"]})
 
 
 def test_missing_daily_block_raises_clear_valueerror() -> None:
-    # The other branch of the top-level guard: `daily` absent -> legible error.
     with pytest.raises(ValueError, match="daily"):
         weather.normalize_weather({"current": RAW["current"]})
 
 
 @pytest.mark.parametrize("key", ["sunrise", "sunset"])
 def test_null_polar_sunrise_or_sunset_raises_clear_valueerror(key: str) -> None:
-    # Open-Meteo returns null sunrise/sunset at polar latitudes (no rise/set on a
-    # polar day/night), and lat/lon is user-configurable. A null today[0] would be
-    # a cryptic TypeError out of `_with_offset`; guard it into a legible ValueError
-    # so the loop keeps last-good (all-or-nothing), same as the short-series guard.
+    # Open-Meteo returns null rise/set at polar latitudes, and lat/lon is
+    # configurable; same all-or-nothing guard as the short-series case.
     raw = with_daily(**{key: [None, *RAW["daily"][key][1:]]})
     with pytest.raises(ValueError, match=key):
         weather.normalize_weather(raw)
@@ -266,13 +245,11 @@ def test_get_weather_wraps_with_ok_and_offset_stamp(
     monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
     result = asyncio.run(weather.get_weather())
     assert result["ok"] is True
-    # fetched_at stamped in the API's local offset (-14400 -> -04:00), with offset.
+    # Stamped in the API's local offset.
     fetched_at = result["fetched_at"]
     assert fetched_at is not None
     assert fetched_at.endswith("-04:00")
     assert "T" in fetched_at
-    # the normalized block rides along under the same dict (rounding itself is
-    # covered by test_round_half_up / test_current_numbers_rounded_to_int).
     assert result["current"]["icon"] == "clear-day"
     assert len(result["forecast"]) == 4
 
@@ -295,15 +272,12 @@ def _fresh_observation(temp_f: float) -> Observation:
 def test_no_station_means_no_nws_call_and_identical_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # NWS_STATION unset (the default) must produce output identical to pure
-    # Open-Meteo AND attempt zero NWS traffic.
     async def _must_not_be_called(station: str) -> Observation | None:
         raise AssertionError("fetch_observation called with NWS_STATION unset")
 
     monkeypatch.setattr(weather, "fetch_observation", _must_not_be_called)
     monkeypatch.setattr(weather, "_fetch_raw", lambda: RAW)
-    # the SHIPPED default is OFF (the runtime value is pinned "" by conftest's
-    # autouse fixture, so assert the class default, not the instance)
+    # conftest pins the instance to "", so check the shipped class default.
     assert Settings.model_fields["nws_station"].default == ""
     result = asyncio.run(weather.get_weather())
     assert result["current"] == weather.normalize_weather(RAW)["current"]
@@ -322,15 +296,13 @@ def test_station_set_and_observation_returned_merges_the_hero(
     result = asyncio.run(weather.get_weather())
     assert result["current"]["temp_f"] == 90  # obs, not the model's 72
     assert result["current"]["humidity_pct"] == 80
-    # forecast cards are untouched by the overlay
     assert result["forecast"] == weather.normalize_weather(RAW)["forecast"]
 
 
 def test_station_set_but_fetch_fails_keeps_pure_model_hero_and_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The overlay is fail-soft end to end: a dead api.weather.gov degrades to
-    # today's pure-model hero on a SUCCESSFUL tick - never a failed block.
+    # A dead api.weather.gov still yields a successful tick, never a failed block.
     async def _fake_fetch(station: str) -> Observation | None:
         return None
 
@@ -383,8 +355,7 @@ def test_fetch_respects_weather_model_override(
 def test_fetch_treats_empty_weather_model_as_provider_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # WEATHER_MODEL= (empty) in .env overrides the settings default with "" - 
-    # that must still mean best_match, never a models="" query param.
+    # `WEATHER_MODEL=` in .env yields "", which must not become models="".
     monkeypatch.setattr(settings, "weather_model", "")
     captured = _capture_params(monkeypatch)
     weather._fetch_raw()

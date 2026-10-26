@@ -1,15 +1,8 @@
-"""Cache interface - JSON files on disk. Deliberately simple: no Redis, no
-SQLite, no store migration planned. The cache holds two regenerable blobs for
-one local process, so a cache server / embedded DB would be pure overhead. The
-small read/write seam stays only to keep the loop and route decoupled and the
-tests clean.
+"""JSON-file cache: the handoff between the refresh loop (writer) and the
+`/api/data` route (reader).
 
-The handoff between the background refresh loop (writer) and the `/api/data`
-route (reader). Writes go through a temp file + `os.replace` so a concurrent
-reader can never observe a half-written file (torn-read-safe), and the data +
-the rename are `fsync`'d so a power loss can't lose or corrupt the last-good
-doc (durability boundary). A corrupt/unreadable file degrades to a cold cache
-(`None`) rather than bubbling out of `/api/data` as a 500.
+Deliberately just files - it holds regenerable blobs for one local process, so a
+cache server or embedded DB would be pure overhead.
 """
 
 from __future__ import annotations
@@ -30,13 +23,8 @@ def _cache_path(key: str) -> Path:
 
 
 def read(key: str) -> Any | None:
-    """Return the cached value for `key`, or None if it's absent or unreadable.
-
-    A missing file is the normal cold-cache case. A corrupt/empty file (the only
-    realistic trigger is a power loss mid-write - the atomic `os.replace` rules
-    out torn reads) is treated the same: degrade to `None` (the route then
-    returns 503 and the frontend shows last-good / placeholders), never a 500.
-    """
+    """The cached value, or None if absent or unreadable - a corrupt file is a
+    cold cache (the route returns 503), never a 500."""
     try:
         with _cache_path(key).open(encoding="utf-8") as fh:
             return json.load(fh)
@@ -52,13 +40,9 @@ def read(key: str) -> Any | None:
 
 
 def write(key: str, value: Any) -> None:
-    """Persist `value` under `key` as JSON, atomically and durably.
-
-    Atomic: written to a temp file then `os.replace`d into place (a reader never
-    sees a half-written file). Durable: the temp file's data is `fsync`'d before
-    the rename, and the directory is `fsync`'d after, so neither the contents nor
-    the rename can be lost to a power cut mid-write.
-    """
+    """Write atomically (temp file + `os.replace`, so readers never see a partial
+    file) and durably (data and directory fsync'd, so a power cut can't lose the
+    last-good doc)."""
     path = _cache_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -71,9 +55,8 @@ def write(key: str, value: Any) -> None:
 
 
 def _fsync_dir(directory: Path) -> None:
-    """`fsync` a directory so a rename into it survives power loss. POSIX-only;
-    a platform/filesystem that disallows it is a best-effort no-op (the file
-    data is already fsync'd, which is the load-bearing half)."""
+    """Best-effort: a platform that disallows directory fsync is a no-op (the
+    file data is already fsync'd, which is the load-bearing half)."""
     try:
         fd = os.open(directory, os.O_RDONLY)
     except OSError:

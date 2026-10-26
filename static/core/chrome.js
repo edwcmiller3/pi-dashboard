@@ -1,12 +1,8 @@
-// Shared UI chrome glyphs - one-off controls (admin cog, back arrow), not weather
-// glyphs, so they ride as inline SVG like classic's REFRESH_SVG rather than
-// through an icon-pack font. Trusted own markup only: assign via innerHTML, never
-// interpolate a contract/user string into these.
+// Inline SVG for UI controls (admin cog, back arrow), kept out of the icon packs.
+// Trusted markup for innerHTML - never interpolate a contract/user string in.
 //
 // Paths from Lucide (lucide.dev) `settings` + `arrow-left` - ISC License, with
 // Feather-derived portions MIT (Copyright (c) Cole Bemis).
-//
-// Presentation attributes are defaults: a layout's CSS may override stroke/size.
 
 const SVG_OPEN =
   '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" ' +

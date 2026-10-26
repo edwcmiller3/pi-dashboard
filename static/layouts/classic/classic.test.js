@@ -1,22 +1,10 @@
 // Behavioral tests for the classic layout's DOM renderers, fit shells, and
-// degrade paths. Run with Node's built-in runner (no deps):  node --test  (from static/)
+// degrade paths, against a minimal local DOM stub (each layout suite keeps its
+// own, sized to what that layout touches).
 //
-// The classic layout is the only piece of the module graph that touches the DOM,
-// so app.test.js (the pure-core suite) can't cover it. This file drives the layout
-// against a tiny, dependency-free DOM stub defined locally below - just enough of
-// the surface classic/index.js uses (createElement/getElementById, append/
-// replaceChildren/remove/before, classList, textContent, getBoundingClientRect,
-// clientHeight). It is deliberately NOT a shared module: it exists to prove a
-// classic behavior regression fails `node --test`, not only the out-of-band pixel
-// mockup. The pure fit PLANNERS (planDayFit/planColumnFit) are unit-tested
-// in ../../app.test.js; here we prove the imperative SHELL wires real measurements
-// into the plan and applies it to the DOM (inserts "+N earlier"/"+N more"/"+N more
-// days", removes children).
-//
-// Typing mirrors app.test.js: JSDoc typedefs document the fixtures, but `// @ts-check`
-// is intentionally off (the package ships no @types/node, so `node:*` builtins
-// wouldn't resolve). Clock-dependent tests freeze time via `t.mock.timers` so the
-// "today awareness" logic (next-up / roll-off) can't flake across local midnight.
+// The pure fit planners are unit-tested in ../../app.test.js; these prove the
+// imperative shell feeds real measurements into the plan and applies it to the
+// DOM.
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
@@ -183,20 +171,16 @@ const doc = {
   querySelector: (sel) => (doc._appRoot ? find(doc._appRoot, matcher(sel)) : null),
 };
 
-// classic/index.js + core/dom.js reach the DOM through the global `document`;
-// wire the stub in before any test runs (module top level runs before tests).
+// Install the global stub before importing the layout (dynamic import, so it
+// isn't hoisted above this).
 globalThis.document = /** @type {any} */ (doc);
 
-// The layout under test - imported AFTER the global is set (its functions only
-// touch document at call time, but keep the ordering obvious).
 const { layout } = await import("./index.js");
 
 // ── test helpers ──────────────────────────────────────────────────────────────
 
-// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
-// (matching the real pack's element) and records every renderIcon call so a test
-// can assert which semantic name each cell requested. Injection is required
-// because a real `import "/pack.js"` is unresolvable under node --test.
+// Fake IconPack that records renderIcon calls. Injected because the real
+// `/pack.js` route is unresolvable under node --test.
 function makeIconPack() {
   /** @type {{ name: string, extra: string | undefined }[]} */
   const calls = [];
@@ -235,7 +219,7 @@ function withClass(root, cls) {
   return out;
 }
 
-/** Freeze the clock at local noon on 2026-07-01 (mid-afternoon events sort cleanly). @param {any} t */
+/** Freeze the clock at local noon on 2026-07-01. @param {any} t */
 function freezeNoon(t) {
   const noon = new Date(2026, 6, 1, 12, 0, 0).getTime();
   t.mock.timers.enable({ apis: ["Date"] });
@@ -456,7 +440,7 @@ test("renderStatus: happy path — fresh dots + oldest-ok 'Updated' stamp", () =
   const status = doc.getElementById("status");
   const txt = status.textContent;
   assert.ok(txt.includes("Weather") && txt.includes("Calendar"));
-  // pickUpdated -> OLDEST ok stamp (09:38), never over-claiming freshness.
+  // pickUpdated -> oldest ok stamp (09:38).
   assert.ok(txt.includes("Updated 9:38 AM"));
   assert.equal(withClass(status, "stale").length, 0, "no stale dots when both ok");
   assert.ok(withClass(status, "refresh").length === 1, "refresh control present");
@@ -481,11 +465,10 @@ test("renderUnavailable: honest placeholders in every data region (cold boot)", 
   assert.ok(doc.getElementById("current-card").textContent.includes("Weather unavailable"));
   assert.ok(doc.getElementById("agenda-body").textContent.includes("Data unavailable"));
   assert.ok(doc.getElementById("status").textContent.includes("Updated —"));
-  // The forecast row is cleared rather than placeheld (matches the monolith).
+  // The forecast row is cleared rather than placeheld.
   assert.equal(doc.getElementById("forecast").children.length, 0);
 });
 
-// t.mock.timers auto-reset per test; reset the top-level mock too for safety.
 test.after(() => mock.timers.reset());
 
 // ── admin cog ─────────────────────────────────────────────────────────────────

@@ -1,18 +1,10 @@
 """Tests for the vendored, subset HUD fonts (static/vendor/fonts/).
 
-Front-loaded Phase 3 prep. Mirrors the two-way-pin spirit of
-tests/test_weather_codes.py:143-148: the pin is self-maintaining off the
-vendored artifacts themselves (the subset manifest + the actual woff2 cmaps),
-so there is no hand-listed glyph copy that can silently drift.
-
-  * every glyph the HUD emits and self-hosts is in every vendored subset
-    -> no tofu on the kiosk;
-  * every codepoint in a subset is one the manifest actually requested
-    -> no dead weight shipped in the font;
-  * the six geometric marks the HUD also emits (◆ ▸ ◂ ▲ ▼ ⟳) are NOT in these
-    two mono fonts, so they are pinned ABSENT -> nobody may quietly assume they
-    ship here (they render via OS fallback in the mock; Phase 3 must resolve
-    them as SVG/CSS or a dedicated glyph font). See subset-manifest.txt.
+A two-way pin derived from the subset manifest and the actual woff2 cmaps (no
+hand-listed glyph copy to drift): each subset ships exactly the requested
+codepoints - no tofu, no dead weight. The six geometric marks (◆ ▸ ◂ ▲ ▼ ⟳)
+are absent from both source fonts and pinned absent, since the HUD draws them
+as SVG. See subset-manifest.txt.
 """
 
 from __future__ import annotations
@@ -44,12 +36,8 @@ def _codepoints(token: str) -> set[int]:
 
 
 def _parse_manifest() -> tuple[set[int], set[int]]:
-    """Derive (requested, fallback) codepoint sets straight from the manifest.
-
-    requested = the authoritative pyftsubset --unicodes= line.
-    fallback  = the U+XXXX marks listed in the FALLBACK_SYMBOLS block (absent
-                from both source fonts, so pinned out of every subset).
-    """
+    """(requested, fallback) codepoints: the pyftsubset --unicodes= line, and
+    the marks in the FALLBACK_SYMBOLS block."""
     text = _MANIFEST.read_text()
 
     (unicodes_line,) = re.findall(r"--unicodes=(\S+)", text)
@@ -64,8 +52,6 @@ def _parse_manifest() -> tuple[set[int], set[int]]:
 
 
 REQUESTED_CPS, FALLBACK_CPS = _parse_manifest()
-# What every subset must contain, exactly: everything requested that the source
-# fonts could actually provide.
 EXPECTED_CPS = REQUESTED_CPS - FALLBACK_CPS
 
 
@@ -81,8 +67,7 @@ def test_all_subset_files_are_vendored_as_woff2() -> None:
 
 
 def test_manifest_declares_something_and_a_known_gap() -> None:
-    # Guard the parser itself: if the manifest format changes and the sets come
-    # back empty, the pins below would pass vacuously.
+    # Guards the parser: empty sets would make the pins below pass vacuously.
     assert 0x30 in EXPECTED_CPS and 0x39 in EXPECTED_CPS  # mono digits 0-9
     assert 0x25 in EXPECTED_CPS  # %
     assert 0x00B0 in EXPECTED_CPS and 0x00B7 in EXPECTED_CPS  # ° ·
@@ -91,16 +76,12 @@ def test_manifest_declares_something_and_a_known_gap() -> None:
 
 
 def test_each_subset_cmap_matches_the_manifest_exactly() -> None:
-    # The core two-way pin, per face: the woff2 carries exactly the requested
-    # glyphs the fonts could provide -> no tofu (missing) and no dead weight
-    # (extra). Any drift in the manifest or the subset breaks this.
     for name in SUBSET_FILES:
         assert _cmap(name) == EXPECTED_CPS, f"{name} cmap != manifest EXPECTED set"
 
 
 def test_fallback_marks_are_absent_from_every_subset() -> None:
-    # The six geometric marks are pinned ABSENT. If a future re-subset (or a
-    # different source font) ever includes one, this fails and forces the
-    # manifest's FALLBACK_SYMBOLS note to be updated deliberately.
+    # A re-subset or font swap that ships one must update FALLBACK_SYMBOLS
+    # deliberately.
     for name in SUBSET_FILES:
         assert not (_cmap(name) & FALLBACK_CPS), f"{name} unexpectedly ships a fallback mark"

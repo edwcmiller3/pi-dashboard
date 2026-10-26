@@ -1,9 +1,5 @@
-/* Gruvbox-inspired dark palette (https://github.com/morhetz/gruvbox - colors
-   adapted, not copied wholesale: surfaces are darkened for the dim-room kiosk).
-   Warm retro browns/cream where nord is cool steel/frost.
-
-   THEME CONTRACT - a theme is ONE `:root` block overriding the palette vars
-   defined at the top of style.css, nothing else (see themes/nord.css). */
+/* Gruvbox-inspired (https://github.com/morhetz/gruvbox), surfaces darkened
+   for the dim-room kiosk. Theme contract: see nord.css. */
 :root {
   --text: #ebdbb2;
   --muted: #a89984;

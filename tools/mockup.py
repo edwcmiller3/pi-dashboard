@@ -5,36 +5,19 @@ with headless Chrome into docs/mockup.png:
 
     uv run python -m tools.mockup
 
-Palette preview: `--theme <name>` runs the server with THEME=<name> (a
-stylesheet in static/themes/), screenshotting to docs/mockup-<name>.png so the
-README image is never clobbered by a theme experiment (override with --out).
-`--serve` skips Chrome and keeps the fixture-backed server running to browse
-interactively - in that mode the fixture is built in the machine's LOCAL zone
-so event times line up with the real browser clock, which means which marquee
-states appear (next-up, roll-off) depends on the time of day you run it.
+Every stamp in the fixture is fresh, so the server's boot tick serves it
+verbatim - no live fetch and no .env needed.
 
-Every stamp in the fixture is fresh, so the server's boot refresh tick sees
-both sources within TTL and serves the fixture verbatim - no live fetch, no
-.env / PROTON_ICS_URL needed, and nothing personal on screen (all event titles
-and weather values are made up; icons/labels/precip gating come from the real
-`weather_codes` module so they stay contract-true).
+The page's clock and today-awareness (next-up, roll-off) follow the browser's
+local time, so Chrome runs under a fixed-offset TZ chosen so it reads 2 PM, with
+the fixture's events in that same zone. `--serve` instead builds the fixture in
+the machine's local zone, so which states show depends on the time of day.
 
-The one moving part is the clock: the page's big clock and the "today
-awareness" logic (next-up highlight, roll-off) key off the BROWSER's local time,
-so Chrome runs under a fixed-offset TZ (Etc/GMT±N) chosen so its local hour reads
-14 (2 PM) whenever this is regenerated, and the fixture's event times are written
-in that same zone - mid-afternoon, deterministic modulo the minute.
-
-The frame deliberately exercises: current-weather hero; forecast cards with
-wet (precip line) and dry days; today's column with an observance pill, a
-multi-day all-day span, rolled-off past events ("+N earlier", sitting below
-the pill/all-day block), the in-progress next-up highlight, upcoming events,
-and enough of them that the bottom "+N more" trim fires too; column 2 with the
-span repeating, a holiday pill, further days, and the "+N more days" footer;
-fresh status dots + Updated stamp. Mutually-exclusive states (quiet day, stale
-dots, clock warning, cold boot) can't share the frame and are not shown; nor
-can a PARTIALLY-rolled day (a visible past event), which the bottom "+N more"
-precludes by design - the trim only runs once every past row has rolled.
+The frame aims to exercise every marquee state that can coexist: wet and dry
+forecast cards, an observance pill, a multi-day all-day span, "+N earlier"
+roll-off, the next-up highlight, the "+N more" trim and the "+N more days"
+footer. Mutually exclusive states (quiet day, stale dots, clock warning, cold
+boot, a partially rolled day) can't share it.
 """
 
 from __future__ import annotations
@@ -65,11 +48,9 @@ CHROME: str = os.environ.get(
 
 
 def fake_zone() -> tuple[str, timezone]:
-    """A fixed-offset zone in which the CURRENT local hour is DISPLAY_HOUR.
-
-    Returns (IANA name for Chrome's TZ env var, matching Python timezone).
-    Etc/GMT names carry the INVERTED sign (Etc/GMT+4 means UTC-4).
-    """
+    """A fixed-offset zone where the current hour is DISPLAY_HOUR, as (name for
+    Chrome's TZ, Python timezone). Etc/GMT names invert the sign (Etc/GMT+4 is
+    UTC-4)."""
     offset = (DISPLAY_HOUR - datetime.now(timezone.utc).hour) % 24
     if offset > 12:
         offset -= 24  # keep within the Etc/GMT-12..+11 range
@@ -78,7 +59,6 @@ def fake_zone() -> tuple[str, timezone]:
 
 
 def build_doc(tz: tzinfo) -> DashboardDoc:
-    """The fixture DashboardDoc - fabricated values, contract-true shapes."""
     now = datetime.now(tz)
 
     def day(n: int) -> str:
@@ -140,11 +120,8 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         timed("Neighborhood parade", 11, 0, 60, plus_days=2),
         timed("Fireworks picnic", 20, 30, 90, plus_days=2),
         timed("Oil change", 10, 0, 60, plus_days=3),
-        # A fourth upcoming day so column 2 genuinely overflows and the "+N more
-        # days" footer fires. (It used to fire with three days only because the
-        # old fit pass measured with its probe footer attached, which could push
-        # an exactly-fitting column over budget - planColumnFit fixed that, so
-        # the frame needs real overflow to show the footer.)
+        # A fourth upcoming day so column 2 overflows into the "+N more days"
+        # footer.
         timed("Library returns", 15, 0, 30, plus_days=4),
     ]
     assert events == sorted(events, key=lambda e: e["start"])  # contract: pre-sorted
@@ -163,8 +140,7 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         "sunrise": iso(now.replace(hour=5, minute=47, second=0, microsecond=0)),
         "sunset": iso(now.replace(hour=20, minute=29, second=0, microsecond=0)),
     }
-    # (code, high, low, precip %): a dry/wet mix so the conditional precip line
-    # shows on some cards and stays absent on others.
+    # (code, high, low, precip %): a dry/wet mix to exercise the precip line.
     forecast_days = [
         (0, 90, 72, 5),
         (95, 84, 70, 65),
@@ -184,12 +160,10 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         for i, (code, hi, lo, pct) in enumerate(forecast_days)
     ]
 
-    # Two zones on purpose. generated_at must be in the server's display zone:
-    # `_date_rolled` compares its DATE against NY-now, and the fake zone can sit
-    # on a different calendar day - which would force a live refetch. fetched_at
-    # must be in the FAKE zone: the frontend renders its literal wall-clock as
-    # the "Updated" stamp, which has to agree with the pinned page clock. Both
-    # are aware stamps, so the freshness *age* math is epoch-correct either way.
+    # Two zones on purpose. generated_at is in the server's zone: `_date_rolled`
+    # compares its date against NY-now, and the fake zone can be on another day,
+    # forcing a live refetch. fetched_at is in the fake zone because the
+    # frontend renders its wall-clock as the "Updated" stamp.
     server_stamp = datetime.now(ZoneInfo("America/New_York")).isoformat(
         timespec="seconds"
     )
@@ -208,13 +182,9 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
 
 
 def wait_healthy(url: str, server: subprocess.Popen[bytes], tries: int = 50) -> None:
-    """Poll `url` until the fixture server answers - watching the CHILD too.
-
-    If the child exits while we poll (typically a bind failure because another
-    server - e.g. a lingering `--serve` session - already holds the port), fail
-    loudly. Without that check a foreign server on the same port answers the
-    health probe and the screenshot silently captures the WRONG app state.
-    """
+    """Poll until the server answers, failing if the child exits: otherwise a
+    foreign server on the same port (e.g. a lingering `--serve`) would answer
+    and the screenshot would capture the wrong app."""
     for _ in range(tries):
         if server.poll() is not None:
             raise RuntimeError(
@@ -303,9 +273,8 @@ def main() -> int:
             return 1
     if args.icon_pack:
         packs_dir = REPO / "static" / "packs"
-        # Mirror the server's _available_packs rule: a pack dir only resolves at
-        # runtime if it carries an index.js module, so a dir lacking one must be
-        # rejected here too (an is_dir() check alone would pass then fail to serve).
+        # Mirror the server's `_available_slugs`: a pack resolves only with an
+        # index.js.
         if not (packs_dir / args.icon_pack / "index.js").is_file():
             names = ", ".join(
                 sorted(
@@ -320,11 +289,8 @@ def main() -> int:
     if not args.serve and not Path(CHROME).exists():
         print(f"Chrome not found at {CHROME!r} — set CHROME_BIN", file=sys.stderr)
         return 1
-    # A non-default layout, theme, and/or icon pack each default to their own file
-    # so a layout×theme×pack experiment can never silently clobber the README image
-    # (nor can a HUD render clobber the classic PNG). classic and weather-icons are
-    # the defaults, so they add no suffix - an unthemed classic render on the
-    # default pack stays docs/mockup.png.
+    # Non-default choices add a filename suffix so an experiment can't clobber
+    # the README image.
     suffix = "-".join(
         part
         for part in (
@@ -338,8 +304,7 @@ def main() -> int:
     )
     out: Path = args.out or (OUT.with_name(f"mockup-{suffix}.png") if suffix else OUT)
     if args.serve:
-        # Interactive browsing: the viewer's browser runs on real local time, so
-        # build the fixture in the local zone to keep event times aligned.
+        # The viewer's browser runs on real local time.
         local = datetime.now().astimezone().tzinfo
         assert local is not None
         tz_name, tz = "local", local
@@ -398,8 +363,8 @@ def main() -> int:
                 check=True,
                 capture_output=True,
             )
-            # Sanity-check the frame actually exercised the marquee states, so a
-            # regression can't silently regenerate a broken README image.
+            # Warn if the frame missed a marquee state, so a regression can't
+            # silently regenerate a broken README image.
             dom = subprocess.run(
                 [*chrome_args, "--dump-dom", url],
                 env=env,
@@ -407,29 +372,16 @@ def main() -> int:
                 capture_output=True,
                 text=True,
             ).stdout
-            # Per-layout marquee markers: the DOM strings each layout is expected
-            # to render for this fixture. The classic-specific class names (e.g.
-            # .event.is-next) don't exist in the HUD DOM, so a hardcoded classic
-            # set emits spurious WARNINGs against a HUD render - give each layout
-            # its own set. Non-blocking prints, not test failures. Both layouts
-            # place the roll-off ("+N earlier") BELOW the all-day block.
+            # DOM strings each layout should render for this fixture; class names
+            # differ per layout, so each needs its own set.
             layout_markers = {
                 "classic": (" earlier", " more<", "is-next", "Cabin trip", "Independence Day"),
-                # HUD is a single column that protects today and drops later days
-                # from the end, so its marquee is the next-up row (.ev.active), the
-                # all-day span, and the "+N more days" footer - not the classic
-                # two-column roll-off vocabulary (.is-next / a trimmed today).
+                # Single column that drops later days from the end: no roll-off.
                 "hud": ("active", "Cabin trip", " more day"),
-                # swiss-mono is a two-column layout like classic (today alone in
-                # col1 with the roll-off vocabulary; upcoming days in col2 dropping
-                # from the end into a "+N more days" footer), plus its own "● NOW"
-                # tag on the next-up row. Guards the fit shell: a regressed column
-                # fit would drop the "+N more day" footer and this would warn.
+                # Two columns like classic, plus its own "● NOW" next-up tag.
                 "swiss-mono": (" earlier", " more day", "● NOW", "Cabin trip", "Independence Day"),
             }
-            # An unknown/future layout has no marker profile; running classic's set
-            # against it would emit spurious WARNINGs, so skip the check entirely
-            # rather than defaulting to classic's markers.
+            # Classic's markers would warn spuriously on an unknown layout; skip.
             layout = args.layout or "classic"
             markers = layout_markers.get(layout)
             if markers is None:

@@ -1,17 +1,11 @@
-/* swiss-mono layout - the exposed-modular-grid design (design-mocks/swiss-mono.html),
-   ported as a selectable layout. Loads after style.css (base .screen owns the
-   1280x800 sizing + clipping) and before theme.css.
+/* swiss-mono layout - ported from design-mocks/swiss-mono.html.
 
-   FIXED LIGHT PALETTE. swiss-mono is a light paper design: its palette lives as
-   LAYOUT-LOCAL vars scoped to the layout root (.swiss-mono), NOT the global
-   :root - so it neither remaps the base vars nor invites dark-THEME re-tinting.
-   A theme's :root override simply has nothing to bind to here.
+   Fixed light palette: vars are scoped to .swiss-mono, not :root, so dark
+   themes have nothing to bind to. The "exposed grid" is --ink showing through
+   1px gaps. No blur/glow (Pi thermal constraint).
 
-   The "exposed grid" is pure CSS: background:var(--ink) showing through a 1px
-   gap reads as drafted hairline rules. NO blur/glow - thermal-safe on the Pi.
-
-   The vendored typefaces (self-hosted, no CDN) - @import resolves against
-   /layout.css -> /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
+   @import resolves against /layout.css -> /vendor/fonts/fonts.css (self-hosted,
+   no CDN). */
 @import url("vendor/fonts/fonts.css");
 
 .swiss-mono {
@@ -30,7 +24,7 @@
 
 /* ---------- canvas: the exposed modular grid ---------- */
 .screen.swiss-mono {
-  background: var(--ink); /* gaps read as drafted 1px rules */
+  background: var(--ink);
   color: var(--ink);
   font-family: var(--grot);
   font-variant-numeric: tabular-nums;
@@ -257,8 +251,7 @@
   background: var(--ink); /* the 1px gap reads as a drafted rule */
   min-height: 0;
 }
-/* Column tile: a stretched grid item (fills the cell full-height so the paper
-   reads edge-to-edge with the 1px ink divider), clipping any fit overflow. */
+/* Stretched to full cell height so the paper meets the 1px ink divider. */
 .swiss-mono .ag-col {
   min-height: 0;
   background: var(--paper);
@@ -266,8 +259,8 @@
   display: flex;
   flex-direction: column;
 }
-/* Natural-height body the fit shell measures (flex:0 0 auto = no stretch/shrink).
-   The inset lives HERE, inside the measured box, so the column fit reserves it. */
+/* Natural-height body the fit shell measures. The inset lives inside the
+   measured box so the column fit reserves it. */
 .swiss-mono .ag-col-body {
   flex: 0 0 auto;
   padding: 42px 24px 18px 24px;
@@ -364,9 +357,7 @@
   border-top: 1px solid var(--rule);
 }
 
-/* "+N earlier" / "+N more" / "+N more days" fit-shell summary lines. Styled
-   like the mock's .marker; the .days modifier (column footer) gets the heavier
-   ink rule the mock draws under the right column's "+N more days". */
+/* "+N earlier" / "+N more" / "+N more days" fit-shell summary lines. */
 .swiss-mono .agenda-more {
   font: 500 11.5px var(--mono);
   letter-spacing: 0.14em;
@@ -402,7 +393,7 @@
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  justify-content: flex-end; /* the status group sits on the right */
+  justify-content: flex-end;
   gap: 24px;
   padding: 0 10px 0 14px;
   background: var(--paper-dim);
@@ -433,8 +424,6 @@
   color: var(--ink-40);
 }
 
-/* admin entry cog - ink-outlined like .refresh, pushed to the far left of the
-   right-justified status row (design-mocks/swiss-mono.html). */
 .swiss-mono .admin-cog {
   margin-right: auto;
   display: inline-flex;
@@ -457,7 +446,6 @@
   color: var(--paper);
 }
 
-/* refresh control - ink-outlined, matching the drafted rule weight */
 .swiss-mono .refresh {
   display: inline-flex;
   align-items: center;
@@ -487,13 +475,13 @@
 .swiss-mono .refresh:hover svg {
   stroke: var(--paper);
 }
-/* In-flight manual refresh: spin the glyph. Tiny region, cheap on the Pi's
-   software compositor (unlike the shelved backdrop-filter). */
+/* In-flight refresh spin - tiny region, cheap on the Pi's software
+   compositor. */
 .swiss-mono .refresh.is-spinning svg {
   transform-origin: 50% 50%;
   animation: swiss-refresh-spin 0.8s linear infinite;
 }
-/* Brief feedback when POST /refresh failed (no visible console on the kiosk). */
+/* POST /refresh failed (no visible console on the kiosk). */
 .swiss-mono .refresh.is-error {
   color: var(--red);
   border-color: var(--red);

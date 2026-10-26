@@ -1,16 +1,6 @@
 """Refresh-loop orchestration: TTL-gated cadence, per-source last-good
-fallback, clock-honesty, and failure backoff.
-
-The pure helpers (`_is_due`, `_backoff_delay`, `_clock_synced`) are tested
-directly; `_refresh_once` is exercised with the source coroutines faked and the
-cache redirected to a tmp dir (autouse `_tmp_cache` fixture), so the suite makes
-no network call and writes only under `tmp_path`.
-
-Source fakes are built through the typed `weather_block`/`calendar_block`
-factories (real `WeatherBlock`/`CalendarBlock`, not `dict[str, Any]` - shared in
-conftest.py) so a fake that drifts from the contract fails the type-check.
-`Recorder` replaces the old hand-rolled `calls = {...}` mutable-dict counting
-with a declarative call count.
+fallback, clock-honesty, and failure backoff. Source coroutines are faked, so
+the suite makes no network call.
 """
 
 from __future__ import annotations
@@ -40,9 +30,7 @@ def _stamp(dt: datetime) -> str:
 
 
 class Recorder(Generic[T]):
-    """A callable that returns a fixed typed result and counts its invocations - 
-    the declarative stand-in for the old `calls = {"weather": 0}` mutable-dict
-    counting (like `unittest.mock.Mock.call_count`, but strongly typed)."""
+    """Returns a fixed result and counts calls - a typed `Mock.call_count`."""
 
     def __init__(self, result: T) -> None:
         self._result = result
@@ -59,9 +47,8 @@ def _patch_sources(
     weather: Callable[[], WeatherBlock],
     calendar: Callable[..., CalendarBlock],
 ) -> None:
-    """Replace the two source coroutines. `weather`/`calendar` are callables
-    returning the block (or raising) - invoked with no args / the kwargs main
-    passes."""
+    """Replace the two source coroutines with callables that return the block
+    (or raise); `calendar` receives `last_good`."""
 
     async def fake_weather() -> WeatherBlock:
         return weather()
@@ -81,9 +68,8 @@ def _seed_cache(
     calendar: CalendarBlock,
     generated_at: str | None = None,
 ) -> None:
-    """Seed the cache with a prior doc. Deliberately a loose dict, not a full
-    `DashboardDoc`: it models a previously-cached doc that may predate a field
-    (e.g. `generated_at`), which is exactly what `_refresh_once` must tolerate."""
+    """Seed the cache with a prior doc. A loose dict, not a `DashboardDoc`: a
+    cached doc may predate a field (e.g. `generated_at`)."""
     doc: dict[str, Any] = {"weather": weather, "calendar": calendar}
     if generated_at is not None:
         doc["generated_at"] = generated_at
@@ -126,8 +112,7 @@ def test_is_due_true_when_fetched_at_missing_or_unparseable() -> None:
 
 
 def test_is_due_failed_source_not_due_within_retry_floor() -> None:
-    # The no-hammer guard: a source that failed 10s ago must NOT be retried while
-    # the loop is in fast backoff - only once retry_floor has elapsed.
+    # The loop ticks fast in backoff; a failed source still waits out retry_floor.
     failed: SourceBlock = {
         "ok": False,
         "fetched_at": None,
@@ -146,8 +131,6 @@ def test_is_due_failed_source_due_after_retry_floor() -> None:
 
 
 def test_is_due_failed_source_rate_limit_uses_last_attempt_not_last_success() -> None:
-    # A block whose last SUCCESS is ancient but was just RE-attempted must stay
-    # rate-limited: attempted_at (not the stale fetched_at) governs the retry.
     failed: SourceBlock = {
         "ok": False,
         "fetched_at": _stamp(NOW - timedelta(hours=5)),  # last success, ancient
@@ -157,7 +140,7 @@ def test_is_due_failed_source_rate_limit_uses_last_attempt_not_last_success() ->
 
 
 def test_is_due_failed_source_without_attempted_at_falls_back_to_fetched_at() -> None:
-    # A failed block written before attempted_at existed rate-limits off fetched_at.
+    # A block cached before attempted_at existed.
     failed: SourceBlock = {
         "ok": False,
         "fetched_at": _stamp(NOW - timedelta(seconds=5)),
@@ -170,14 +153,12 @@ def test_is_due_failed_source_without_attempted_at_falls_back_to_fetched_at() ->
 
 def test_backoff_grows_then_caps_at_base() -> None:
     base = 900
-    # 30, 60, 120, 240, 480, then capped at base (900).
     assert main._backoff_delay(1, base) == 30
     assert main._backoff_delay(2, base) == 60
     assert main._backoff_delay(3, base) == 120
     assert main._backoff_delay(4, base) == 240
-    # The growth->cap boundary: failure 5 is the last uncapped step (480 < 900),
-    # failure 6 is the first the min() clamps (960 -> 900). This is exactly where
-    # an off-by-one in `<< (failures - 1)` would hide, so pin both sides.
+    # Both sides of the cap (960 -> 900), where an off-by-one in
+    # `<< (failures - 1)` would hide.
     assert main._backoff_delay(5, base) == 480
     assert main._backoff_delay(6, base) == base
     assert main._backoff_delay(99, base) == base  # never exceeds the base tick
@@ -199,11 +180,8 @@ def test_seconds_to_next_local_midnight() -> None:
 
 
 def test_seconds_to_next_local_midnight_across_spring_forward() -> None:
-    # 2026-03-08 is US spring-forward (02:00 EST -> 03:00 EDT), so that local day
-    # is only 23h long. From 00:30 EST the next local midnight (03-09 00:00 EDT)
-    # is 22.5h away, NOT the 23.5h a naive wall-clock delta would give - the lost
-    # hour must be accounted for. Guards the DST correctness of the .replace()
-    # arithmetic, which the single-instant EDT case above can't exercise.
+    # 2026-03-08 is only 23h long: from 00:30 EST midnight is 22.5h away, not
+    # the 23.5h a naive wall-clock delta gives.
     now = datetime(2026, 3, 8, 0, 30, tzinfo=TZ)
     assert main._seconds_to_next_local_midnight(now) == 22.5 * 3600
 
@@ -223,9 +201,7 @@ def test_clock_synced_true_when_marker_present(
 def test_clock_synced_false_when_runtime_present_but_marker_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # timesyncd runtime dir exists (a Pi mid-boot) but NTP hasn't synced yet.
-    # Create the runtime dir EXPLICITLY so the precondition (parent present,
-    # marker absent) is stated by the test, not inherited from tmp_path existing.
+    # A Pi mid-boot: timesyncd's runtime dir exists, NTP hasn't synced.
     runtime = tmp_path / "timesync"
     runtime.mkdir()
     monkeypatch.setattr(main, "_TIMESYNC_MARKER", runtime / "synchronized")
@@ -281,9 +257,6 @@ def test_refresh_once_ttl_gating(
     generated_at: str,
     expected_calls: int,
 ) -> None:
-    # One parametrized test for the three freshness-gate paths that used to be
-    # three near-identical copies: a fresh source is skipped, `force` overrides
-    # the skip, and a local-day rollover (doc built yesterday) also overrides it.
     monkeypatch.setattr(settings, "weather_ttl_seconds", 3600)
     monkeypatch.setattr(settings, "calendar_ttl_seconds", 3600)
     _seed_cache(
@@ -307,9 +280,7 @@ def test_refresh_once_ttl_gating(
 def test_refresh_once_weather_failure_keeps_last_good_but_calendar_updates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Seed weather that is ALREADY past its TTL (2h old, 1h TTL) so it's due: the
-    # fetch is attempted, fails, and falls back to the last-good DATA (flagged
-    # stale). The calendar is stale too and refreshes independently.
+    # Both sources seeded past their TTL, so both are due.
     _seed_cache(
         weather=weather_block(
             temp_f=70, fetched_at=_stamp(NOW - timedelta(hours=2)), ttl=3600
@@ -338,8 +309,7 @@ def test_refresh_once_weather_failure_keeps_last_good_but_calendar_updates(
 def test_refresh_once_cold_boot_weather_failure_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # No prior cache + weather fetch fails -> nothing to fall back on; the tick
-    # raises (the loop catches it; the route stays 503 - honest cold-boot state).
+    # Nothing to fall back on; the loop catches this and the route stays 503.
     def boom() -> WeatherBlock:
         raise RuntimeError("down")
 
@@ -355,9 +325,8 @@ def test_refresh_once_cold_boot_weather_failure_raises(
 def test_refresh_once_does_not_hammer_failed_calendar_within_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # No-hammer at the orchestration level: with weather fresh but a calendar that
-    # failed 10s ago, the tick must NOT re-hit Proton (its retry_floor = the TTL),
-    # even though the loop would be ticking fast during a parallel outage.
+    # Calendar's retry_floor is its TTL, so a fast-ticking loop mustn't re-hit
+    # Proton.
     monkeypatch.setattr(settings, "weather_ttl_seconds", 900)
     monkeypatch.setattr(settings, "calendar_ttl_seconds", 900)
     _seed_cache(
@@ -382,10 +351,7 @@ def test_refresh_once_does_not_hammer_failed_calendar_within_floor(
 def test_refresh_lock_serializes_concurrent_refreshes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The app's central concurrency guarantee: POST /refresh can't race a
-    # scheduled tick into overlapping _refresh_once runs. Fire two forced
-    # refreshes concurrently and assert _refresh_once never runs re-entrantly - 
-    # the shared `_refresh_lock` serializes them (peak concurrency stays 1).
+    # POST /refresh must not race a scheduled tick into overlapping runs.
     state = {"active": 0, "peak": 0}
 
     async def slow_once(force: bool = False, *, now: datetime | None = None) -> bool:
@@ -405,11 +371,8 @@ def test_refresh_lock_serializes_concurrent_refreshes(
 
 
 # ── _refresh_loop: the composition of tick → base/backoff → midnight clamp ────
-# The pure pieces (_backoff_delay, _seconds_to_next_local_midnight) are pinned
-# above; these exercise the loop that WIRES them - healthy polarity, the failure
-# counter's growth AND reset, exception containment, and the midnight clamp - 
-# with `_refresh_once` and `asyncio.sleep` faked so no tick does real work and
-# the requested delays are observable.
+# The pure pieces are pinned above; these test the wiring, with `_refresh_once`
+# and `asyncio.sleep` faked so the requested delays are observable.
 
 
 def _run_loop(
@@ -420,12 +383,12 @@ def _run_loop(
     weather_ttl: int = 900,
     calendar_ttl: int = 1800,
 ) -> list[float]:
-    """Run `_refresh_loop` for `len(outcomes)` ticks and return the sleep delays
-    it requested. Each outcome is the healthy flag the faked `_refresh_once`
-    returns (or an exception it raises). The loop's wall-clock is frozen at
-    `now` - a real `datetime.now()` within 15 min of local midnight would let
-    the midnight clamp swallow the cadence under test (a once-a-day flake). The
-    final sleep cancels the otherwise-unkillable loop."""
+    """Run `_refresh_loop` for `len(outcomes)` ticks (each a healthy flag or an
+    exception to raise) and return the requested sleep delays.
+
+    The clock is frozen: a real one near local midnight would let the midnight
+    clamp swallow the cadence (a once-a-day flake). The final sleep cancels the
+    otherwise-unkillable loop."""
     monkeypatch.setattr(settings, "weather_ttl_seconds", weather_ttl)
     monkeypatch.setattr(settings, "calendar_ttl_seconds", calendar_ttl)
 
@@ -473,10 +436,7 @@ def test_refresh_loop_healthy_tick_sleeps_the_shortest_ttl(
 def test_refresh_loop_backs_off_on_failure_and_resets_on_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Consecutive failures walk the 30-60-120 backoff; a healthy tick returns to
-    # the base cadence. The trailing 30 is the load-bearing assertion: it proves
-    # the failure counter RESET on recovery - a counter that never reset would
-    # request 240 for the fifth tick, and today's suite wouldn't notice.
+    # The trailing 30 proves the failure counter reset on recovery (else 240).
     delays = _run_loop(monkeypatch, [False, False, False, True, False])
     assert delays == [30.0, 60.0, 120.0, 900.0, 30.0]
 
@@ -484,8 +444,6 @@ def test_refresh_loop_backs_off_on_failure_and_resets_on_recovery(
 def test_refresh_loop_survives_a_raising_tick_and_backs_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # "Unkillable": an exception escaping _refresh_once is caught and counted as
-    # an unhealthy tick (backoff), and the NEXT tick still runs (the loop lived).
     delays = _run_loop(monkeypatch, [RuntimeError("tick exploded"), True])
     assert delays == [30.0, 900.0]
 
@@ -493,9 +451,7 @@ def test_refresh_loop_survives_a_raising_tick_and_backs_off(
 def test_refresh_loop_clamps_sleep_to_just_past_local_midnight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # At 23:59 the next local midnight is 60s out, sooner than the 900s base - 
-    # the healthy delay must clamp to midnight + 1s so the day-rollover refresh
-    # fires at the boundary, not up to a full interval late.
+    # So the day-rollover refresh fires at the boundary, not a full interval late.
     near_midnight = datetime(2026, 7, 1, 23, 59, 0, tzinfo=TZ)
     delays = _run_loop(monkeypatch, [True], now=near_midnight)
     assert delays == [61.0]

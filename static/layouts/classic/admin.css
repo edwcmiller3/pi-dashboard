@@ -1,11 +1,9 @@
-/* Classic admin skin - dark-bento glass idiom (design-mocks/admin-dark-bento.html).
+/* Classic admin skin - ported from design-mocks/admin-dark-bento.html.
 
-   Theme-independent by construction: every token is declared on #admin-root,
-   not :root, so /theme.css's :root palette override never reaches the admin
-   subtree (custom properties resolve from the nearest declaring ancestor). The
-   glows are re-derived here for the same reason - a :root color-mix() would
-   carry the theme's --cool/--accent in with it. Values are the built-in
-   style.css palette, frozen. */
+   Theme-independent: tokens are declared on #admin-root, not :root, so the
+   theme's :root override never reaches the admin subtree. Glows are re-derived
+   here too - a :root color-mix() would carry the theme's colors in. Values are
+   style.css's built-in palette, frozen. All admin skins follow this pattern. */
 
 #admin-root {
   --text: #eef2f7;

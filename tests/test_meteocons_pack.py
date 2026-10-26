@@ -1,18 +1,5 @@
 """Tests for the Meteocons packs: the shared semantic -> drawing map, the
-vendored SVG subset it drives, and the three generated stylesheets.
-
-The one map (app/packs/meteocons.py) feeds three visual packs (flat / line /
-mono). Four properties:
-
-  * completeness - every IconToken AND every GlyphName maps to a meteocons name
-    (nothing the frontend can request is unmapped);
-  * offline subset - every mapped meteocons name exists as a vendored SVG file in
-    EACH of the three style dirs (no runtime fetch, no missing asset on the kiosk);
-  * generator-matches-disk - each pack_css(style) equals the committed
-    static/packs/meteocons-<style>/pack.css byte for byte (served CSS can't drift);
-  * rule vocabulary - the CSS styles precisely the 27-name union (no dead / missing
-    rules).
-"""
+vendored SVG subset it drives, and the three generated stylesheets."""
 
 from __future__ import annotations
 
@@ -35,8 +22,6 @@ def _rule_names(css: str) -> set[str]:
 
 
 def test_map_is_complete_over_the_union_vocabulary() -> None:
-    # Total over IconToken | GlyphName: every semantic name the frontend can ask
-    # for resolves to a meteocons drawing.
     for token in get_args(IconToken):
         assert token in NAMES, f"IconToken {token!r} is unmapped"
     for name in get_args(GlyphName):
@@ -46,9 +31,7 @@ def test_map_is_complete_over_the_union_vocabulary() -> None:
 
 
 def test_every_mapped_name_is_vendored_in_all_three_styles() -> None:
-    # Offline guard: each meteocons name the map references is present as a
-    # vendored SVG in flat, line, AND mono - so no pack can ask for a file the
-    # kiosk would have to fetch.
+    # The kiosk never fetches icons at runtime.
     for style in _STYLES:
         for meteocons_name in set(NAMES.values()):
             svg = _SVG_ROOT / style / f"{meteocons_name}.svg"
@@ -56,8 +39,7 @@ def test_every_mapped_name_is_vendored_in_all_three_styles() -> None:
 
 
 def test_generated_css_matches_committed_disk_file() -> None:
-    # The committed pack.css (served at /pack.css) must be exactly what the
-    # generator emits - regenerate on change, never hand-edit.
+    # Regenerate on change, never hand-edit.
     for style in _STYLES:
         disk = (_STATIC / "packs" / f"meteocons-{style}" / "pack.css").read_text(
             encoding="utf-8"
@@ -66,7 +48,6 @@ def test_generated_css_matches_committed_disk_file() -> None:
 
 
 def test_pack_css_rules_are_exactly_the_27_names() -> None:
-    # No dead rules, no missing ones: each style's CSS styles precisely the union.
     expected = set(get_args(IconToken)) | set(get_args(GlyphName))
     for style in _STYLES:
         assert _rule_names(pack_css(style)) == expected

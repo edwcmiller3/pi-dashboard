@@ -1,10 +1,6 @@
-// Behavioral test for the weather-icons pack's renderIcon. Run with Node's
-// built-in runner (no deps):  node --test  (from static/)
-//
-// The pack reaches the DOM only through the shared core `el` helper (document.
-// createElement + className), so it is exercised against a tiny, dependency-free
-// DOM stub - just the surface el()/renderIcon touch. Mirrors the local El-stub
-// pattern the layout tests use (see layouts/swiss-mono/swiss-mono.test.js).
+// Behavioral test for the weather-icons pack's renderIcon. The pack touches the
+// DOM only via core `el` (createElement + className), so a minimal stub
+// suffices.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -35,8 +31,7 @@ class El {
   }
 }
 
-// el() reaches the DOM through the global `document`; wire the stub in before the
-// module under test is imported (module top level runs before any test).
+// el() reads the global `document`; install the stub before importing the pack.
 globalThis.document = /** @type {any} */ ({ createElement: (tag) => new El(tag) });
 
 const { iconPack } = await import("./index.js");

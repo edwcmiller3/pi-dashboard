@@ -1,13 +1,6 @@
-// Pi Dashboard entry point - the thin bootstrap wiring the layout-agnostic
-// core state machine to a concrete layout, then booting it in the browser.
-//
-// The layout comes from the server's /layout.js route (a generated one-line
-// re-export of the LAYOUT-selected module - classic by default), so selection
-// is server-side config, mirroring the theme mechanism. The icon pack comes from
-// the parallel /pack.js route (the ICON_PACK-selected module - weather-icons by
-// default) and is injected into the layout via createApp's ctx, so a layout
-// never names a pack. The stable entry name (app.js) keeps index.html's <script>
-// and the static-freshness tests unchanged.
+// Entry point: wires the core state machine to the layout and icon pack, which
+// the server selects via the /layout.js and /pack.js routes (LAYOUT / ICON_PACK).
+// The pack is injected through createApp's ctx so a layout never names a pack.
 
 import { createApp } from "./core/machine.js";
 import { onRoute, go } from "./core/router.js";
@@ -29,9 +22,8 @@ function loadStylesheet(href) {
   });
 }
 
-// Admin is rarely opened, so its skin (/admin.js + /admin.css, LAYOUT-selected
-// server-side like /layout.js) and controller stay out of the boot graph and
-// load on first open. Cached; a failed load is dropped so the next tap retries.
+// Admin is rarely opened, so it stays out of the boot graph and loads on first
+// open. Cached; a failed load is dropped so the next tap retries.
 /** @type {Promise<AdminController> | null} */
 let adminLoad = null;
 
@@ -67,11 +59,8 @@ const adminRoute = {
   },
 };
 
-// Browser-only bootstrap. Guarded so importing the module graph under node:test
-// (the pure-function unit tests) runs no DOM/init side effects. Fail-soft: a
-// layout throwing on mount must not leave an unhandled error - the plan's
-// blank-kiosk mitigation. Classic never throws in practice; this net lets a
-// later, riskier layout degrade instead of killing the wall display.
+// Guarded so importing under node:test has no DOM side effects. Fail-soft: a
+// layout throwing on mount must not kill the wall display.
 if (typeof document !== "undefined") {
   try {
     createApp(layout, { icon: iconPack }).init();

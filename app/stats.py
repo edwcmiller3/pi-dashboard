@@ -152,7 +152,8 @@ def pick_network(addrs: Mapping[str, Sequence[_Addr]]) -> Network | None:
 
 
 def _vcgencmd(command: str) -> str | None:
-    """stdout of `vcgencmd <command>`, or None when absent (off-Pi) or failing."""
+    """stdout, or None on a non-zero exit. Off-Pi the binary is absent and this
+    raises, which `_soft` absorbs."""
     proc = subprocess.run(
         ("vcgencmd", command), capture_output=True, text=True, timeout=2, check=False
     )

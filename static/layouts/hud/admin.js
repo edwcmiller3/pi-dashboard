@@ -1,13 +1,7 @@
-// HUD admin skin - the admin screen in the green-phosphor instrument idiom
-// (design-mocks/admin-instrument-hud.html). Exports `admin` implementing the
-// AdminSkin contract (core/contract.js): mount() builds the shell into
-// #admin-root; the panel bodies come from core/admin-panels.js (markup shared by
-// every skin - only this skin's CSS differs). Behavior lives in core/admin.js.
-//
-// Every class is `admin-`-prefixed: the overlay shares the document with the
-// dashboard, and hud's layout.css styles bare class names globally.
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js).
+// HUD admin skin (green-phosphor instrument) - AdminSkin shell only; panel markup
+// is core/admin-panels.js, behavior core/admin.js. Classes are `admin-`-prefixed
+// because the overlay shares the document with the dashboard's CSS.
+// Side-effect-free on import.
 
 import { el } from "../../core/dom.js";
 import { BACK_SVG } from "../../core/chrome.js";
@@ -19,7 +13,7 @@ import { actionsPanel, configPanel, confirmDialog, healthPanel, transitionScrim 
 /** @typedef {import("../../core/contract.js").AdminTransition} AdminTransition */
 /** @typedef {import("../../core/contract.js").ConfigView} ConfigView */
 
-// Built once per mount (the controller mounts once); the render hooks fill them.
+// Set once in mount(); the render hooks fill them.
 /** @type {AdminCtx | null} */
 let adminCtx = null;
 /** @type {HTMLElement | null} */
@@ -36,8 +30,7 @@ let dialogEl = null;
 let scrimEl = null;
 
 /**
- * A bracket panel (two diagonal corner marks) with a ruled uppercase heading,
- * then the id'd panel body the render hooks fill.
+ * A bracket panel with a ruled heading over the id'd panel body.
  * @param {string} title @param {string} bodyId
  * @returns {{ card: HTMLElement, body: HTMLElement }}
  */

@@ -1,10 +1,6 @@
-/* Synthwave - neon cyberpunk: violet-black canvas, hot pink accent, electric
-   cyan secondary.
-
-   Deliberately an EFFECT THEME: beyond the hue-only contract (see nord.css)
-   it also boosts the ambient --glow-* mixes and adds a neon text-shadow on
-   the hero temp - the neon look IS the theme. Static shadows only; no
-   backdrop-filter (the Pi thermal constraint in style.css still applies). */
+/* Synthwave - neon cyberpunk. An effect theme (see nord.css): boosts the
+   --glow-* mixes and adds a neon text-shadow on the hero temp. Static shadows
+   only; no backdrop-filter. */
 :root {
   --text: #f2ecff;
   --muted: #a89ec4;

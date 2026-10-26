@@ -1,9 +1,5 @@
-/* Catppuccin Mocha-inspired dark palette (https://catppuccin.com - colors
-   adapted, not copied wholesale: surfaces are darkened for the dim-room
-   kiosk). Purple-tinted pastels where nord is steel and gruvbox is retro warm.
-
-   THEME CONTRACT - a theme is ONE `:root` block overriding the palette vars
-   defined at the top of style.css, nothing else (see themes/nord.css). */
+/* Catppuccin Mocha-inspired (https://catppuccin.com), surfaces darkened for
+   the dim-room kiosk. Theme contract: see nord.css. */
 :root {
   --text: #cdd6f4;
   --muted: #a6adc8;

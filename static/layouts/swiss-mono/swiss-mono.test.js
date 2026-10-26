@@ -1,16 +1,5 @@
 // Behavioral tests for the swiss-mono layout's DOM renderers, fit shells, and
-// degrade paths. Run with Node's built-in runner (no deps):  node --test  (from static/)
-//
-// Mirrors classic.test.js: the layout is the only piece of the module graph that
-// touches the DOM, so it is exercised against a tiny, dependency-free DOM stub
-// defined locally below - just enough of the surface index.js uses. The pure fit
-// PLANNERS (planDayFit/planColumnFit) are unit-tested in ../../app.test.js; here
-// we prove the imperative SHELL wires real measurements into the plan and applies
-// it to the DOM (inserts "+N earlier"/"+N more"/"+N more days", removes children).
-//
-// Typing mirrors classic.test.js: JSDoc typedefs document the fixtures but
-// `// @ts-check` is intentionally off. Clock-dependent tests freeze time via
-// `t.mock.timers` so the "today awareness" logic can't flake across local midnight.
+// degrade paths. Same approach as classic.test.js.
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
@@ -125,8 +114,7 @@ class El {
   setAttribute(k, v) {
     this._attrs[k] = v;
   }
-  // Capture handlers so tests can drive them (tap→click); mirrors hud.test.js's
-  // stub (records listeners, fired via the `fire()` helper).
+  // Records listeners so `fire()` can drive them.
   /** @param {string} type @param {() => void} fn */
   addEventListener(type, fn) {
     (this._listeners ??= {})[type] ??= [];
@@ -200,29 +188,21 @@ const doc = {
   querySelector: (sel) => (doc._appRoot ? queryOne(doc._appRoot, sel) : null),
 };
 
-// index.js + core/dom.js reach the DOM through the global `document`; wire the
-// stub in before any test runs (module top level runs before tests).
+// Install the global stubs before importing the layout.
 globalThis.document = /** @type {any} */ (doc);
 
-// measureLine() in index.js adds getComputedStyle(probe).marginTop back onto the
-// column footer's measured height, because the real `.agenda-more.days` footer
-// carries a 26px top margin (layout.css) that getBoundingClientRect excludes.
-// Stub it so that path actually runs: a `.days` probe reports the real 26px, any
-// other node reports 0px - so the plain day-level "+N …" probes are unaffected
-// and the existing roll-off tests keep their arithmetic.
+// measureLine() adds getComputedStyle(probe).marginTop back, because the
+// `.agenda-more.days` footer's 26px top margin (layout.css) is excluded by
+// getBoundingClientRect. Only `.days` probes report it; others report 0px.
 globalThis.getComputedStyle = /** @type {any} */ (
   (node) => ({ marginTop: node.classList && node.classList.contains("days") ? "26px" : "0px" })
 );
 
-// The layout under test - imported AFTER the global is set.
 const { layout } = await import("./index.js");
 
 // ── test helpers ──────────────────────────────────────────────────────────────
 
-// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
-// (matching the real pack's element) and records every renderIcon call so a test
-// can assert which semantic name each cell requested. Injection is required
-// because a real `import "/pack.js"` is unresolvable under node --test.
+// Fake IconPack that records renderIcon calls (see classic.test.js).
 function makeIconPack() {
   /** @type {{ name: string, extra: string | undefined }[]} */
   const calls = [];
@@ -353,7 +333,7 @@ test("renderCurrent: fills the hero temp + condition + all 8 meta cells", () => 
   const txt = card.textContent;
   assert.ok(txt.includes("72"), "big temp");
   assert.ok(txt.includes("Mostly Sunny"), "condition text");
-  // swiss-mono puts High/Low IN the meta grid (unlike classic's hero-side stack).
+  // swiss-mono puts High/Low in the meta grid (unlike classic's hero-side stack).
   assert.equal(withClass(card, "meta-item").length, 8, "eight meta cells");
   assert.ok(txt.includes("High") && txt.includes("78°"), "High cell");
   assert.ok(txt.includes("Low") && txt.includes("61°"), "Low cell");
@@ -376,18 +356,15 @@ test("renderForecast: renders 4 cells; precip line only on wet days", () => {
   assert.equal(withClass(root, "fc-precip").length, 1);
   assert.ok(root.textContent.includes("Rain") && root.textContent.includes("80%"));
 
-  // Icon routing: each card hands its f.icon token to the injected pack WITH the
-  // fc-icon extra, in card order (mirrors the current-icon assertion below).
-  // Catches a wrong token (name mismatch) or a dropped fc-icon extra (that call
-  // drops out of the fc-icon filter, so the order/length no longer matches).
+  // Catches a wrong token or a dropped fc-icon extra (the call falls out of the
+  // filter, so order/length no longer match).
   const fcCalls = iconPack.calls.filter((c) => c.extra === "fc-icon");
   assert.deepEqual(
     fcCalls.map((c) => c.name),
     ["rain-day", "clear-day", "partly-cloudy-day", "overcast"],
     "each forecast card routes f.icon through the pack with the fc-icon extra, in order",
   );
-  // And the pack's glyph node the card actually mounted carries wx-<token>, in
-  // card order - proving the routed node reaches the DOM (not just the spy).
+  // The routed node reaches the DOM, not just the spy.
   const cardGlyphs = withClass(root, "fc").map((card) => withClass(card, "wx-icon")[0]);
   assert.deepEqual(
     cardGlyphs.map((g) => (g ? [...g._classes].find((c) => c.startsWith("wx-") && c !== "wx-icon") : null)),
@@ -489,9 +466,8 @@ test("renderAgenda fit: col2 overflows -> later days drop into a '+N more days' 
     { start: "2026-07-04", all_day: true, title: "UP4", kind: "personal" },
   ];
   const body = doc.getElementById("agenda-body");
-  // Holds one upcoming day-block (40) + the footer's OUTER box (10 + its 26px
-  // `.days` margin = 36), i.e. 76 - not all three days. The margin term is real
-  // now that getComputedStyle is stubbed (see measureLine); pre-fix this was 60.
+  // Holds one upcoming day-block (40) + the footer's outer box (10 + its 26px
+  // `.days` margin = 36), i.e. 76 - not all three days.
   body._clientHeight = 76;
   layout.renderAgenda(events, true, true);
   const txt = body.textContent;
@@ -513,7 +489,7 @@ test("renderStatus: happy path — fresh squares + oldest-ok 'Updated' stamp", (
   const status = doc.getElementById("status");
   const txt = status.textContent;
   assert.ok(txt.includes("Weather") && txt.includes("Calendar"));
-  // pickUpdated -> OLDEST ok stamp (09:38), never over-claiming freshness.
+  // pickUpdated -> oldest ok stamp (09:38).
   assert.ok(txt.includes("Updated 9:38 AM"));
   assert.equal(withClass(status, "st-sq").filter((n) => n._classes.has("stale")).length, 0, "no stale squares when both ok");
   assert.equal(withClass(status, "refresh").length, 1, "refresh control present");
@@ -543,17 +519,12 @@ test("renderUnavailable: honest placeholders in every region (cold boot)", () =>
 // ── renderAgenda fit: footer margin no-clip regression guard ──────────────────
 
 test("renderAgenda fit: col2 reserves the footer's 26px margin so nothing clips (regression guard)", (t) => {
-  // GUARD for the measureLine fix. The column footer is `.agenda-more.days`, whose
-  // layout.css `margin-top:26px` is EXCLUDED by getBoundingClientRect. measureLine
-  // must add getComputedStyle(probe).marginTop back; otherwise the column reserves
-  // 26px too little and the last kept day clips under the tile's overflow:hidden.
+  // Without the margin term, the column reserves 26px too little and the last
+  // kept day clips under the tile's overflow:hidden.
   //
-  // Budget 100 is decision-flipping. Reserving the whole footer (10 + 26 = 36) keeps
-  // ONE upcoming day ("+2 more days", occupied 40 + 36 = 76 ≤ 100 - no clip). The old
-  // bug - measuring a plain `agenda-more` probe (10) - would keep TWO days ("+1 more
-  // day", occupied 40 + 40 + 36 = 116 > 100 - clip). So if measureLine reverts to a
-  // plain probe (drops the getComputedStyle margin term), this test goes red on both
-  // the kept-count and the footer label.
+  // Budget 100 flips the decision: reserving the whole footer (10 + 26 = 36)
+  // keeps one day ("+2 more days", 40 + 36 = 76 ≤ 100). A plain 10px probe would
+  // keep two ("+1 more day", 40 + 40 + 36 = 116 > 100 - clip).
   freezeNoon(t);
   mountShell();
   const events = [
@@ -573,8 +544,7 @@ test("renderAgenda fit: col2 reserves the footer's 26px margin so nothing clips 
   assert.ok(footer, "the column '+N more days' footer is present");
   assert.ok(footer.textContent.includes("+2 more days"), "and summarizes BOTH dropped days");
 
-  // No overflow: kept day-blocks + the footer's OUTER box (rect height + its 26px top
-  // margin, which getBoundingClientRect omits) must stay within the tile budget.
+  // Kept day-blocks + the footer's outer box (incl. its 26px margin) fit the budget.
   const footerOuter =
     footer.getBoundingClientRect().height + parseFloat(getComputedStyle(footer).marginTop);
   const occupied = kept.reduce((sum, b) => sum + b.getBoundingClientRect().height, 0) + footerOuter;
@@ -706,7 +676,7 @@ test("renderAgenda: an info-kind item renders as a .marker line carrying its tit
   const markers = withClass(body, "marker");
   assert.equal(markers.length, 1, "the info item renders as a single marker line");
   assert.ok(markers[0].textContent.includes("DST ends"), "the marker carries its title as text");
-  // An info row is NOT an event row (no next-up/roll-off eligibility).
+  // An info row is not an event row (no next-up/roll-off eligibility).
   assert.equal(withClass(markers[0], "ev-nowtag").length, 0, "info markers never get the NOW tag");
 });
 
@@ -718,8 +688,6 @@ test("renderForecast([]) makes zero cards without throwing; renderCurrent routes
   assert.equal(withClass(doc.getElementById("forecast"), "fc").length, 0, "no .fc cards for an empty feed");
 
   layout.renderCurrent(weatherFixture());
-  // c.icon (an IconToken) is handed to the injected pack, which renders the glyph
-  // node - the layout no longer builds a `wi-*` element itself.
   assert.ok(
     iconPack.calls.some((c) => c.name === "clear-day" && c.extra === "cur-icon"),
     "renderCurrent routes c.icon (clear-day) through the pack with the cur-icon extra",
@@ -729,7 +697,6 @@ test("renderForecast([]) makes zero cards without throwing; renderCurrent routes
   assert.ok(glyph._classes.has("wx-clear-day"), "the rendered glyph carries wx-<token>");
 });
 
-// t.mock.timers auto-reset per test; reset the top-level mock too for safety.
 test.after(() => mock.timers.reset());
 
 // ── admin cog ────────────────────────────────────────────────────────────────

@@ -1,10 +1,8 @@
 """Holidays/observances/DST-markers source.
 
-`get_holidays(start, end)` is pure and fully offline (the `holidays` lib +
-`zoneinfo`), so the whole suite runs with no network. It emits contract
-agenda-items - `{start, all_day, title, kind}` with date-only `start` - for
-three tiers: federal US holidays (kind="holiday"), lesser/unofficial
-observances (kind="observance"), and DST transitions (kind="info").
+`get_holidays` is pure and offline. Three tiers: federal US holidays
+(kind="holiday"), unofficial observances (kind="observance"), and DST
+transitions (kind="info").
 """
 
 from __future__ import annotations
@@ -16,10 +14,8 @@ import pytest
 from app.contract import AgendaItem
 from app.sources import holidays as H
 
-# Unofficial observances sourced from the `holidays` LIBRARY. Asserted by
-# presence (issuperset), NOT exact equality: a library upgrade that adds or
-# renames an unofficial observance must not fail this suite when our own output
-# is unchanged. See test_all_expected_observances_present.
+# Observances from the `holidays` lib. Asserted by presence, not equality, so a
+# lib upgrade that adds one doesn't fail the suite.
 LIB_OBSERVANCES = frozenset(
     {
         "Groundhog Day",
@@ -35,9 +31,8 @@ LIB_OBSERVANCES = frozenset(
     }
 )
 
-# Cultural extras WE compute (rule-based, absent from the lib). These are ours to
-# get exactly right, so they're pinned by date in test_computed_extra_dates and
-# asserted present here.
+# Extras we compute (absent from the lib), so also pinned by date in
+# test_computed_extra_dates.
 COMPUTED_EXTRAS = frozenset(
     {
         "April Fools' Day",
@@ -84,7 +79,7 @@ def test_observed_false_no_shifted_ghost() -> None:
     assert all("observed" not in i["title"].lower() for i in items)
 
 
-# ── unofficial - kind="observance" (full set: user chose all 10) ─────────────
+# ── unofficial - kind="observance" ───────────────────────────────────────────
 
 
 def test_unofficial_is_kind_observance() -> None:
@@ -100,13 +95,9 @@ def test_unofficial_is_kind_observance() -> None:
 
 
 def test_all_expected_observances_present(year_2026: list[AgendaItem]) -> None:
-    # Presence, not exhaustiveness: assert every observance we care about shows
-    # up, but tolerate the `holidays` lib carrying MORE than our known set (a lib
-    # bump that adds one must not break us). Exact dates for the computed extras
-    # are pinned separately in test_computed_extra_dates.
     observances = {i["title"] for i in year_2026 if i["kind"] == "observance"}
-    assert observances >= LIB_OBSERVANCES  # all lib observances present
-    assert observances >= COMPUTED_EXTRAS  # all computed extras present
+    assert observances >= LIB_OBSERVANCES
+    assert observances >= COMPUTED_EXTRAS
 
 
 # ── computed cultural extras - kind="observance", rule-based (no hardcoded dates)
@@ -161,8 +152,7 @@ def test_election_day_not_duplicated_in_presidential_year() -> None:
 
 
 def test_mardi_gras_anchored_on_easter_outside_window() -> None:
-    # Mardi Gras = Easter - 47 days. Easter 2026 is Apr 5 (outside this Feb
-    # window), but Mardi Gras (Feb 17) must still resolve from the year's anchor.
+    # Easter (Apr 5) is outside this Feb window but must still anchor Mardi Gras.
     items = H.get_holidays(date(2026, 2, 1), date(2026, 2, 28))
     mardi = [i for i in items if i["title"] == "Mardi Gras"]
     assert mardi == [
@@ -176,7 +166,6 @@ def test_mardi_gras_anchored_on_easter_outside_window() -> None:
 
 
 def test_extras_respect_the_window() -> None:
-    # Narrow early-April window includes April Fools' but not Earth Day (Apr 22).
     items = H.get_holidays(date(2026, 4, 1), date(2026, 4, 2))
     titles = {i["title"] for i in items}
     assert "April Fools' Day" in titles

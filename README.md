@@ -52,14 +52,14 @@ weather/calendar contract the dashboard polls, and `/healthz` returns
 
 ## Configuration
 
-Three independent axes select the look - `LAYOUT`, `THEME`, and `ICON_PACK`, each
-the name of a directory under `static/`. All three are set in `.env`, read **at
-backend startup** (so a change needs a `systemctl --user restart
-pi-dashboard.service`, not just a browser reload - or use **Apply** on the
-[admin screen](#admin-screen), which does both), and **fail-soft**: a non-slug
-value or a valid-but-absent target degrades to the default rather than blanking the
-kiosk or 404-ing the module graph. The [weather source](#weather-sources) is
-configured here too (`NWS_STATION`, `WEATHER_MODEL`), though it's data, not look.
+Three independent settings select the look - `LAYOUT`, `THEME`, and `ICON_PACK`,
+each naming a directory under `static/`. They're set in `.env` and read **at
+backend startup**, so a change needs `systemctl --user restart
+pi-dashboard.service`, not just a browser reload (or use **Apply** on the
+[admin screen](#admin-screen), which does both). All three **fail soft**: an
+invalid or missing value falls back to the default instead of blanking the kiosk.
+The [weather source](#weather-sources) is configured here too (`NWS_STATION`,
+`WEATHER_MODEL`).
 
 ### Layouts
 
@@ -92,13 +92,11 @@ block in `static/themes/<name>.css` - see `static/themes/nord.css` for the
 contract. `THEME=<name>` links it at `/theme.css`, after `style.css` so it wins the
 cascade.
 
-LAYOUT and THEME are orthogonal: a hue theme (`nord` / `gruvbox` / `catppuccin`)
-retints whatever layout is active through the `base < layout < theme` cascade (the
-HUD keeps its hot-tier colors in CSS classes so a palette can retint it too). Two
-exceptions couple a look to `classic`: `synthwave` is an *effect theme* - on top of
-the palette it boosts the ambient glows and adds a neon `text-shadow` to the hero
-temperature, reaching into classic-layout selectors; and `swiss-mono`'s palette is
-layout-local (not a `:root` override), so a THEME has nothing to bind to.
+LAYOUT and THEME are independent: a hue theme (`nord` / `gruvbox` / `catppuccin`)
+retints whichever layout is active. Two exceptions: `synthwave` also boosts the
+glows and adds a neon hero `text-shadow` through classic-layout selectors, so its
+effects only fully apply to `classic`; and `swiss-mono`'s palette is layout-local,
+so it ignores THEME.
 
 ```sh
 uv run python -m tools.mockup --theme nord          # -> docs/mockup-nord.png
@@ -131,12 +129,12 @@ through the selected pack, whatever layout or theme is active:
 - `pack.css` - a `.wx-icon` base rule plus one `.wx-<name>` rule per semantic name,
   mapping each token to its asset (font glyph, SVG `url()`, or mask).
 
-Then register `<name>` in `tests/test_pack.py`'s `_BUNDLED_PACKS`. For the bundled
-packs the `pack.css` is generated from a Python map under `app/packs/`
-(`weather_icons.py`; the three Meteocons variants share `meteocons.py`), and a
-pytest guard asserts the generated CSS equals the committed file so the served CSS
-can't drift. A new pack can instead hand-write its `pack.css`. Licensing and
-offline-vendoring notes are in [Attribution](#attribution).
+Then register `<name>` in `tests/test_pack.py`'s `_BUNDLED_PACKS`. The bundled
+packs' `pack.css` is generated from a Python map under `app/packs/`
+(`weather_icons.py`; the three Meteocons variants share `meteocons.py`), and a test
+fails if the committed file drifts from it - regenerate, don't hand-edit. A new
+pack can hand-write its `pack.css` instead. Licensing is under
+[Attribution](#attribution).
 
 ### Weather sources
 
@@ -157,17 +155,15 @@ bottom-left of the dashboard to open the admin screen; tap the **back arrow**
 underneath, so it is current the moment you return. A reload or cold boot always
 lands on the dashboard, never on admin.
 
-The admin screen edits the three look knobs - `LAYOUT`, `THEME`, `ICON_PACK` -
-on-device, shows device health, and offers restart / reboot actions. Each knob
-lists only the values installed under `static/` (selection only, no free text).
-Tap values to stage them, then **Apply**: the backend rewrites just those three
-lines of `.env` (every other line, including `PROTON_ICS_URL`, is left byte for
-byte) and schedules a restart of `pi-dashboard.service` via a transient
-`systemd-run --user` timer, so the reply reaches the browser before the service
-goes down. The wall shows "Restarting dashboard..." and reloads onto the new skin
-once `/healthz` answers from the new process; if it doesn't within ~120s, it says
-so and leaves you on admin. Apply needs `systemd-run` (the Pi); on a dev Mac the
-`.env` write still happens but the restart fails, so restart the server by hand.
+The admin screen edits `LAYOUT`, `THEME` and `ICON_PACK` on-device, shows device
+health, and offers restart / reboot. Each setting lists only the values installed
+under `static/`. Tap values to stage them, then **Apply**: the backend rewrites
+just those lines of `.env` (everything else, including `PROTON_ICS_URL`, is left
+untouched) and restarts `pi-dashboard.service` about a second later via a
+`systemd-run --user` timer. The wall reloads onto the new skin once the new
+process answers `/healthz`; if that takes over ~120s it says so and stays on
+admin. On a dev Mac (no `systemd-run`) the `.env` write still happens but the
+restart fails, so restart the server by hand.
 
 **Device health** refreshes every 5s while admin is open (and stops when you
 leave): CPU, RAM, disk, uptime, host, and network (IPv4 address, prefix, and
@@ -187,9 +183,8 @@ Without the rule - or off-Pi - Reboot shows "unavailable", and the wall never
 says "Rebooting..." unless logind actually accepted the reboot.
 
 It is **layout-aware but theme-independent**: each layout can ship its own admin
-skin as `static/layouts/<name>/admin.js` + `admin.css` (served at `/admin.js` /
-`/admin.css`, fail-soft to classic's skin when a layout has none), and the skin's
-palette is scoped to the overlay so a `THEME` never restyles the control surface.
+skin as `static/layouts/<name>/admin.js` + `admin.css` (falling back to classic's),
+and its palette is scoped to the overlay so `THEME` never restyles it.
 
 ## Frontend architecture
 
@@ -212,15 +207,14 @@ one job:
   `time.js` / `agenda.js` / `format.js` / `dom.js` are the pure helpers.
 - **Per-layout modules** (`static/layouts/<name>/`) own *what* renders and all their
   own DOM/CSS. A layout is an ES module exporting a `layout` object that implements
-  the seven-hook `Layout` interface (`static/core/contract.js`): `mount`,
+  the `Layout` interface (`static/core/contract.js`): `mount`,
   `renderClock`, `renderCurrent`, `renderForecast`, `renderAgenda`, `renderStatus`,
   `renderUnavailable`.
 
 `static/app.js` is a thin bootstrap: it imports the core state machine and the
-layout (from the server's `/layout.js` route - a generated re-export of the
-LAYOUT-selected module) and calls `createApp(layout).init()`, guarded by `typeof
-document` so the pure core still imports cleanly under `node --test`. The mount is
-wrapped so a layout that throws can't blank the kiosk.
+layout (via `/layout.js`, a generated re-export of the selected module) and calls
+`createApp(layout).init()`. The mount is wrapped so a layout that throws can't
+blank the kiosk.
 
 ## Deploy (Pi)
 
@@ -231,19 +225,17 @@ acceptance checklist.
 
 ## Test / lint
 
-Dev-only: the JS tests and `tsc` need Node ≥18 (the app itself has no build step
-and no Node runtime dependency - the ES modules are served as-is).
+The JS tests and `tsc` need Node ≥18 (dev-only: there's no build step, and the ES
+modules are served as-is).
 
 ```sh
 uv run pytest
 uv run ruff check .
 uv run ruff format .
-uv run mypy             # strict type-check gate (app + tests)
-npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend module graph against the JSDoc contract
+uv run mypy                                        # strict (app + tests)
+npx -y -p typescript tsc -p static/jsconfig.json   # type-check the frontend against the JSDoc contract
+(cd static && node --test)                         # JS unit tests
 ```
-
-(JS unit tests run with `node --test` from `static/` - the core and per-layout
-`*.test.js` suites, `app.test.js` plus the HUD's `hud.test.js` / geometry tests.)
 
 ## Secrets & data handling
 

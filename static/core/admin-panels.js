@@ -1,13 +1,6 @@
-// Shared admin panel DOM - the config editor, device health, device actions with
-// their confirm dialog, and the transition overlay.
-//
-// The accepted mocks give every live skin identical panel markup (only the CSS
-// differs), so it is built once here instead of copied into each skin. A skin
-// owns its shell and stylesheet and drops these nodes into its containers.
-// Render-only: taps call back into the controller through AdminCtx. Every class
-// is `admin-`-prefixed (see layouts/classic/admin.js for why).
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js).
+// Admin panel markup shared by every skin (skins differ only in CSS). Render-only:
+// taps call back through AdminCtx. Classes are `admin-`-prefixed so layout CSS
+// that styles bare class names (e.g. classic's .screen/.glass) can't leak in.
 
 import { el } from "./dom.js";
 
@@ -104,8 +97,7 @@ export function configPanel(view, ctx) {
 
 // ── device health ────────────────────────────────────────────────────────────
 
-// Tile glyphs from the mocks (trusted own markup). Rounded rects here; a skin
-// that wants square corners overrides `rx` in CSS.
+// Trusted own markup. A skin wanting square corners overrides `rx` in CSS.
 const GLYPH = {
   cpu: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>',
   ram: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="9" rx="1.5"/><path d="M7 17v3M12 17v3M17 17v3"/></svg>',
@@ -129,14 +121,12 @@ const THROTTLE_LABEL = {
 /** @param {ThrottleState} s */
 const when = (s) => (s.now && s.occurred ? "now & earlier" : s.now ? "now" : "earlier");
 
-// The value (not the tile) turns amber/red per skin at or above these, as in the
-// mocks' degraded frame. Temp: the Pi 5 firmware starts throttling the ARM cores
-// at 80 °C.
+// The Pi 5 firmware starts throttling the ARM cores at 80 °C.
 const WARN_PCT = 90;
 const WARN_TEMP_C = 80;
 
 const GIB = 2 ** 30;
-/** GB as the mocks write it: "4.1 / 29 GB" - one decimal, totals ≥10 whole. @param {Usage} u @returns {[string, string]} */
+/** "4.1 / 29 GB": one decimal, totals ≥10 whole. @param {Usage} u @returns {[string, string]} */
 function gb(u) {
   const total = u.total / GIB;
   return [(u.used / GIB).toFixed(1), ` / ${total.toFixed(total < 10 ? 1 : 0)} GB`];
@@ -156,7 +146,7 @@ function uptime(s) {
 
 /**
  * One tile. `value` null renders "unavailable"; a [main, small] pair renders the
- * unit/qualifier small, as the mocks do.
+ * unit/qualifier small.
  * @param {string} glyph @param {string} name
  * @param {string | [string, string] | Node[] | null} value
  * @param {{ warn?: boolean, wide?: boolean, kind?: string }} [opts]
@@ -194,7 +184,7 @@ function throttleFlags(t) {
   const hex = el("span", "admin-hex", t.raw);
   if (!t.flags.length) return [el("span", "admin-flag admin-ok", "No throttling"), hex];
   const quals = new Set(t.flags.map(when));
-  // One shared qualifier when every flag agrees (the mock's case), else per flag.
+  // One shared qualifier when every flag agrees, else per flag.
   const pills = t.flags.map((f) =>
     el("span", "admin-flag admin-bad", quals.size === 1 ? THROTTLE_LABEL[f.flag] : `${THROTTLE_LABEL[f.flag]} · ${when(f)}`),
   );
@@ -288,8 +278,7 @@ export function actionsPanel(view, ctx) {
 }
 
 /**
- * The explicit confirm over a dimmed admin screen (the mocks' frame 3), or null
- * when nothing is pending. Both actions go through it.
+ * The confirm dialog over a dimmed admin screen, or null when nothing is pending.
  * @param {ActionsView} view @param {AdminCtx} ctx @returns {HTMLElement | null}
  */
 export function confirmDialog(view, ctx) {

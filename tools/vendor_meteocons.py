@@ -1,28 +1,12 @@
-"""Vendor the Meteocons static-SVG subset the meteocons packs render - DEV ONLY.
-
-Re-runnable one-shot: pulls ONLY the icons the packs actually reference, at a
-PINNED CDN version, into the repo so the running kiosk makes ZERO network calls
-for icons (every SVG is served as a local static file via a relative url(...)).
-Mirrors the weather-icons .woff2 subset discipline: a small, vendored, offline
-asset set - never a runtime fetch.
+"""Dev-only: vendor the Meteocons SVG subset the packs reference, at a pinned
+CDN version, so the kiosk makes no network calls for icons.
 
     uv run python -m tools.vendor_meteocons
 
-This module NEVER runs at import time and is NEVER called from the app runtime.
-It exists purely to refresh the committed subset when the map or pin changes.
-Run it by hand, review the diff, commit the SVGs.
+Run by hand when the map or pin changes, review the diff, commit. Writes:
 
-What it writes (78 SVGs = 26 names x 3 styles), plus the upstream MIT license:
-
-    static/packs/meteocons/svg/flat/<name>.svg
-    static/packs/meteocons/svg/line/<name>.svg
-    static/packs/meteocons/svg/mono/<name>.svg   (CDN style "monochrome")
+    static/packs/meteocons/svg/{flat,line,mono}/<name>.svg
     static/packs/meteocons/LICENSE-MIT.txt
-
-The 26 names are the DISTINCT meteocons drawings the packs collapse the 27
-semantic names onto (several IconTokens share a drawing); the semantic ->
-meteocons name map itself lives in app/packs/meteocons.py, the single source of
-truth the running app reads. This script only needs the distinct set to fetch.
 """
 
 from __future__ import annotations
@@ -33,26 +17,21 @@ import urllib.request
 from pathlib import Path
 from typing import Final
 
-# Pinned CDN version - every fetched SVG comes from exactly this release, so the
-# vendored subset is reproducible. Bump deliberately, then re-run and review.
+# Bump deliberately, then re-run and review.
 PINNED_VERSION: Final = "3.0.0-next.10"
 
-# CDN URL shape: .../<version>/svg-static/<style>/<name>.svg  (style is the
-# UPSTREAM name; the local on-disk dir may differ - see _STYLES).
+# `style` is the upstream name; see _STYLES for the local dir.
 _CDN_TEMPLATE: Final = "https://cdn.meteocons.com/{version}/svg-static/{style}/{name}.svg"
 
-# upstream CDN style -> local on-disk dir. "monochrome" is vendored as "mono"
-# (the pack dir is meteocons-mono), the other two keep their names.
+# upstream CDN style -> local dir.
 _STYLES: Final[dict[str, str]] = {
     "flat": "flat",
     "line": "line",
     "monochrome": "mono",
 }
 
-# The DISTINCT meteocons drawings the packs reference (21). Keep in sync with the
-# right-hand side of app/packs/meteocons.py's map: this is exactly the set of
-# values there, deduplicated. A test asserts every mapped name resolves to a
-# vendored file, so drift here fails the suite rather than the kiosk.
+# Must equal the distinct values of app/packs/meteocons.py's map. A test asserts
+# every mapped name resolves to a vendored file.
 _NAMES: Final[tuple[str, ...]] = (
     "clear-day",
     "clear-night",
@@ -82,11 +61,9 @@ _NAMES: Final[tuple[str, ...]] = (
     "sunset",
 )
 
-# The upstream project's license (Meteocons by Bas Milius, MIT). Vendored beside
-# the SVGs so the subset ships its attribution, mirroring the OFL.txt convention.
+# Meteocons by Bas Milius, MIT; vendored beside the SVGs for attribution.
 _LICENSE_URL: Final = "https://raw.githubusercontent.com/basmilius/weather-icons/master/LICENSE"
 
-# Repo-relative destination root: static/packs/meteocons/ (svg/ + LICENSE).
 _DEST_ROOT: Final = Path(__file__).resolve().parent.parent / "static" / "packs" / "meteocons"
 
 
@@ -95,7 +72,6 @@ _USER_AGENT: Final = "pi-dashboard-vendor-meteocons/1.0 (+dev-only one-shot)"
 
 
 def _fetch(url: str) -> bytes:
-    """GET a URL, returning its bytes. Raises on any non-200 / network error."""
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})  # noqa: S310 - pinned https CDN, dev-only
     with urllib.request.urlopen(req) as resp:  # noqa: S310 - pinned https CDN, dev-only
         status = resp.status
@@ -110,11 +86,7 @@ def _svg_url(style: str, name: str) -> str:
 
 
 def main() -> int:
-    """Fetch the pinned subset into the repo. Returns a process exit code.
-
-    Stops (non-zero) on the FIRST failure rather than guessing a substitute, so a
-    name that unexpectedly 404s is loud, not silently skipped.
-    """
+    """Stops on the first failure, so an unexpected 404 is loud, not skipped."""
     svg_root = _DEST_ROOT / "svg"
     written = 0
     for cdn_style, local_dir in _STYLES.items():

@@ -4,9 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-# Bare TestClient (NOT used as a `with` context manager) on purpose: that skips
-# the app lifespan, so the background refresh loop never starts and no real
-# Open-Meteo/Proton network call is made during this test.
+# Bare, not `with`: see conftest.
 client = TestClient(app)
 
 

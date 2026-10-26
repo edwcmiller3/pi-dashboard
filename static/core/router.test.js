@@ -1,8 +1,5 @@
-// Unit tests for core/router.js - the hash-route primitive the admin overlay
-// (and later screens) mount into. Run with `node --test` from static/.
-//
-// The router takes its window surface as an argument, so these tests drive a
-// tiny fake (location + history + a hashchange listener registry) - no DOM.
+// Unit tests for core/router.js. The router takes its window surface as an
+// argument, so a fake (location + history + hashchange registry) suffices.
 
 import test from "node:test";
 import assert from "node:assert/strict";

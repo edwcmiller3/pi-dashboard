@@ -1,8 +1,4 @@
-"""JSON cache round-trip + missing-key behavior.
-
-`cache_dir` is redirected to a per-test tmp dir by the autouse `_tmp_cache`
-fixture (see conftest), so these tests write only under `tmp_path`.
-"""
+"""JSON cache round-trip, missing-key, and corrupt-file behavior."""
 
 from __future__ import annotations
 
@@ -49,10 +45,8 @@ def test_write_leaves_no_tmp_file(tmp_path: Path) -> None:
 def test_read_corrupt_json_returns_none(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # A truncated/garbage cache file (realistically only power-loss mid-write,
-    # which the atomic os.replace already rules out for torn reads) must degrade
-    # to a cold cache (None -> 503), NOT bubble a JSONDecodeError to a 500 - and
-    # it must WARN, since that log is the only signal an operator gets on the Pi.
+    # Degrades to a cold cache (503), not a 500 - and warns, since that log is
+    # the only signal an operator gets on the Pi.
     (tmp_path / "doc.json").write_text('{"weather": {"ok": tru', encoding="utf-8")
     with caplog.at_level(logging.WARNING, logger="pi_dashboard.cache"):
         assert cache.read("doc") is None
@@ -73,11 +67,9 @@ def test_read_empty_file_returns_none(
 def test_write_fsyncs_file_and_dir_for_power_loss_durability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The atomic os.replace is torn-read-safe but NOT power-loss-durable on its
-    # own; BOTH the data file AND the containing directory must be fsync'd so a
-    # crash can't lose or corrupt the last-good doc, or lose the rename. Assert
-    # both fsyncs happen - a regression dropping the directory fsync would still
-    # leave the file fsync behind and slip past a mere "fsync was called" check.
+    # os.replace alone isn't power-loss-durable: the file and its directory both
+    # need fsync, or a crash can lose the last-good doc or the rename. Counting
+    # catches a dropped dir fsync that a bare "fsync was called" check would miss.
     calls: list[int] = []
     real_fsync = os.fsync
 
@@ -87,7 +79,6 @@ def test_write_fsyncs_file_and_dir_for_power_loss_durability(
 
     monkeypatch.setattr(os, "fsync", counting_fsync)
     cache.write("doc", {"ok": True})
-    # file fd + directory fd = two fsyncs (the fd integers may repeat: the file
-    # is closed before the dir is opened, so the OS can reuse the number).
+    # Count calls, not distinct fds: the OS can reuse the file's fd for the dir.
     assert len(calls) >= 2
     assert cache.read("doc") == {"ok": True}

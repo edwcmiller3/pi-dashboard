@@ -1,17 +1,10 @@
-// Core contract typedefs - the layout-agnostic type surface.
-//
-// JSDoc @typedefs mirroring app/contract.py so an editor and `tsc --checkJs`
-// verify the contract the backend produces is consumed correctly across the
-// core + layout module graph. Keep in sync with app/contract.py. This module is
-// types only: no runtime exports (referenced via `import("./contract.js").TypeName`
-// in JSDoc), so it trivially satisfies the core graph's import-safety invariant.
+// Types only (no runtime exports): JSDoc mirrors of app/contract.py so tsc checks
+// how the frontend consumes the API. Keep in sync with app/contract.py.
 
 /** @typedef {"personal" | "holiday" | "observance" | "info"} Kind */
 
 /**
- * A semantic, day/night-resolved weather condition slug (mirrors
- * app/weather_codes.py IconToken). An icon pack maps each to a concrete glyph;
- * the token preserves the condition distinction even where a pack collapses it.
+ * Day/night-resolved condition slug (mirrors app/weather_codes.py IconToken).
  * @typedef {(
  *   "clear-day" | "clear-night" | "mostly-clear-day" | "mostly-clear-night" |
  *   "partly-cloudy-day" | "partly-cloudy-night" | "overcast" | "fog" |
@@ -23,9 +16,7 @@
  */
 
 /**
- * The fixed chrome-glyph names a layout requests directly (wind, humidity,
- * precip, sunrise, sunset). Not contract types: these never flow through
- * /api/data - they are the frontend's own UI/stat glyph vocabulary.
+ * Chrome glyphs a layout requests directly; never part of /api/data.
  * @typedef {"wind" | "humidity" | "precip" | "sunrise" | "sunset"} GlyphName
  */
 
@@ -109,9 +100,7 @@
  */
 
 /**
- * The layout interface the core state machine drives. A layout is an ES module
- * exporting a `layout` object implementing these seven hooks: the core owns
- * WHEN to render; the layout owns WHAT renders and all of its own DOM/CSS.
+ * The hooks a layout module's exported `layout` implements for core/machine.js.
  * @typedef {object} Layout
  * @property {(root: HTMLElement, ctx: { icon: IconPack }) => void} mount builds
  *   the layout's DOM shell; `ctx.icon` injects the active icon pack
@@ -228,10 +217,8 @@
  */
 
 /**
- * The admin interface the core controller (core/admin.js) drives. A layout's
- * admin skin is an ES module (layouts/<slug>/admin.js) exporting an `admin`
- * object implementing these hooks: render-only, all behavior lives in the
- * controller.
+ * The render-only hooks a layout's admin skin (layouts/<slug>/admin.js) exports
+ * as `admin`; all behavior lives in core/admin.js.
  * @typedef {object} AdminSkin
  * @property {(root: HTMLElement, ctx: AdminCtx) => void} mount builds the shell -
  *   header with back arrow + the #admin-config / #admin-health / #admin-actions

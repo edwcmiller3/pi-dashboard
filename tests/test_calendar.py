@@ -27,13 +27,11 @@ TZ = ZoneInfo("America/New_York")
 # Deterministic reference: Wed 2026-07-01 09:00 EDT. Window = [07-01, 07-06).
 NOW = datetime(2026, 7, 1, 9, 0, tzinfo=TZ)
 
-# The monkeypatch stubs below mirror the real `calendar._fetch_personal`
-# signature exactly - `(str, datetime, datetime, ZoneInfo) -> list[AgendaItem]`,
-# raising ones `-> NoReturn` - rather than `*args: Any`, so a stub that drifts
-# from the seam fails the type-check instead of silently dropping checking there.
+# The `_fetch_personal` stubs below mirror its exact signature (not `*args: Any`)
+# so a stub that drifts from the seam fails the type-check.
 
 # Synthetic Proton-shaped feed: an all-day event, a timed event, a DAILY
-# recurrence with one EXDATE-excluded occurrence, and one event OUTSIDE the
+# recurrence with one EXDATE-excluded occurrence, and one event outside the
 # window. VTIMEZONE rides along like the real feed.
 ICS = """\
 BEGIN:VCALENDAR
@@ -84,11 +82,7 @@ END:VCALENDAR
 """
 
 
-# A WEEKLY 10:00-local event straddling the 2026-11-01 DST end (EDT->EST).
-# `recurring_ical_events` preserves local wall-clock across DST (verified against
-# a live Proton feed); this
-# asserts that survives `normalize_events` - the wall-clock stays 10:00 while the
-# emitted offset flips -04:00 -> -05:00. Same VTIMEZONE as ICS.
+# A weekly 10:00-local event straddling the 2026-11-01 DST end (EDT->EST).
 DST_ICS = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -120,9 +114,8 @@ END:VCALENDAR
 """
 
 
-# A multi-day all-day event that BEGAN before the window but overlaps it (a trip
-# in progress), alongside an in-window event. `between` returns both; only the
-# in-window one should survive normalization. No VTIMEZONE needed (all-day only).
+# A multi-day all-day event that began before the window but overlaps it (a trip
+# in progress), alongside an in-window event.
 MULTIDAY_ICS = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -164,10 +157,8 @@ def _patch_fetch_raises(
     monkeypatch: pytest.MonkeyPatch,
     make_error: Callable[[str], Exception] | None = None,
 ) -> None:
-    """Replace `_fetch_personal` with a typed stub that raises - the single
-    failure-injector for every Proton-outage test (was 3 copied `boom` defs plus
-    a throw-in-a-generator lambda). `make_error` can build the exception from the
-    URL (used by the secret-leak test to embed the credential in the message)."""
+    """Replace `_fetch_personal` with a typed stub that raises. `make_error`
+    builds the exception from the URL (the secret-leak test embeds it)."""
 
     def boom(url: str, start: datetime, end: datetime, tz: ZoneInfo) -> NoReturn:
         raise make_error(url) if make_error else RuntimeError("network down")
@@ -211,29 +202,21 @@ def test_timed_event_carries_end_as_offset_instant() -> None:
 
 
 def test_timed_event_without_dtend_has_end_equal_to_start() -> None:
-    # A timed VEVENT with no DTEND is zero-duration: the lib synthesizes
-    # DTEND == DTSTART, so the contract's `end` equals `start` (empty interval).
-    # Selected by TITLE (the stable identifier) and asserted for every "Lunch
-    # walk" occurrence, so a recurrence regression surfaces as a clear failure.
+    # The lib synthesizes DTEND == DTSTART (a zero-duration interval).
     walks = [e for e in _personal() if e["title"] == "Lunch walk"]
     assert walks  # sanity: the recurrence produced occurrences
     assert all(e["end"] == e["start"] for e in walks)
 
 
 def test_all_day_single_day_end_is_exclusive_next_day() -> None:
-    # ICS DTEND is exclusive; a single-day all-day event (07-04, no DTEND) gets a
-    # synthesized DTEND of 07-05, so the contract `end` is the day AFTER the one
-    # day it covers - date-only, symmetric with the date-only `start`.
+    # No DTEND: the lib synthesizes the exclusive next day.
     cabin = next(e for e in _personal() if e["title"] == "Cabin trip")
     assert cabin["start"] == "2026-07-04"
     assert cabin["end"] == "2026-07-05"  # exclusive; covers the dates [07-04, 07-05)
 
 
 def test_multiday_all_day_expands_to_one_item_per_covered_day() -> None:
-    # A multi-day all-day event is exploded into
-    # one single-day all-day item per day of its half-open span [start, end), so
-    # it shows on EVERY day it covers (07-02, 07-03, 07-04 - not 07-05). Each
-    # emitted day is itself half-open ([day, day+1)), the single-day `end` rule.
+    # So it shows on every day it covers; each emitted day is itself half-open.
     ics = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -267,7 +250,6 @@ _WHI = date(2026, 7, 6)
 
 
 def test_covered_days_single_day_span_is_one_day() -> None:
-    # A single-day all-day event ([07-04, 07-05)) covers exactly its one day.
     assert calendar._covered_days(date(2026, 7, 4), date(2026, 7, 5), _WLO, _WHI) == [
         date(2026, 7, 4)
     ]
@@ -299,7 +281,6 @@ def test_covered_days_clamps_span_running_past_window_hi() -> None:
 
 
 def test_covered_days_entirely_outside_window_is_empty() -> None:
-    # No overlap with the window -> no days (max(lo) > min(hi) -> empty range).
     assert (
         calendar._covered_days(date(2026, 6, 20), date(2026, 6, 25), _WLO, _WHI) == []
     )
@@ -320,9 +301,7 @@ def test_recurrence_expands_within_window_and_honors_exdate() -> None:
 
 
 def test_recurrence_preserves_local_walltime_across_dst() -> None:
-    # Window straddles the 2026-11-01 EDT->EST transition. The weekly 10:00-local
-    # event must keep wall-clock 10:00 while the emitted offset flips -04:00 (EDT,
-    # 10-28) -> -05:00 (EST, 11-04 onward) - the contract's offset-bearing start.
+    # Wall-clock stays 10:00 while the emitted offset flips -04:00 -> -05:00.
     start = datetime(2026, 10, 28, 0, 0, tzinfo=TZ)
     end = datetime(2026, 11, 12, 0, 0, tzinfo=TZ)
     syncs = sorted(
@@ -335,7 +314,6 @@ def test_recurrence_preserves_local_walltime_across_dst() -> None:
         "2026-11-04T10:00:00-05:00",  # EST, after DST end (wall-clock unchanged)
         "2026-11-11T10:00:00-05:00",  # EST
     ]
-    # every occurrence reads 10:00 local regardless of which side of DST it's on
     assert all(s[11:16] == "10:00" for s in syncs)
 
 
@@ -344,10 +322,7 @@ def test_event_outside_window_is_excluded() -> None:
 
 
 def test_inprogress_multiday_all_day_is_clamped_into_window() -> None:
-    # An all-day span that BEGAN before the window (a trip in progress) used to
-    # vanish (its pre-window start bucketed under an unrendered past day). Multi-
-    # day rendering now clamps it to the first in-window day (Today) and repeats
-    # it across each covered in-window day, so "you're on a trip today" shows.
+    # A trip in progress must show today, not bucket under an unrendered past day.
     # Vacation is [06-28, 07-03); intersected with [07-01, 07-06) -> 07-01, 07-02.
     items = calendar.normalize_events(MULTIDAY_ICS, *calendar._window(NOW), TZ)
     vacation = sorted(e["start"] for e in items if e["title"] == "Vacation")
@@ -363,9 +338,7 @@ def test_inprogress_multiday_all_day_is_clamped_into_window() -> None:
 
 
 def test_personal_events_are_the_expected_occurrences() -> None:
-    # The full set of normalized occurrences, by (title, start) - a mismatch
-    # names WHICH event changed instead of a bare "6 != 7". 1 all-day + 1 timed
-    # + 4 recurrence occurrences (07-03 EXDATE'd, 07-06 past the window end).
+    # Compared by (title, start) so a mismatch names the event, not a bare count.
     got = sorted((e["title"], e["start"]) for e in _personal())
     assert got == sorted(
         [
@@ -380,9 +353,7 @@ def test_personal_events_are_the_expected_occurrences() -> None:
 
 
 def test_naive_dtstart_is_localized_to_display_tz() -> None:
-    # A floating DTSTART (no TZID, no Z) exercises `_iso`'s defensive fallback:
-    # the naive datetime is localized to the display zone, so the contract still
-    # gets an ISO-with-offset start instead of a bare local string.
+    # A floating DTSTART (no TZID, no Z) still yields an offset-bearing start.
     ics = """\
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -405,8 +376,7 @@ END:VCALENDAR
 
 def test_missing_summary_becomes_empty_title() -> None:
     ics = ICS.replace("SUMMARY:Team standup\n", "")
-    # SUMMARY is the field under test here, so selecting by the (now-unique) start
-    # is intentional - the title is exactly what we're asserting on.
+    # Select by start, since the title is what's under test.
     standup = next(
         e
         for e in calendar.normalize_events(ics, *calendar._window(NOW), TZ)
@@ -417,17 +387,15 @@ def test_missing_summary_becomes_empty_title() -> None:
 
 # ── _read_capped: size cap, secret-free errors, UTF-8 decode ──────────────────
 
-# A URL-shaped secret: every ValueError message assertion below checks it never
-# leaks (the real URL is a bearer credential - see the module docstring).
+# The real feed URL is a bearer credential; the error-message assertions below
+# check it never leaks.
 _SECRET_URL = "https://calendar.example/SECRET-TOKEN/calendar.ics?PassphraseKey=KEY"
 
 
 class _FakeResponse:
-    """`requests.Response` stand-in covering exactly the surface `_read_capped`
-    touches: context manager, `raise_for_status`, `headers`, `iter_content`, and
-    `encoding`. `encoding` defaults to ISO-8859-1 - what requests derives for a
-    `text/*` content type WITHOUT an explicit charset - so the decode tests
-    exercise the charset-less-header case, not the happy declared-UTF-8 one."""
+    """`requests.Response` stand-in for the surface `_read_capped` touches.
+    `encoding` defaults to ISO-8859-1, what requests derives for a charset-less
+    `text/*` header, so the decode tests cover that case."""
 
     def __init__(
         self,
@@ -468,10 +436,7 @@ def test_read_capped_returns_body_under_cap(monkeypatch: pytest.MonkeyPatch) -> 
 def test_read_capped_decodes_utf8_despite_charsetless_header(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # RFC 5545 mandates UTF-8, so the decode must NOT honor requests' ISO-8859-1
-    # default for a charset-less `text/calendar` header (the fake's `encoding`
-    # models exactly that). Decoding via `resp.encoding` here would mojibake
-    # "Café ☕" into "CafÃ© â\x98\x95".
+    # RFC 5545 mandates UTF-8; honoring `resp.encoding` would mojibake the body.
     _patch_session_get(monkeypatch, _FakeResponse("SUMMARY:Café ☕\r\n".encode()))
     assert calendar._read_capped(_SECRET_URL) == "SUMMARY:Café ☕\r\n"
 
@@ -479,8 +444,7 @@ def test_read_capped_decodes_utf8_despite_charsetless_header(
 def test_read_capped_replaces_undecodable_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # One bad byte (0xE9 = latin-1 "é", invalid as UTF-8) must not drop the whole
-    # calendar - it decodes to U+FFFD and the rest of the feed survives.
+    # One bad byte must not drop the whole calendar.
     _patch_session_get(monkeypatch, _FakeResponse(b"SUMMARY:Caf\xe9\r\n"))
     assert calendar._read_capped(_SECRET_URL) == "SUMMARY:Caf�\r\n"
 
@@ -488,7 +452,6 @@ def test_read_capped_replaces_undecodable_bytes(
 def test_read_capped_rejects_oversized_content_length(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # An honest oversized Content-Length is rejected up front - no body is read.
     declared = str(calendar._MAX_ICS_BYTES + 1)
     _patch_session_get(
         monkeypatch, _FakeResponse(b"", headers={"Content-Length": declared})
@@ -503,8 +466,6 @@ def test_read_capped_rejects_oversized_content_length(
 def test_read_capped_cuts_off_lying_content_length_mid_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A feed whose header under-declares (or omits) its size is cut off the
-    # moment the streamed body crosses the cap, not fully buffered.
     oversized = b"X" * (calendar._MAX_ICS_BYTES + 1)
     _patch_session_get(
         monkeypatch, _FakeResponse(oversized, headers={"Content-Length": "42"})
@@ -549,7 +510,6 @@ def test_merge_sorts_all_day_before_same_day_timed() -> None:
         },
     ]
     block = calendar._merge(True, "2026-07-01T09:00:00-04:00", personal, holiday)
-    # date-only all-day holiday leads the day; timed personal follows.
     assert [e["title"] for e in block["events"]] == ["Independence Day", "Brunch"]
     assert block["ok"] is True
     assert block["fetched_at"] == "2026-07-01T09:00:00-04:00"
@@ -562,8 +522,7 @@ def _pi(start: str, title: str, kind: Kind) -> AgendaItem:
 @pytest.mark.parametrize(
     ("items", "expected_titles"),
     [
-        # Same start, different kind -> kind tiebreak. Sorted alphabetically:
-        # holiday < info < observance < personal. Input deliberately scrambled.
+        # Kind sorts alphabetically: holiday < info < observance < personal.
         (
             [
                 _pi("2026-07-04", "P", "personal"),
@@ -573,7 +532,6 @@ def _pi(start: str, title: str, kind: Kind) -> AgendaItem:
             ],
             ["H", "I", "O", "P"],
         ),
-        # Same start AND same kind -> title tiebreak (the innermost key).
         (
             [
                 _pi("2026-07-04", "Zebra", "personal"),
@@ -587,9 +545,6 @@ def _pi(start: str, title: str, kind: Kind) -> AgendaItem:
 def test_merge_tiebreaks_on_kind_then_title(
     items: list[AgendaItem], expected_titles: list[str]
 ) -> None:
-    # Exercises the (start, kind, title) sort key's SECOND and THIRD dimensions,
-    # which the all-day-before-timed test above (a `start`-length difference)
-    # never touches.
     block = calendar._merge(True, None, items, [])
     assert [e["title"] for e in block["events"]] == expected_titles
 
@@ -604,28 +559,22 @@ def test_get_calendar_ok_merges_personal_and_holidays(
     _patch_fetch_returns(monkeypatch, _personal())
     block = asyncio.run(calendar.get_calendar(NOW))
     assert block["ok"] is True
-    # fetched_at is a real wall-clock stamp; assert it carries SOME ISO offset
-    # (season-agnostic: EDT -04:00 in summer, EST -05:00 in winter), not a
-    # hardcoded EDT that would fail when the suite runs on the other side of DST.
+    # fetched_at is real wall-clock time, so match any offset, not EDT - the
+    # suite must pass on either side of DST.
     fetched_at = block["fetched_at"]
     assert fetched_at is not None
     assert re.search(r"[+-]\d{2}:\d{2}$", fetched_at)
     titles = {e["title"] for e in block["events"]}
     assert "Team standup" in titles  # personal merged
     assert "Independence Day" in titles  # offline federal holiday merged (07-04)
-    # a personal item carries `end` (the two-sided NotRequired contract: personal
-    # events DO carry it; holidays omit it - see the omit test below)
     standup = next(e for e in block["events"] if e["title"] == "Team standup")
     assert "end" in standup
-    # flat, sorted in the contract's canonical (start, kind, title) order - not a
-    # no-op lexical re-sort, so a kind/title-first regression would be caught.
     keys = [(e["start"], e["kind"], e["title"]) for e in block["events"]]
     assert keys == sorted(keys)
 
 
 def test_get_calendar_holiday_items_omit_end(monkeypatch: pytest.MonkeyPatch) -> None:
-    # `end` is NotRequired: the offline holiday/observance items are single-day
-    # and carry no `end` (consumers treat a missing `end` as single-day).
+    # Consumers treat a missing `end` as single-day.
     monkeypatch.setattr(settings, "proton_ics_url", "")
     block = asyncio.run(calendar.get_calendar(NOW))
     holiday = next(e for e in block["events"] if e["title"] == "Independence Day")
@@ -640,7 +589,6 @@ def test_get_calendar_proton_failure_still_shows_holidays(
     block = asyncio.run(calendar.get_calendar(NOW))
     assert block["ok"] is False  # ok tracks the Proton fetch only
     assert block["fetched_at"] is None
-    # holidays still merge in regardless of the Proton outage
     assert any(e["title"] == "Independence Day" for e in block["events"])
     assert all(e["kind"] != "personal" for e in block["events"])
 
@@ -656,9 +604,7 @@ def test_get_calendar_no_url_is_holidays_only(monkeypatch: pytest.MonkeyPatch) -
 def test_get_calendar_proton_failure_keeps_last_good_personal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Per-source last-good: a transient Proton blip must NOT wipe the
-    # user's personal events from the agenda. With a last-good doc in hand, the
-    # in-window personal events are kept (ok=False) and holidays still merge.
+    # A transient Proton blip must not wipe personal events from the agenda.
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
     _patch_fetch_raises(monkeypatch)
     last_good: CalendarBlock = {
@@ -671,8 +617,7 @@ def test_get_calendar_proton_failure_keeps_last_good_personal(
                 "title": "Team standup",
                 "kind": "personal",
             },
-            # A holiday in last-good must NOT be carried as personal (holidays are
-            # recomputed fresh every tick); only kind=="personal" survives.
+            # Holidays are recomputed every tick, so last-good ones must not carry.
             {
                 "start": "2026-07-04",
                 "all_day": True,
@@ -693,9 +638,8 @@ def test_get_calendar_proton_failure_keeps_last_good_personal(
 def test_get_calendar_last_good_personal_outside_window_is_dropped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # As the window slides during a prolonged outage, last-good personal events
-    # that fall out of [today, today+5) must drop (else they bucket into a day
-    # the agenda never renders) - matching the live-fetch window filter.
+    # During a long outage the window slides; stale events would bucket into a
+    # day the agenda never renders.
     monkeypatch.setattr(settings, "proton_ics_url", "https://example/secret.ics")
     _patch_fetch_raises(monkeypatch)
     last_good: CalendarBlock = {
@@ -726,10 +670,8 @@ def test_get_calendar_failure_does_not_leak_url(
     )
     with caplog.at_level(logging.WARNING):
         asyncio.run(calendar.get_calendar(NOW))
-    # A warning MUST have fired (else the not-in assertions below pass vacuously - 
-    # a silently-swallowed error would be a false green).
+    # Else the not-in assertions below pass vacuously.
     assert caplog.records
-    # the secret URL (and its key) must never reach the logs
     assert "SECRET-TOKEN" not in caplog.text
     assert "PassphraseKey" not in caplog.text
     assert "DECRYPTKEY" not in caplog.text

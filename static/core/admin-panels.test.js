@@ -1,8 +1,4 @@
-// Unit tests for core/admin-panels.js - the shared admin panel DOM. Run with
-// `node --test` from static/.
-//
-// Drives the builders against a tiny local DOM stub (just the surface
-// admin-panels.js touches), like the layout suites do.
+// Unit tests for core/admin-panels.js, against a minimal local DOM stub.
 
 import test from "node:test";
 import assert from "node:assert/strict";

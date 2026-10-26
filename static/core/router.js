@@ -1,12 +1,5 @@
-// Core hash router - the minimal routing primitive overlay screens mount into.
-//
-// A route is a named screen with open/close hooks; `#<name>` activates it and
-// any other hash (including none) is the dashboard. Deliberately map-driven, not
-// admin-specific, so later screens register alongside admin.
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js):
-// the window is touched only when onRoute()/go() are called, and is injectable
-// so node:test can drive a fake.
+// Hash router for overlay screens: `#<name>` opens a route, any other hash is the
+// dashboard. The window is injectable so node:test can drive a fake.
 
 /**
  * @typedef {object} Route
@@ -17,9 +10,8 @@
 /** @typedef {Pick<Window, "location" | "history" | "addEventListener">} RouterWindow */
 
 /**
- * Wire `routes` to the location hash. Boot always lands on the dashboard: an
- * initial hash (a reload or cold boot while a screen was open) is cleared, not
- * dispatched - the wall must never come up stranded on a control screen.
+ * Boot always lands on the dashboard: an initial hash is cleared, not dispatched,
+ * so a reload never strands the wall on a control screen.
  * @param {Record<string, Route>} routes keyed by hash name, without the '#'
  * @param {RouterWindow} [win]
  * @returns {void}

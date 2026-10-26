@@ -1,8 +1,6 @@
-// Unit tests for core/admin.js - the layout-agnostic admin controller. Run with
-// `node --test` from static/.
-//
-// The controller only toggles the overlay root and drives an injected skin, so a
-// plain-object root and a recording fake skin are enough - no DOM stub.
+// Unit tests for core/admin.js, the layout-agnostic admin controller. It only
+// toggles the overlay root and drives an injected skin, so a plain-object root
+// and a recording fake skin suffice - no DOM stub.
 
 import test from "node:test";
 import assert from "node:assert/strict";

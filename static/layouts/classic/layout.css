@@ -1,17 +1,11 @@
-/* Classic layout - v4 design (bento over ambient glow, no-blur "safe" build).
-   The extracted look of today's production UI. Loads after style.css (base) and
-   before theme.css (palette override wins last).
+/* Classic layout - bento cards over an ambient corner glow.
 
-   Deliberately NO backdrop-filter: .glass cards are a semi-transparent dark
-   fill so the ambient glow tints through. A frosted-glass backdrop-filter
-   enhancement shipped 2026-07-01 and was reverted 2026-07-11 - the GPU
-   compositing it forced ran the Pi hot even with an active cooler. Don't
-   reintroduce blur without checking panel temps. Hairline borders kept at 1px
-   on purpose. */
+   No backdrop-filter: .glass is a semi-transparent fill the glow tints through.
+   A frosted-glass blur was tried and reverted - the GPU compositing ran the Pi
+   hot even with an active cooler. Don't reintroduce blur without checking
+   panel temps. This is the canonical note for the constraint; the other
+   layouts and themes follow it. Hairline borders stay 1px on purpose. */
 
-/* ambient canvas - extends the base .screen (which owns sizing + clipping) with
-   this layout's corner-glow background and bento grid. Glow intensity comes
-   from the --glow-* palette vars. */
 .screen {
   background:
     radial-gradient(60% 55% at 8% -8%, var(--glow-cyan) 0%, transparent 60%),
@@ -25,7 +19,6 @@
   padding: 1.3rem;
 }
 
-/* SAFE surface - semi-transparent dark fill, no blur; glow tints through, text stays legible */
 .glass {
   background: linear-gradient(
     180deg,
@@ -40,16 +33,12 @@
 }
 
 /* ───────────── top: clock + current hero ───────────── */
-/* Vertical rebalance: the agenda card is the grid's elastic `1fr` row, so a
-   `min-height` floor on the two weather rows gives the hero + forecast a bit
-   more height and the agenda shrinks to match. Final proportions are validated
-   on the panel. */
+/* The agenda is the grid's elastic 1fr row, so min-height floors on the two
+   weather rows take height from it. Proportions validated on the panel. */
 .top {
   display: grid;
   grid-template-columns: 0.95fr 2.05fr;
   gap: 1.1rem;
-  /* the hero cedes height to the taller forecast card (2026-07-01) - the two
-     floors sum the same as before, so the agenda's 1fr row is unchanged. */
   min-height: 9.5rem;
 }
 .clock-card {
@@ -188,8 +177,6 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.1rem;
-  /* taller than the hero now - holds day · icon+temps · precip · condition text
-     (2026-07-01). The hero (.top) gave up the matching height; agenda unchanged. */
   min-height: 11rem;
 }
 .fcard {
@@ -197,8 +184,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* day pinned to the top, condition text to the bottom (mirroring it), the
-     icon+temps band centered between - the three zones the layout is built on. */
   justify-content: space-between;
   gap: 0.5rem;
 }
@@ -207,8 +192,6 @@
   font-size: 1.05rem;
   letter-spacing: 0.04em;
 }
-/* middle band: bigger icon on the left, temps + precip on the right, grouped
-   and centered as a unit (not edge-justified). */
 .fcard .fmid {
   display: flex;
   align-items: center;
@@ -232,13 +215,13 @@
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: baseline;
-  gap: 0.65rem; /* the space between H and L - replaces the old " / " */
+  gap: 0.65rem;
 }
 .fcard .ftemp .lo {
   color: var(--muted);
   font-weight: 400;
 }
-/* precip-chance line beneath the temps - only rendered on wet codes (is_wet). */
+/* Only rendered on wet codes (is_wet). */
 .fcard .fprecip {
   display: flex;
   align-items: center;
@@ -250,21 +233,18 @@
 .fcard .fprecip .wx-icon {
   font-size: 1rem;
 }
-/* de-emphasized to match the day label (muted, same size) - the icon carries
-   the condition; the text is a glance-confirm, not the focal point. */
+/* Muted on purpose - the icon carries the condition. */
 .fcard .fdesc {
   color: var(--muted);
   font-size: 1.05rem;
   text-align: center;
   letter-spacing: 0.04em;
 }
-/* Forecast row is future-only (today lives in the hero), so there is no "today"
-   card to highlight - the .fcard.today treatment was removed (2026-06-28). */
+/* No .fcard.today: the forecast row is future-only (today is the hero). */
 
 /* ───────────── agenda: two-column timeline ───────────── */
 .agenda-card {
-  /* bottom padding reserves the absolutely-positioned status row's zone so
-     agenda content can never slide under "Updated …". */
+  /* bottom padding reserves the absolute-positioned status row's zone */
   padding: 1.4rem 1.8rem 2.6rem;
   display: flex;
   flex-direction: column;
@@ -285,9 +265,8 @@
   gap: 0 2.4rem;
   align-content: start;
   overflow: hidden;
-  /* flex child of .agenda-card: fill the remaining card height and allow
-     shrink (min-height:0) so clientHeight is the true fit budget the layout's
-     fit shell measures columns against. */
+  /* min-height:0 makes clientHeight the true fit budget the fit shell
+     measures columns against. */
   flex: 1;
   min-height: 0;
 }
@@ -295,7 +274,7 @@
   display: flex;
   flex-direction: column;
 }
-/* "+N more" / "+N more days" truncation indicator (the layout measure-and-fit). */
+/* "+N more" / "+N more days" fit-truncation indicator. */
 .agenda-more {
   align-self: flex-start;
   color: var(--faint);
@@ -370,10 +349,8 @@
   font-size: 1.2rem;
 }
 
-/* "Next up" emphasis (the layout nextUp): the current/next timed event today
-   reads at eye level. Subtle rounded cool tint (matching today's --cool identity);
-   symmetric negative margins cancel the padding so the time column stays aligned
-   with the rows above/below - the tint bleeds into the gutter, no content shift. */
+/* "Next up" event. Negative margins cancel the padding so the time column
+   stays aligned - the tint bleeds into the gutter. */
 .event.is-next {
   background: color-mix(in srgb, var(--cool) 8%, transparent);
   border-radius: 8px;
@@ -386,9 +363,8 @@
   font-weight: 600;
 }
 
-/* Day markers above a day's events. holiday = federal AND observance =
-   lesser/unofficial - both render identically (gold pill). info = DST etc.
-   (plain muted line). */
+/* Day markers: holiday and observance both render as a gold pill; info (DST
+   etc.) as a plain muted line. */
 .holiday {
   display: inline-flex;
   align-items: center;
@@ -410,8 +386,7 @@
   margin: 0.1rem 0 0.4rem;
 }
 
-/* quiet-day line inside today's column when there are no personal events -
-   friendly and unobtrusive; a holiday pill (if any) sits above it. */
+/* Quiet-day line in today's column when there are no personal events. */
 .day-empty {
   color: var(--faint);
   font-size: 1.1rem;
@@ -419,7 +394,7 @@
   padding: 0.26rem 0;
 }
 
-/* shown when the initial fetch fails - glanceable, in-theme, unobtrusive */
+/* Shown when the initial fetch fails. */
 .agenda-empty {
   color: var(--faint);
   font-size: 1.05rem;
@@ -427,14 +402,13 @@
   padding: 0.4rem 0;
 }
 
-/* weather hero placeholder on cold-boot failure (matches .agenda-empty tone) */
+/* Weather hero placeholder on cold-boot failure. */
 .cur-unavailable {
   color: var(--faint);
   font-size: 1.3rem;
   letter-spacing: 0.04em;
 }
 
-/* status */
 .status {
   position: absolute;
   right: 1.8rem;
@@ -477,19 +451,18 @@
   fill: none;
   stroke-width: 2;
 }
-/* In-flight manual refresh: spin the glyph. Tiny region, so the rotate is cheap
-   even on a software compositor (unlike the shelved backdrop-filter). */
+/* In-flight manual refresh. Tiny region, so the rotate is cheap even on a
+   software compositor. */
 .status .refresh.is-spinning svg {
   transform-origin: 50% 50%;
   animation: refresh-spin 0.8s linear infinite;
 }
-/* Brief feedback when POST /refresh failed (no visible console on the kiosk). */
+/* POST /refresh failed (no visible console on the kiosk). */
 .status .refresh.is-error svg {
   stroke: var(--stale);
 }
-/* admin entry cog - bottom-left of the agenda card, mirroring .status on the
-   right (design-mocks/dark-bento.html). The padding widens the touch target
-   without moving the glyph off the mock's 1.8rem/1rem anchor. */
+/* Admin cog. The padding widens the touch target without moving the glyph
+   off its 1.8rem/1rem anchor. */
 .admin-cog {
   position: absolute;
   left: 1.3rem;

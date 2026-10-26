@@ -1,17 +1,10 @@
-// HUD geometry - forecast range plot.
-//
-// Pure, DOM-free: maps each forecast day's lo/hi onto the shared scale window
-// as left-edge percents for the range-plot markers (hollow low ring · hairline
-// connector · white-hot high dot), plus the ruler numeral positions. The
-// renderer positions absolutely-placed HTML markers from these percents.
-//
-// Ported math-identical from the FORECAST RANGE BARS IIFE + the pct() helper
-// in design-mocks/instrument-hud-d.html (pct line 510, ruler labels lines
-// 522-531, per-day markers lines 533-545).
+// HUD geometry - forecast range plot: each day's lo/hi and the ruler numerals as
+// left-edge percents on the shared scale. Pure, DOM-free. Math from the FORECAST
+// RANGE BARS block in design-mocks/instrument-hud.html.
 
-/** °F between ruler numerals (mock: labels every 20° from the floor). */
+/** °F between ruler numerals. */
 export const RULER_LABEL_STEP = 20;
-/** °F between minor ruler ticks (mock: divisions = span / 5). */
+/** °F between minor ruler ticks. */
 export const RULER_TICK_STEP = 5;
 
 /**
@@ -38,9 +31,8 @@ export const RULER_TICK_STEP = 5;
  */
 
 /**
- * Position of a value on the scale, as a percent (mock pct()). 0% == min,
- * 100% == max. computeScaleWindow's headroom keeps real lo/hi strictly inside
- * (0, 100), so no marker sits on a track edge.
+ * Value as a percent of the window. computeScaleWindow's headroom keeps real
+ * lo/hi strictly inside (0, 100), so no marker sits on a track edge.
  * @param {number} value
  * @param {import("./scale.js").ScaleWindow} scaleWindow
  * @returns {number}
@@ -50,7 +42,6 @@ export function scalePct(value, scaleWindow) {
 }
 
 /**
- * Per-day range markers for the forecast plot.
  * @param {RangeDay[]} days
  * @param {import("./scale.js").ScaleWindow} scaleWindow shared scale window
  * @returns {RangeMarker[]}
@@ -83,7 +74,7 @@ export function forecastRuler(scaleWindow) {
 }
 
 /**
- * Number of minor ruler divisions for the tick gradient (mock: span / 5).
+ * Number of minor ruler divisions for the tick gradient.
  * @param {import("./scale.js").ScaleWindow} scaleWindow
  * @returns {number}
  */

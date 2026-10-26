@@ -1,14 +1,6 @@
-// HUD geometry - 240° primary temperature dial.
-//
-// Pure, DOM-free: maps a temperature value + scale window to angles, arc
-// endpoint coordinates, SVG arc-path strings, and tick/label specs. The
-// imperative createElementNS walk stays in the renderer; this module only
-// returns plain data.
-//
-// Ported math-identical from the PRIMARY TEMP DIAL IIFE + the pt()/arcPath()
-// helpers in design-mocks/instrument-hud-d.html (helpers lines 396-406, dial
-// lines 413-457). The mock's constants (CX/CY/R/SWEEP and the tick radii)
-// become DialConfig with those values as defaults.
+// HUD geometry - 240° temperature dial: angles, arc paths and tick specs. Pure,
+// DOM-free. Math and DialConfig defaults from the PRIMARY TEMP DIAL block in
+// design-mocks/instrument-hud.html.
 
 /**
  * @typedef {object} Point
@@ -17,18 +9,17 @@
  */
 
 /**
- * Dial layout constants (the mock's hardcoded numbers).
  * @typedef {object} DialConfig
- * @property {number} cx dial center x (mock: 290)
- * @property {number} cy dial center y (mock: 146)
- * @property {number} radius arc radius (mock: 118)
- * @property {number} sweep total angular sweep in degrees (mock: 240)
- * @property {number} tickStep °F between ticks (mock: 5)
- * @property {number} majorStep °F between major ticks + numerals (mock: 10)
- * @property {number} tickOuterR outer radius of every tick (mock: 112)
- * @property {number} majorInnerR inner radius of a major tick (mock: 94)
- * @property {number} minorInnerR inner radius of a minor tick (mock: 102)
- * @property {number} labelR radius of the numeral ring (mock: 82)
+ * @property {number} cx dial center x
+ * @property {number} cy dial center y
+ * @property {number} radius arc radius
+ * @property {number} sweep total angular sweep in degrees
+ * @property {number} tickStep °F between ticks
+ * @property {number} majorStep °F between major ticks + numerals
+ * @property {number} tickOuterR outer radius of every tick
+ * @property {number} majorInnerR inner radius of a major tick
+ * @property {number} minorInnerR inner radius of a minor tick
+ * @property {number} labelR radius of the numeral ring
  */
 
 /** @type {DialConfig} */
@@ -70,7 +61,7 @@ export const DEFAULT_DIAL_CONFIG = {
  */
 
 /**
- * Polar → cartesian, degrees measured CLOCKWISE from 12 o'clock (mock pt()).
+ * Polar → cartesian, degrees clockwise from 12 o'clock.
  * @param {number} cx
  * @param {number} cy
  * @param {number} r
@@ -83,8 +74,7 @@ export function polarPoint(cx, cy, r, deg) {
 }
 
 /**
- * Map a temperature to its dial angle over the `sweep`, centered on 12 o'clock
- * (mock ang()): min → -sweep/2, max → +sweep/2.
+ * Temperature → dial angle, centered on 12 o'clock: min → -sweep/2, max → +sweep/2.
  * @param {number} value
  * @param {number} min
  * @param {number} max
@@ -96,9 +86,8 @@ export function angleForValue(value, min, max, sweep = DEFAULT_DIAL_CONFIG.sweep
 }
 
 /**
- * Build an SVG arc-path string between two angles (mock arcPath()). Endpoints
- * are rounded to 2 decimals exactly as the mock does, so path strings are
- * byte-reproducible.
+ * SVG arc path between two angles; endpoints rounded to 2 decimals so path
+ * strings are byte-reproducible.
  * @param {number} cx
  * @param {number} cy
  * @param {number} r
@@ -129,8 +118,7 @@ export function arcPath(cx, cy, r, a1, a2) {
 }
 
 /**
- * Full dial geometry for a value on a scale window.
- * @param {number} value temperature to display (mock VAL, e.g. 82)
+ * @param {number} value temperature to display
  * @param {import("./scale.js").ScaleWindow} scaleWindow shared scale window
  * @param {Partial<DialConfig>} [config] overrides for the mock defaults
  * @returns {DialGeometry}
@@ -155,7 +143,7 @@ export function dialGeometry(value, scaleWindow, config = {}) {
     let label = null;
     if (major) {
       const L = polarPoint(cx, cy, c.labelR, a);
-      // mock nudges the numeral baseline down 4px for optical centering
+      // 4px baseline nudge for optical centering
       label = { x: L.x, y: L.y + 4, text: String(v) };
     }
     ticks.push({ value: v, major, angle: a, outer, inner, label });

@@ -1,11 +1,6 @@
-// Unit tests for the pure HUD geometry modules.
-// Run standalone:  node --test static/layouts/hud/geometry/geometry.test.js
-//
-// These modules are DOM-free, so importing them runs no side effects - only
-// the pure exports load. Assertions are EXACT hand-computed values, cross-
-// checked against design-mocks/instrument-hud-d.html (July fixture) and
-// instrument-hud-d-winter.html (SCALE 10–50). Following app.test.js, `// @ts-check`
-// is intentionally NOT enabled (zero deps → TS can't resolve node:* builtins).
+// Unit tests for the pure HUD geometry modules. Assertions are exact
+// hand-computed values; the July fixture comes from
+// design-mocks/instrument-hud.html.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -37,7 +32,7 @@ function close(actual, expected, eps = 1e-9, msg) {
 // The mock's July fixture: today cur/hi/lo + four forecast days' lo/hi.
 const JULY_TEMPS = [82, 88, 71, 72, 90, 70, 84, 66, 78, 68, 81];
 const JULY_WINDOW = { min: 60, max: 100 };
-// The winter mock's fixture (instrument-hud-d-winter.html).
+// Winter fixture: the window must track temps below the mock's 50-110 scale.
 const WINTER_TEMPS = [28, 34, 21, 18, 29, 11, 27, 19, 31, 24, 36];
 const WINTER_WINDOW = { min: 10, max: 50 };
 
@@ -82,9 +77,8 @@ test("computeScaleWindow: all-equal temps on a gridline drop one full step", () 
 });
 
 test("computeScaleWindow: empty array pins to {Infinity, Infinity} (degenerate, no crash)", () => {
-  // min(...[])=Infinity, max(...[])=-Infinity → floor(Inf)*step=Inf, ==lo so -step=Inf,
-  // max=Inf+span=Inf; hi(-Inf) >= max(Inf) is false → {Infinity, Infinity}. Not NaN,
-  // does not throw. Pinned so the degenerate output is documented, not relied on silently.
+  // min(...[])=Infinity, max(...[])=-Infinity → {Infinity, Infinity}: not NaN,
+  // no throw. Pinned to document the degenerate output, not to rely on it.
   const w = computeScaleWindow([]);
   assert.deepEqual(w, { min: Infinity, max: Infinity });
   assert.equal(Number.isNaN(w.min), false);

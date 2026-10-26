@@ -1,12 +1,10 @@
-/* HUD admin skin - green-phosphor instrument idiom
-   (design-mocks/admin-instrument-hud.html). Amber is the change / caution colour.
+/* HUD admin skin - ported from design-mocks/admin-instrument-hud.html. Amber
+   is the change / caution colour.
 
-   Theme-independent by construction: every token is declared on #admin-root,
-   not :root, so /theme.css's :root palette override never reaches the admin
-   subtree. Values are the mock's fixed phosphor palette (the dashboard's hud
-   layout.css derives its ramp from the themable base vars; admin deliberately
-   does not). The typefaces come from the vendored fonts.css hud's layout.css
-   already imports - this skin only loads alongside that layout. */
+   Tokens live on #admin-root, theme-independent (see classic/admin.css): a
+   fixed phosphor palette, unlike the themable ramp in hud's layout.css. Fonts
+   come from the fonts.css that layout.css imports - this skin only loads
+   alongside that layout. */
 
 #admin-root {
   --bg: #03080a;

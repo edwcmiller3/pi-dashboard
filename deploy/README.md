@@ -33,11 +33,10 @@ vanish on reboot, so that build would update by re-imaging instead.
 
 ## Network - Wi-Fi reliability
 
-Pi OS (Bookworm/Trixie) manages Wi-Fi with NetworkManager. Two distinct failure
-modes bit this build - a boot-time join race and a mid-run drop. Both were
-config, not hardware; it's worth ruling those out before blaming the Pi's radio.
-Nothing app-side is involved either way - the backend's refresh loop self-heals
-the moment the link is up.
+Pi OS (Bookworm/Trixie) manages Wi-Fi with NetworkManager. This build hit two
+failure modes - a boot-time join race and mid-run drops - and both were config,
+not hardware, so rule those out before blaming the radio. The app needs no
+action either way: its refresh loop recovers as soon as the link is up.
 
 ### Joining a hidden SSID (boot-time)
 
@@ -200,15 +199,11 @@ wall side of the 12 V brick plus a pre-halt on the Pi:
 | 06:00 | Smart plug (on-device schedule) | ON - panel powers up, USB-C 5 V returns, Pi 5 auto-boots on power-apply |
 | ~06:01 | Pi | Normal boot → kiosk → dashboard (wifi-watchdog covers the boot-join flake) |
 
-The pre-halt is what makes a nightly wall cut filesystem-safe: the plug only ever
-hard-cuts a board that already shut down cleanly. The two wake paths are
-complementary - power-apply boot on the normal night, the RTC wakealarm if the
-plug ever fails to cut. The daily 06:00 **cold boot** replaces both of the old
-nightly mechanisms (03:00 upgrade reboot, 04:00 Chromium reload): every day starts
-with a fresh kernel, backend, and browser by construction. (The former app-side
-CSS blackout overlay is gone for the same reason - and it would actively fight a
-deliberate mid-window manual plug override by blacking out the dashboard you just
-turned on.)
+The pre-halt makes the nightly cut filesystem-safe: the plug only ever cuts a
+board that already shut down cleanly. The two wake paths are complementary -
+power-apply boot on a normal night, the RTC wakealarm if the plug fails to cut.
+The daily 06:00 **cold boot** also means every day starts with a fresh kernel,
+backend and browser, so there's no separate reboot or browser-reload timer.
 
 **Plug config lives on the plug, not in git.** Requirements, chosen deliberately:
 
@@ -222,10 +217,9 @@ turned on.)
 - Schedule: **OFF 01:05, ON 06:00**, matching the table above. If the plug is
   replaced, reconfigure these three things and nothing else changes.
 
-Historical note: the old CSS overlay existed because this panel has no DDC/CI or
-`/sys/class/backlight` channel and drops hotplug on HDMI signal loss (re-detected
-~2 s later), so software alone could never turn the backlight off. Cutting wall
-power is the only true-dark mechanism this hardware supports.
+Why a plug: this panel has no DDC/CI or `/sys/class/backlight` channel and
+re-detects ~2 s after HDMI signal loss, so software can't turn the backlight off.
+Cutting wall power is the only true-dark option this hardware supports.
 
 ## Install
 
@@ -249,15 +243,14 @@ These are NOT in git, so a fresh box needs them before the steps below:
   # then edit .env: set PROTON_ICS_URL to a Proton Calendar "Full view" link
   # and WEATHER_LAT/WEATHER_LON to your location. Optional: NWS_STATION for
   # real current-conditions observations (US-only - .env.example shows how
-  # to find your station), WEATHER_MODEL to pin a forecast model, THEME to
-  # override the palette, and LAYOUT to pick the UI (classic default, or hud).
+  # to find your station), WEATHER_MODEL to pin a forecast model, and
+  # LAYOUT / THEME / ICON_PACK to pick the look (see the main README).
   ```
 
-Both THEME and LAYOUT are read from `.env` at backend startup, so changing
-either needs a `systemctl --user restart pi-dashboard.service` (or the daily
-06:00 cold boot) to take effect - a browser reload alone won't repaint them.
-Invalid values fail-soft (THEME → built-in palette, LAYOUT → classic), so a
-typo degrades rather than blanking the panel.
+LAYOUT, THEME and ICON_PACK are read at backend startup, so a change needs
+`systemctl --user restart pi-dashboard.service` (or the 06:00 cold boot) - a
+browser reload alone won't show it. The admin screen's **Apply** does the restart
+for you. Invalid values fail soft to the defaults rather than blanking the panel.
 
 ### 1. App + backend service
 
@@ -399,11 +392,10 @@ the job:
    systemctl --user restart chromium-kiosk.service     # policies load at launch
    ```
 
-GCM itself **cannot be disabled at runtime** in stock Chromium - the component
-initializes anyway, even with `--disable-features=GCM`. This is a known, unresolved
-upstream limitation (see chromiumembedded/cef#4078). The only *true* removal is a
-build with GCM compiled out (ungoogled-chromium) - a viable
-option we decline for reasons unrelated to telemetry:
+GCM itself **cannot be disabled at runtime** in stock Chromium - it initializes
+even with `--disable-features=GCM` (a known upstream limitation, see
+chromiumembedded/cef#4078). Only a build with GCM compiled out (ungoogled-chromium)
+removes it, which we decline for reasons unrelated to telemetry:
 
 > **Note on ungoogled-chromium (researched 2026-08-25).** A maintained, signed
 > **aarch64** build ships on Flathub (`io.github.ungoogled_software.ungoogled_chromium`),
@@ -445,9 +437,8 @@ With the resolver rule in place the Pi-hole blocks for these three are redundant
 
 ## Updating after a deploy (`git pull`)
 
-Install (above) is one-time. To ship later changes, `git pull` on the Pi - but a
-pull only updates files on disk; the **running processes pick up changes on their
-next restart/reload**, which is what to nudge:
+Install is one-time. Later changes arrive with `git pull`, but running processes
+only **pick them up on their next restart or reload**:
 
 ```sh
 cd ~/pi-dashboard && git pull
@@ -498,8 +489,9 @@ These need the physical Pi + panel and can't be validated from a dev machine:
   "Rebooting...", the panel goes dark, and the wall returns to the dashboard
   unattended.
 - **Admin reboot (polkit):** the backend logs `logind CanReboot: <answer>` at
-  every start. Cold-boot the Pi, do NOT SSH in, then read `journalctl --user -u
-  pi-dashboard | grep CanReboot` - it should say `yes`, which proves the rule
+  every start. Cold-boot the Pi, do NOT SSH in, then read `sudo journalctl
+  _SYSTEMD_USER_UNIT=pi-dashboard.service | grep CanReboot` (with volatile
+  journald, `journalctl --user` finds no files) - it should say `yes`, which proves the rule
   reaches the session-less, lingering service. Negative control: move the rule
   aside, cold-boot, expect `challenge` and Reboot shown as unavailable; restore
   it. Least privilege: `CanPowerOff` still answers `challenge` (`CanSuspend`

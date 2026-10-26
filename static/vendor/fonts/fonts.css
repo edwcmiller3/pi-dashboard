@@ -1,21 +1,10 @@
 /*
- * HUD layout typefaces - self-hosted, subset. NO CDN (index.html:7, prod
- * requirement). Both families are SIL OFL 1.1:
+ * HUD typefaces - self-hosted subsets (no CDN). SIL OFL 1.1:
  *   Share Tech Mono - Carrois Type Design   (OFL-Share-Tech-Mono.txt)
- *   IBM Plex Mono - IBM Corp.              (OFL-IBM-Plex-Mono.txt)
+ *   IBM Plex Mono - IBM Corp.               (OFL-IBM-Plex-Mono.txt)
  *
- * VENDORED SUBSET: each woff2 was cut with pyftsubset to exactly the codepoints
- * in subset-manifest.txt - mono digits, basic Latin (U+0020-007E), and °·%.
- * Do NOT reference a codepoint outside that set: it will render tofu.
- *
- * KNOWN GAP: the HUD also emits the geometric marks ◆ ▸ ◂ ▲ ▼ ⟳. Neither of
- * these mono families ships those glyphs, so they are NOT in the subset (the
- * mock relied on the browser's `monospace` system fallback). Phase 3 must
- * resolve them (SVG/CSS shapes, or a vendored dingbat font) rather than trust
- * an OS fallback on the kiosk. See subset-manifest.txt.
- *
- * Family names match design-mocks/instrument-hud-d.html (--f1 / --f2) so the
- * Phase 3 layout.css wires up unchanged.
+ * Cut to exactly the codepoints in subset-manifest.txt; anything outside it
+ * renders tofu. The HUD's ◆ ▸ ◂ ▲ ▼ ⟳ aren't in either font and are drawn as SVG.
  */
 
 @font-face {
@@ -50,22 +39,14 @@
   font-display: block;
 }
 
-/* ---------------------------------------------------------------------------
- * swiss-mono LAYOUT typefaces - self-hosted, subset. NO CDN (index.html:7).
- * Both families are SIL OFL 1.1:
- *   Inter - The Inter Project Authors  (OFL-Inter.txt)
- *   JetBrains Mono - JetBrains Mono Authors      (OFL-JetBrains-Mono.txt)
+/*
+ * swiss-mono typefaces - self-hosted subsets (no CDN). SIL OFL 1.1:
+ *   Inter - The Inter Project Authors          (OFL-Inter.txt)
+ *   JetBrains Mono - JetBrains Mono Authors    (OFL-JetBrains-Mono.txt)
  *
- * VENDORED SUBSET: cut with pyftsubset to exactly the codepoints in
- * subset-manifest-swiss-mono.txt (mono digits, basic Latin, ° · and the marks
- * ↑ ↓ ● the design renders). A separate manifest from the HUD's because the two
- * layouts need different unicode sets; the swiss-mono pin lives in
- * tests/test_swiss_fonts.py. Do NOT reference a codepoint outside that set.
- *
- * Inter is instanced from the upstream variable font to static weights at
- * opsz=14 (the text optical master). Family names match design-mocks/
- * swiss-mono.html (--grot / --mono).
- * ------------------------------------------------------------------------- */
+ * Cut to exactly the codepoints in subset-manifest-swiss-mono.txt. Inter is
+ * instanced from the variable font at opsz=14 (the text optical master).
+ */
 
 @font-face {
   font-family: "Inter";

@@ -1,20 +1,12 @@
-// Unit tests for the pure JS transforms in static/core/.
-// Run with Node's built-in runner (no deps):  node --test  (from static/)
+// Unit tests for the pure transforms in static/core/. Run `node --test` from
+// static/.
 //
-// The core modules are DOM-structure-agnostic and side-effect-free, so importing
-// them here runs no DOM/init: only the pure exports load. (The state machine and
-// the layouts hold all the DOM/render/fetch code - they need a DOM and are out of
-// scope for this dep-free suite.)
+// `// @ts-check` is deliberately off in every test file: the package has no
+// @types/node, so TS can't resolve the `node:*` builtins. The JSDoc typedefs
+// still give editor hover types for fixtures.
 //
-// Typing: JSDoc @typedefs below document the fixture shapes so a mistyped key
-// (e.g. `fetch_at`) shows up as a type mismatch on hover in an editor. `// @ts-check`
-// is intentionally NOT enabled: this package ships zero dependencies (no
-// node_modules / @types/node), so TS couldn't resolve the `node:*` builtins and
-// would flag spurious "cannot find module" errors. The typedefs still give hover
-// types without that noise.
-//
-// Clock-dependent tests (dayLabel "Today") freeze time via `t.mock.timers` so
-// they can't flake when the run crosses local midnight.
+// Clock-dependent tests freeze time via `t.mock.timers` so they can't flake
+// across local midnight.
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
@@ -59,7 +51,7 @@ test("localParts: datetime with offset -> date + local wall-clock (no re-zoning)
 });
 
 test("localParts: a DIFFERENT offset still reads the literal local part", () => {
-  // 08:30 stays 08:30 regardless of the +09:00 zone - we do NOT re-zone.
+  // 08:30 stays 08:30 regardless of the +09:00 zone - no re-zoning.
   assert.deepEqual(localParts("2026-06-28T08:30:00+09:00").time, { hh: 8, mm: 30 });
 });
 
@@ -124,7 +116,7 @@ test("isSameDay: different day false", () => {
 // ── localDayKey / dayRolledOver (midnight rollover) ──────────────────────────
 
 test("localDayKey: zero-pads month/day to YYYY-MM-DD (local components)", () => {
-  // Jan 5 2026, late evening - must read the LOCAL date, zero-padded.
+  // Jan 5 2026, late evening - must read the local date, zero-padded.
   assert.equal(localDayKey(new Date(2026, 0, 5, 23, 59)), "2026-01-05");
   assert.equal(localDayKey(new Date(2026, 11, 31, 0, 0)), "2026-12-31");
 });
@@ -157,10 +149,9 @@ test("groupByDay: groups consecutive same-day events under one date", () => {
 });
 
 test("groupByDay: preserves ENCOUNTER order and folds an interleaved repeat day", () => {
-  // The input is deliberately NOT date-sorted, and day A reappears after day B.
-  // This distinguishes "preserves first-appearance order" from "sorts by date"
-  // (the old pre-sorted fixture couldn't) AND proves a reappearing day folds
-  // into its existing group rather than starting a new one.
+  // Unsorted, with day A reappearing after B: distinguishes "first-appearance
+  // order" from "sorts by date", and proves a reappearing day folds into its
+  // existing group.
   /** @type {AgendaEvent[]} */
   const events = [
     { start: "2026-06-29T09:00:00-04:00", title: "a" }, // day A first
@@ -168,7 +159,7 @@ test("groupByDay: preserves ENCOUNTER order and folds an interleaved repeat day"
     { start: "2026-06-29T11:00:00-04:00", title: "c" }, // day A again, interleaved
   ];
   const groups = groupByDay(events);
-  // encounter order (A before B), NOT chronological
+  // encounter order (A before B), not chronological
   assert.deepEqual(
     groups.map((g) => g.date),
     ["2026-06-29", "2026-06-28"],
@@ -252,8 +243,7 @@ const agendaItem = (kind) => ({ kind, start: "x", all_day: false, title: kind })
 
 test("withTodayGroup: today already first -> returned equal (contents unchanged)", () => {
   const groups = [dayGroup("2026-06-30", 2), dayGroup("2026-07-01", 1)];
-  // Assert the CONTENTS are returned as-is (behavior), not reference identity -
-  // a refactor that returned a shallow copy would still be correct.
+  // Contents, not reference identity - a shallow copy would still be correct.
   assert.deepEqual(withTodayGroup(groups, "2026-06-30"), groups);
 });
 
@@ -298,7 +288,7 @@ test("hasPersonalEvents: false for an empty day", () => {
 // ── localInstant (local wall-clock from an ISO string, no re-zoning) ──────────
 
 test("localInstant: datetime -> a local Date at the encoded wall-clock (offset ignored)", () => {
-  // The -04:00 offset is NOT reinterpreted - the local components are read as-is.
+  // The -04:00 offset is not reinterpreted - local components are read as-is.
   const d = localInstant("2026-07-01T14:30:00-04:00");
   assert.equal(d.getFullYear(), 2026);
   assert.equal(d.getMonth(), 6); // July (0-based)
@@ -362,8 +352,8 @@ test("nextUp: in-progress wins even when a past event precedes it", () => {
 });
 
 test("nextUp: a long in-progress meeting stays picked though a later event exists", () => {
-  // 9–17 is still running at 14:00 (keys off END, the half-open [start,end)); the
-  // 15–16 event does NOT steal emphasis - you're still in the long meeting.
+  // 9–17 is still running at 14:00 (keys off end, half-open [start,end)); the
+  // 15–16 event doesn't steal emphasis.
   assert.equal(nextUp([timed(9, 17), timed(15, 16)], NOW), 0);
 });
 
@@ -408,13 +398,13 @@ test("pastIndexes: past exactly AT its end instant (now === end -> over)", () =>
 });
 
 test("pastIndexes: past events need not be a prefix (long in-progress first)", () => {
-  // 9–17 is still running at 14:00 but the LATER-sorted 10–11 is already over -
-  // the candidate set is by pastness, not by position in the list.
+  // 9–17 is still running at 14:00 but the later-sorted 10–11 is over - the
+  // candidate set is by pastness, not list position.
   assert.deepEqual(pastIndexes([timed(9, 17), timed(10, 11)], NOW), [1]);
 });
 
 test("pastIndexes: all-day personal items never roll off, even when ended", () => {
-  // A trip that ended YESTERDAY (end 2026-07-01 exclusive) is still day context.
+  // A trip that ended yesterday (end 2026-07-01 exclusive) is still day context.
   const trip = { start: "2026-06-30", end: "2026-07-01", all_day: true, title: "Trip", kind: "personal" };
   assert.deepEqual(pastIndexes([trip], NOW), []);
 });
@@ -437,7 +427,7 @@ test("pastIndexes: an event with no end is an instant — past once start passes
 
 test("pastIndexes: disjoint from nextUp — the emphasized event can never roll off", () => {
   // The two scans partition today's timed events around the same "now": nextUp
-  // picks the first NOT-past one, pastIndexes collects the past ones.
+  // picks the first not-past one, pastIndexes collects the past ones.
   const items = [timed(9, 10), timed(13, 15), timed(16, 17)];
   const past = pastIndexes(items, NOW);
   assert.deepEqual(past, [0]);
@@ -500,8 +490,8 @@ test("pickUpdated: single ok source -> its stamp", () => {
 });
 
 test("pickUpdated: returns the OLDEST (min) ok stamp, not the newest", () => {
-  // "Updated X" must mean EVERY ok source is fresh as of at least X - so the
-  // oldest wins, never the most recent (which would over-claim freshness).
+  // "Updated X" must mean every ok source is fresh as of X, so the oldest wins
+  // - the newest would over-claim freshness.
   const got = pickUpdated([
     { ok: true, fetched_at: "2026-07-01T09:40:00-04:00" }, // weather, newer
     { ok: true, fetched_at: "2026-07-01T09:38:00-04:00" }, // calendar, older
@@ -515,9 +505,8 @@ test("pickUpdated: equal timestamps -> that stamp (stable, no spurious choice)",
 });
 
 test("pickUpdated: an unparseable stamp never wins over a valid one (any order)", () => {
-  // Date.parse("garbage") is NaN and every `<` with NaN is false, so a bad stamp
-  // seen FIRST used to win the min and never be beaten. It must be ignored
-  // regardless of position - assert both orderings pick the valid stamp.
+  // Every `<` with NaN is false, so a bad stamp seen first would win the min
+  // and never be beaten. Both orderings must pick the valid stamp.
   const good = "2026-07-01T09:00:00-04:00";
   assert.equal(
     pickUpdated([{ ok: true, fetched_at: "garbage" }, { ok: true, fetched_at: good }]),
@@ -607,7 +596,7 @@ test("planDayFit: roll-off exhausted -> trim resumes from the bottom", () => {
 });
 
 test("planDayFit: bottom trim never reaches above the '+N earlier' line", () => {
-  // Everything below the first past row is gone and it STILL overflows - the
+  // Everything below the first past row is gone and it still overflows - the
   // pill at index 0 (above the earlier line) is protected regardless.
   const plan = planDayFit(500, [20, 30, 30, 40], [false, true, true, false], 10, 50);
   assert.deepEqual(plan, { hide: [1, 2, 3], earlierCount: 2, moreCount: 1 });
@@ -628,8 +617,8 @@ test("planDayFit: hide indexes are ascending regardless of trim order", () => {
 // ── planColumnFit (pure half of fitColumnInPlace: drop later days) ────────────
 
 test("planColumnFit: a fitting column is a no-op (footer probe can't push it over)", () => {
-  // The old in-place code appended the probe footer BEFORE checking fit, so an
-  // exactly-fitting column could lose its last day. The planner returns no-op.
+  // Regression: appending the footer before checking fit dropped the last day
+  // of an exactly-fitting column.
   assert.deepEqual(planColumnFit(100, [50, 50], 10, 100), {
     dropCount: 0,
     showFooter: false,
@@ -672,6 +661,5 @@ test("planColumnFit: the footer's own height is charged before deciding", () => 
   });
 });
 
-// mock.timers auto-reset per test via t.mock, but reset the top-level mock too in
-// case any test used it directly.
+// t.mock auto-resets per test; this covers any direct use of the top-level mock.
 test.after(() => mock.timers.reset());

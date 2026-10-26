@@ -1,16 +1,9 @@
-"""NWS observation-overlay tests.
+"""NWS observation-overlay tests: `app.sources.nws` plus the `merge_current`
+overlay in `app.sources.weather`.
 
-Covers the pure surface of `app.sources.nws` - the icon-slug → WMO map, the
-defensive icon-URL parser, and `normalize_observation` - plus the pure
-`merge_current` overlay in `app.sources.weather` and the swallow-everything
-behavior of the impure `fetch_observation`.
-
-Fixtures are live captures from api.weather.gov on 2026-07-11 (public station
-data, no PII), trimmed to the `properties` fields the adapter reads plus a few
-bystanders for realism. Quantitative fields are `{value, unitCode,
-qualityControl}` objects; `value` is frequently null and WHOLE KEYS can be
-absent - both verified live (KOQT returned no `relativeHumidity` variant and a
-null `icon` on capture day).
+Fixtures are trimmed live captures from api.weather.gov (public station data, no
+PII). Quantitative fields are `{value, unitCode, qualityControl}` objects whose
+`value` is often null, and whole keys can be absent.
 """
 
 from __future__ import annotations
@@ -68,12 +61,10 @@ FULL_OBS: dict[str, Any] = {
     },
 }
 
-# Live capture: KOQT 2026-07-11T15:53:00+00:00 - a sparse observation: null
-# `icon`, empty `textDescription`, null `windChill`, and windSpeed of exactly 0
-# (a real reading - must NOT be treated as missing). Hand-modified from the
-# capture: `heatIndex` value nulled and the `relativeHumidity` key REMOVED
-# entirely (the live payload had both) so the fixture pins both the
-# null-value and the absent-key branches.
+# Live capture: KOQT 2026-07-11T15:53:00+00:00 - sparse, with windSpeed exactly
+# 0 (a real reading, not missing). Hand-modified: `heatIndex` nulled and the
+# `relativeHumidity` key removed, to pin both the null-value and absent-key
+# branches.
 SPARSE_OBS: dict[str, Any] = {
     "id": "https://api.weather.gov/stations/KOQT/observations/2026-07-11T15:53:00+00:00",
     "type": "Feature",
@@ -101,8 +92,7 @@ GARBAGE: dict[str, Any] = {"type": "Feature", "detail": "not an observation"}
 
 
 def with_properties(**overrides: Any) -> dict[str, Any]:
-    """A copy of FULL_OBS with `properties` fields overridden (same idea as
-    test_weather's `with_current`)."""
+    """A copy of FULL_OBS with `properties` fields overridden."""
     return {**FULL_OBS, "properties": {**FULL_OBS["properties"], **overrides}}
 
 
@@ -164,9 +154,7 @@ def test_slug_to_wmo_unmapped_is_none(slug: str) -> None:
 
 
 def test_every_mapped_code_resolves_to_a_real_glyph() -> None:
-    # Invariant: the overlay must never introduce a code that
-    # `describe()` can't resolve - every mapped code exists in the WMO table,
-    # so the hero can never show wi-na/"Unknown" because of NWS.
+    # So NWS can never make the hero show "not-available".
     for slug, code in nws._SLUG_TO_WMO.items():
         assert code in WMO, f"slug {slug!r} maps to {code}, not in weather_codes.WMO"
 
@@ -268,8 +256,8 @@ def test_garbage_payload_raises_clear_valueerror() -> None:
 
 @pytest.mark.parametrize("timestamp", [None, "not-a-time", ""])
 def test_unparseable_timestamp_raises_clear_valueerror(timestamp: str | None) -> None:
-    # Without an aware timestamp the staleness gate can't run - structurally
-    # hopeless, so raise (the impure fetch turns it into a fail-soft None).
+    # The staleness gate needs an aware timestamp; fetch_observation turns the
+    # raise into a fail-soft None.
     with pytest.raises(ValueError, match="timestamp"):
         nws.normalize_observation(with_properties(timestamp=timestamp))
 
@@ -313,17 +301,13 @@ def test_merge_obs_numbers_win_and_round_half_up() -> None:
 def test_merge_none_obs_field_keeps_model_value(
     obs_field: str, model_field: str
 ) -> None:
-    # Per-field fallback: a station that didn't report a field only loses THAT
-    # field to the model, not the whole observation.
     model = current_weather(temp_f=75)
     merged = weather.merge_current(model, _obs(**{obs_field: None}), _NOW)
     assert merged[model_field] == model[model_field]  # type: ignore[literal-required]
 
 
 def test_merge_stale_observation_returns_model_unchanged() -> None:
-    # >90 min old: discard the whole observation rather than show a confidently
-    # wrong "now". Result equals the input model but is NOT the same (possibly
-    # mutated) object - pins that merge_current never mutates its input.
+    # >90 min old: better the model than a confidently wrong "now".
     model = current_weather(temp_f=75)
     snapshot = copy.deepcopy(model)
     stale = _obs(timestamp=_NOW - timedelta(minutes=91))
@@ -334,16 +318,14 @@ def test_merge_stale_observation_returns_model_unchanged() -> None:
 
 
 def test_merge_observation_exactly_at_the_gate_still_applies() -> None:
-    # The gate is `> 90 min`; exactly 90 is still acceptable (stations report
-    # hourly - 90 min means at most one missed cycle).
+    # Stations report hourly; 90 min means at most one missed cycle.
     model = current_weather(temp_f=75)
     at_gate = _obs(timestamp=_NOW - timedelta(minutes=90))
     assert weather.merge_current(model, at_gate, _NOW)["temp_f"] == 82
 
 
 def test_merge_obs_temp_above_model_high_widens_high() -> None:
-    # A measured temp above the forecast high must widen H - the hero never
-    # shows now > H (model = current_weather(75): high 80, low 70).
+    # The hero never shows now > H (model: high 80, low 70).
     model = current_weather(temp_f=75)
     merged = weather.merge_current(model, _obs(temp_f=90.4), _NOW)
     assert merged["temp_f"] == 90
@@ -383,9 +365,8 @@ def test_merge_feels_like_falls_back_to_wind_chill() -> None:
 
 
 def test_merge_feels_like_ends_at_obs_temp_never_the_model() -> None:
-    # NWS nulls heatIndex/windChill exactly when neither applies - feels-like ≈
-    # temp then. Falling back to the MODEL's apparent_temperature could pair a
-    # model feels-like with an obs temp several °F apart (incoherent hero).
+    # NWS nulls heatIndex/windChill when neither applies, so feels-like ≈ temp;
+    # the model's value could sit several °F from the obs temp.
     model = current_weather(temp_f=75)  # model feels_like_f == 75
     merged = weather.merge_current(
         model, _obs(temp_f=68.4, heat_index_f=None, wind_chill_f=None), _NOW
@@ -394,8 +375,6 @@ def test_merge_feels_like_ends_at_obs_temp_never_the_model() -> None:
 
 
 def test_merge_feels_like_all_none_keeps_model() -> None:
-    # Nothing observed at all (temp included) - only then does the model's
-    # feels-like stand, consistent with per-field fallback.
     model = current_weather(temp_f=75)
     merged = weather.merge_current(
         model, _obs(temp_f=None, heat_index_f=None, wind_chill_f=None), _NOW
@@ -414,10 +393,8 @@ def test_merge_mapped_condition_swaps_code_text_icon_honoring_model_is_day() -> 
 
 
 def test_merge_unmappable_condition_keeps_model_triple_but_numbers_merge() -> None:
-    # An unmappable/missing NWS icon must keep
-    # the MODEL's condition (preserving the WMO code richness - never wi-na or
-    # a mislabel) while the observation's numbers still apply.
-    model = current_weather(temp_f=75)  # code 0 / "Clear" / wi-day-sunny
+    # Never "not-available" or a mislabel from an unmappable NWS icon.
+    model = current_weather(temp_f=75)  # code 0 / "Clear" / clear-day
     merged = weather.merge_current(model, _obs(wmo_code=None, temp_f=82.4), _NOW)
     assert merged["code"] == model["code"]
     assert merged["text"] == model["text"]
@@ -427,9 +404,7 @@ def test_merge_unmappable_condition_keeps_model_triple_but_numbers_merge() -> No
 
 @pytest.mark.parametrize("field", ["precip_prob_pct", "sunrise", "sunset", "is_day"])
 def test_merge_model_only_fields_never_change(field: str) -> None:
-    # Forecast/astronomical/clock concepts a station can't measure. high_f/
-    # low_f are near-model-only - widened only to include the merged temp
-    # (see the widen tests above).
+    # Things a station can't measure. high_f/low_f only widen (tests above).
     model = current_weather(temp_f=75)
     merged = weather.merge_current(model, _obs(), _NOW)
     assert merged[field] == model[field]  # type: ignore[literal-required]
@@ -449,8 +424,7 @@ def test_merge_returns_a_new_dict_and_never_mutates_the_model() -> None:
 def test_fetch_observation_swallows_failures_and_warns(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # The overlay must NEVER fail the weather tick: any exception - network,
-    # HTTP, malformed payload - degrades to None plus one warning log.
+    # The overlay must never fail the weather tick.
     def _boom(station: str) -> dict[str, Any]:
         raise ConnectionError("api.weather.gov unreachable")
 

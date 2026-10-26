@@ -1,12 +1,6 @@
-// Core admin controller - the layout-agnostic half of the admin screen.
-//
-// Mirrors the core/layout split: this module owns WHEN/behavior, the injected
-// AdminSkin (layouts/<slug>/admin.js) owns WHAT renders and all its DOM/CSS.
-// Admin is an overlay over the still-running dashboard (machine.js has no
-// teardown), so open/close only reveal/hide #admin-root; the clock and poll
-// underneath never stop.
-//
-// Side-effect-free on import (the core graph's invariant, see core/machine.js).
+// Admin controller: owns behavior; the injected AdminSkin only renders. Admin
+// overlays the still-running dashboard (machine.js has no teardown), so
+// open/close only show/hide #admin-root.
 
 import { go } from "./router.js";
 
@@ -88,8 +82,8 @@ export function createAdmin(skin, { root, io = {} }) {
   }
 
   /**
-   * POST a JSON body (one is required server-side, which blocks cross-origin
-   * simple POSTs). Rejects only when the service is unreachable.
+   * The server requires a JSON body, which blocks cross-origin simple POSTs.
+   * Rejects only when the service is unreachable.
    * @param {string} url @param {object} payload @returns {Promise<PostReply>}
    */
   async function post(url, payload) {

@@ -1,7 +1,6 @@
-"""Application settings, loaded from the environment / .env via pydantic-settings.
+"""Application settings from the environment / .env (documented in .env.example).
 
-Every field here is documented in .env.example. Secrets (PROTON_ICS_URL) must come
-from the environment / .env (git-ignored) - never hard-coded. See README "Secrets".
+Secrets (PROTON_ICS_URL) come only from the environment / git-ignored .env.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,23 +18,19 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # --- Weather (Open-Meteo) ---
-    # Example default (NYC City Hall). Set WEATHER_LAT/WEATHER_LON in .env to your
-    # actual location - these are env-overridable and intentionally not personal.
+    # Deliberately non-personal example default (NYC); set the real one in .env.
     weather_lat: float = 40.7128
     weather_lon: float = -74.0060
     weather_ttl_seconds: int = 900
 
     # --- Weather: model + optional NWS observation overlay ---
-    # Open-Meteo forecast model (models= param). "best_match" = provider default.
-    # US deployments may prefer "ncep_nbm_conus" (NOAA's calibrated blend);
-    # judge over ~2 weeks before pinning.
+    # Open-Meteo `models=` param. US deployments may prefer "ncep_nbm_conus"
+    # (NOAA's calibrated blend); judge over ~2 weeks before pinning.
     weather_model: str = "best_match"
-    # NWS station ID (e.g. "KOQT") for real current-conditions observations on
-    # the hero. US-only; empty = disabled (hero stays pure Open-Meteo).
-    # .env.example documents how to find the nearest station.
+    # NWS station ID (e.g. "KOQT") for observed current conditions on the hero.
+    # US-only; empty = disabled.
     nws_station: str = ""
-    # Sent on every NWS call (required by api.weather.gov; they ask for contact
-    # info). Personalize in .env, e.g. "pi-dashboard (you@example.com)".
+    # api.weather.gov requires a User-Agent and asks for contact info.
     nws_user_agent: str = "pi-dashboard (https://github.com/edwcmiller3/pi-dashboard)"
 
     # --- Calendar (Proton ICS) ---
@@ -43,24 +38,21 @@ class Settings(BaseSettings):
     proton_ics_url: str = ""
     calendar_ttl_seconds: int = 900
 
-    # --- Cache (JSON now; SQLite-swappable later) ---
+    # --- Cache ---
     cache_dir: str = "var"
 
     # --- Theme (optional palette override) ---
-    # Name of a stylesheet in static/themes/ (without ".css") served at
-    # /theme.css to override the :root palette vars. Empty = built-in palette.
+    # Stylesheet name in static/themes/ (no ".css"), served at /theme.css.
+    # Empty = built-in palette.
     theme: str = ""
 
     # --- Layout (which UI design renders) ---
-    # Name of a directory under static/layouts/ whose index.js/layout.css the
-    # server exposes at /layout.js and /layout.css. "classic" = the production
-    # UI; an invalid name fail-softs to classic (the kiosk must never blank).
+    # Directory under static/layouts/, served at /layout.js and /layout.css. An
+    # invalid name falls back to classic (the kiosk must never blank).
     layout: str = "classic"
 
     # --- Icon pack (which weather-icon set renders) ---
-    # Name of an icon pack the frontend maps WMO codes through. "weather-icons"
-    # = the built-in set; an invalid name fail-softs to it (the kiosk must never
-    # blank).
+    # An invalid name falls back to weather-icons (the kiosk must never blank).
     icon_pack: str = "weather-icons"
 
 

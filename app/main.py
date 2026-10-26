@@ -1,13 +1,6 @@
-"""FastAPI application entrypoint.
-
-A background refresh loop fetches live weather + the merged calendar (Proton
-personal events + offline holidays/observances/DST), normalizes them to the data
-contract, and caches the doc; `/api/data` serves that doc to the polling frontend.
-
-The refresh loop is deliberately "unkillable": a failing tick is caught and
-logged so the loop survives (the cache keeps the last-good doc), the task is
-held by a strong `app.state` ref so it isn't garbage-collected mid-flight, and
-a done-callback logs loudly if it ever exits unexpectedly.
+"""FastAPI entrypoint: a background loop refreshes weather + calendar into the
+cache, `/api/data` serves the cached doc, and the remaining routes serve the
+config-selected assets and the admin screen.
 """
 
 from __future__ import annotations
@@ -49,38 +42,25 @@ from app.sources.weather import get_weather
 log = logging.getLogger("pi_dashboard.refresh")
 
 _CACHE_KEY: Final = "dashboard"
-# The dashboard's display zone - stamps generated_at independent of any source.
 _DISPLAY_TZ: Final = "America/New_York"
 
-# After a failed tick, retry sooner than the full base cadence so a transient
-# blip recovers in seconds; the delay doubles each consecutive failure and is
-# capped at the base tick so a sustained outage settles to the normal cadence.
+# First post-failure retry delay; see `_backoff_delay`.
 _BACKOFF_START_SECONDS: Final = 30
 
-# systemd-timesyncd creates this once the clock is NTP-synced. Module-level so
-# tests can repoint it; the dashboard's live wall-clock is only trustworthy once
-# this exists on a Pi without a hardware RTC.
+# Created by systemd-timesyncd once NTP-synced; the Pi has no RTC, so the clock
+# is untrustworthy until then. Module-level so tests can repoint it.
 _TIMESYNC_MARKER = Path("/run/systemd/timesync/synchronized")
 
-# Identifies this process to the admin screen: after Apply schedules a restart,
-# the client waits for /healthz to report a DIFFERENT boot id, so a reply from
-# the not-yet-stopped old process can't pass for the restarted one.
+# After a restart the client waits for /healthz to report a different boot id,
+# so a reply from the not-yet-stopped old process can't pass for the new one.
 _BOOT_ID: Final = uuid.uuid4().hex
 
-# Each refresh source yields a contract block of its own shape (weather vs.
-# calendar). `_refresh_source` is generic over that block type so the per-source
-# last-good plumbing is shared yet stays strongly typed end to end.
 B = TypeVar("B", bound=SourceBlock)
 
 
 def _clock_synced() -> bool:
-    """Whether the system clock is NTP-synced (so the live clock is honest).
-
-    On a non-systemd host (the dev Mac) the timesyncd runtime dir is absent and
-    we can't tell - assume synced rather than show a false "not synced" warning.
-    On the Pi the runtime dir exists from boot and the marker file appears once
-    `systemd-timesyncd` syncs; absent-but-runtime-present means not-yet-synced.
-    """
+    """Whether the clock is NTP-synced. Without the timesyncd runtime dir (the
+    dev Mac) we can't tell, so assume synced rather than warn falsely."""
     try:
         if not _TIMESYNC_MARKER.parent.is_dir():
             return True
@@ -90,7 +70,6 @@ def _clock_synced() -> bool:
 
 
 def _iso_age(iso: str | None, now: datetime) -> float | None:
-    """Seconds between an ISO stamp and `now`, or None if absent/unparseable."""
     if not isinstance(iso, str):
         return None
     try:
@@ -109,19 +88,14 @@ def _is_due(
 ) -> bool:
     """Whether a source should be refetched this tick.
 
-    Fresh-and-ok: due once the block has aged past its TTL. Forced or no prior:
-    always due. Previously FAILED (ok=False): due once `retry_floor` seconds
-    have passed since the last ATTEMPT - crucially NOT every tick. That floor
-    stops a down source being hammered while the loop is in fast backoff:
-    weather passes a small floor (retry in step with the backoff), the calendar
-    passes its full TTL, so a Proton outage is retried gently even when a
-    simultaneous weather outage (e.g. the whole network dropped) has the loop
-    ticking every 30s."""
+    A failed block is due once `retry_floor` has passed since the last attempt,
+    not every tick, so a down source isn't hammered while a weather outage has
+    the loop in fast backoff.
+    """
     if force or block is None:
         return True
     if not block.get("ok"):
-        # `attempted_at` is stamped on every failed tick; fall back to the last
-        # success stamp for a block that failed before that field was written.
+        # Blocks cached before `attempted_at` existed fall back to `fetched_at`.
         last = block.get("attempted_at") or block.get("fetched_at")
         age = _iso_age(last, now)
         return age is None or age >= retry_floor
@@ -130,21 +104,14 @@ def _is_due(
 
 
 def _backoff_delay(failures: int, base: int) -> int:
-    """Post-failure retry delay: 30, 60, 120, … doubling per consecutive
-    failure, capped at the base tick (`failures` is >= 1)."""
+    """Doubles per consecutive failure (`failures` >= 1), capped at the base
+    tick so a sustained outage settles to the normal cadence."""
     return min(base, _BACKOFF_START_SECONDS << (failures - 1))
 
 
 def _seconds_to_next_local_midnight(now: datetime) -> float:
-    """Seconds from `now` until the next local midnight (00:00 in `now`'s zone).
-    The loop clamps its sleep to this so a tick lands at the day boundary.
-
-    The delta is taken in UTC on purpose: `midnight` and `now` share the same
-    `ZoneInfo`, and subtracting two aware datetimes with the *same* tzinfo ignores
-    the offset and returns the naive wall-clock difference (a documented CPython
-    behavior). Across a DST transition that would be off by the ±1h the day
-    gains/loses - sleeping too long/short and missing the 00:00 rollover - so
-    normalize both to UTC first, where the real elapsed time is exact."""
+    """Computed in UTC: subtracting aware datetimes with the same tzinfo returns
+    the wall-clock difference, which is off by an hour across a DST change."""
     midnight = (now + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -154,10 +121,8 @@ def _seconds_to_next_local_midnight(now: datetime) -> float:
 
 
 def _date_rolled(prev_iso: str | None, now: datetime) -> bool:
-    """Whether `prev_iso` (a prior doc's `generated_at`) falls on a different
-    local calendar day than `now` - i.e. the agenda window must roll even if every
-    source is still within its TTL. Absent/unparseable -> False (cold boot or a
-    corrupt cache: every source is due anyway, so forcing adds nothing)."""
+    """Whether a prior doc's `generated_at` is on an earlier local day. Absent or
+    unparseable -> False: every source is due then anyway."""
     if not isinstance(prev_iso, str):
         return False
     try:
@@ -176,27 +141,21 @@ async def _refresh_source(
     retry_floor: int,
     name: str,
 ) -> tuple[B, bool]:
-    """Refresh one source if due, returning (block, failed). `failed` is True
-    only when a fetch was ATTEMPTED and fell back to last-good (drives backoff);
-    a skipped-because-fresh source isn't a failure. On a cold-boot fetch failure
-    with no last-good there's nothing to show, so the error propagates (the loop
-    catches it; the route stays 503)."""
+    """Refresh one source if due, returning (block, failed); `failed` means an
+    attempted fetch fell back to last-good. With no last-good, the error
+    propagates."""
     if prior is not None and not _is_due(
         prior, ttl, now, force, retry_floor=retry_floor
     ):
-        return prior, False  # still fresh - reuse as-is, nothing attempted
+        return prior, False
     try:
         block = await fetch()
     except Exception:
         log.exception("%s refresh failed", name)
         if prior is None:
             raise
-        # Keep last-good DATA, flag it stale, and stamp the attempt so `_is_due`
-        # rate-limits the next retry. `{**prior, ...}` widens to a plain dict, so
-        # the cast is unavoidable - mypy can't see the result is still a `B`. It's
-        # sound here: `prior` is a `B` (validated at the cache boundary by
-        # as_weather_block/as_calendar_block), and we only override `ok`/add
-        # NotRequired keys, so every required key of `B` survives.
+        # Keep last-good data, flagged stale, stamping the attempt for `_is_due`.
+        # The cast is sound: only `ok` and NotRequired keys change.
         stale = {
             **prior,
             "ok": False,
@@ -204,43 +163,25 @@ async def _refresh_source(
             "attempted_at": now.isoformat(timespec="seconds"),
         }
         return cast(B, stale), True
-    return cast(B, {**block, "ttl": ttl}), False  # fresh fetch - not a failure
+    return cast(B, {**block, "ttl": ttl}), False
 
 
 async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> bool:
-    """Build the dashboard doc from the (due) live sources and cache it.
+    """Refresh the due sources (each with its own last-good fallback) and cache
+    the doc. Returns False if any attempted source fell back, to drive backoff.
 
-    Each source is refreshed independently with per-source last-good fallback,
-    so a weather blip can't wipe a good calendar refresh (or vice versa).
-    Returns True for a healthy tick, False if any attempted source fell back to
-    last-good (the loop uses this to back off and retry sooner).
-
-    NOTE: the calendar soft-fails IN-BAND - `get_calendar` never raises (holidays
-    must always show), so a Proton outage returns an `ok=False` block, not an
-    exception, and the tick still reports healthy. Weather alone drives the loop
-    backoff; the calendar's retry cadence on a Proton outage is governed entirely
-    by its `retry_floor` below, so Proton is never hammered (see `_is_due`).
-
-    The cache read/write are offloaded to a thread: they `fsync` (blocking), and
-    this runs on the event loop, so - like the source fetches - they must not
-    stall it."""
+    The calendar soft-fails in-band (`get_calendar` never raises for Proton), so
+    only weather drives backoff; Proton's retry cadence is its `retry_floor`.
+    """
     now = now or datetime.now(ZoneInfo(_DISPLAY_TZ))
     raw = await asyncio.to_thread(cache.read, _CACHE_KEY)
-    # The cache doc is the untyped boundary and may predate a top-level field, so
-    # read the envelope loosely but narrow the two source blocks INTO the typed
-    # world here - last-good then flows downstream as real WeatherBlock/
-    # CalendarBlock, not `Any`. An absent/invalid block narrows to None → that
-    # source is due, which is the correct cold-start behavior anyway.
+    # An absent/invalid block narrows to None, which makes that source due.
     prior = raw if isinstance(raw, dict) else {}
     prior_weather = as_weather_block(prior.get("weather"))
     prior_calendar = as_calendar_block(prior.get("calendar"))
 
-    # A local-day rollover (midnight) makes the cached agenda window stale even
-    # when every source is within its TTL: today's column, and any holiday/event
-    # entering the [today, +5d) window, only roll when the sources actually
-    # refetch and recompute `now`. So force a full refresh when the cached doc was
-    # built on an earlier day. `_refresh_loop` wakes at midnight so this fires
-    # promptly rather than up to a full base interval late.
+    # The agenda window only rolls when sources refetch, so force a full refresh
+    # on a new local day even if every source is within its TTL.
     force = force or _date_rolled(prior.get("generated_at"), now)
 
     weather, w_failed = await _refresh_source(
@@ -249,7 +190,7 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         settings.weather_ttl_seconds,
         now,
         force=force,
-        retry_floor=_BACKOFF_START_SECONDS,  # hard source: retry in step w/ backoff
+        retry_floor=_BACKOFF_START_SECONDS,
         name="weather",
     )
     calendar, c_failed = await _refresh_source(
@@ -258,13 +199,11 @@ async def _refresh_once(force: bool = False, *, now: datetime | None = None) -> 
         settings.calendar_ttl_seconds,
         now,
         force=force,
-        retry_floor=settings.calendar_ttl_seconds,  # soft source: retry gently
+        retry_floor=settings.calendar_ttl_seconds,
         name="calendar",
     )
 
     doc: DashboardDoc = {
-        # generated_at = when THIS doc was assembled - a source-independent clock
-        # in the display zone, since weather/calendar fetch times diverge.
         "generated_at": now.isoformat(timespec="seconds"),
         "clock_synced": _clock_synced(),
         "weather": weather,
@@ -280,11 +219,8 @@ _refresh_lock = asyncio.Lock()
 
 
 async def _refresh_loop() -> None:
-    """The unkillable refresh cycle - a failing tick is logged, never fatal.
-    Base cadence = the shortest source TTL; a failed tick backs off and retries
-    sooner so transient blips clear without waiting the full interval. The sleep
-    is also clamped to the next local midnight so a tick lands at 00:00 and the
-    agenda window rolls on time (see `_refresh_once`), not a full interval late."""
+    """Never exits on a failing tick. Base cadence is the shortest source TTL,
+    shortened by backoff after a failure."""
     failures = 0
     while True:
         now = datetime.now(ZoneInfo(_DISPLAY_TZ))
@@ -301,8 +237,7 @@ async def _refresh_loop() -> None:
         else:
             failures += 1
             delay = float(_backoff_delay(failures, base))
-        # Wake just after the next local midnight if that's sooner than the normal
-        # delay, so the day-rollover refresh fires promptly at the day boundary.
+        # Wake just after local midnight so the agenda rolls on time.
         delay = min(delay, _seconds_to_next_local_midnight(now) + 1.0)
         await asyncio.sleep(delay)
 
@@ -316,23 +251,19 @@ def _loop_exited(task: asyncio.Future[None]) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not settings.proton_ics_url:
-        # Logs the ABSENCE only, never the secret. Without this a misconfigured
-        # (or unset) URL is invisible on a headless Pi: holidays show, personal
-        # events silently never appear, and nothing points at the cause.
+        # Otherwise invisible on a headless Pi: holidays still show, so nothing
+        # points at the missing personal events.
         log.warning(
             "PROTON_ICS_URL is not set — personal calendar events are disabled "
             "(holidays/observances still show). Set it in .env to enable."
         )
-    # Surface a bad LAYOUT loudly at boot (the routes fail-soft silently per
-    # request, so a typo/case-mismatch is otherwise invisible on a headless Pi).
     _warn_on_unknown_layout()
     _warn_on_unknown_pack()
-    # Settles on hardware whether the polkit rule reaches a lingering, session-less
-    # boot-time service: expect "yes" in the journal after a cold boot. WARNING
-    # because nothing configures logging, so INFO never reaches the journal.
+    # Confirms the polkit rule reaches a session-less boot-time service (expect
+    # "yes"). WARNING because nothing configures logging, so INFO is dropped.
     log.warning("logind CanReboot: %s", await asyncio.to_thread(service.can_reboot))
     task = asyncio.create_task(_refresh_loop())
-    app.state.refresh_task = task  # strong ref so the loop isn't GC'd mid-flight
+    app.state.refresh_task = task  # strong ref, or the task can be GC'd
     task.add_done_callback(_loop_exited)
     try:
         yield
@@ -351,11 +282,7 @@ def healthz() -> JSONResponse:
 
 @app.get("/api/data")
 def api_data() -> JSONResponse:
-    """The normalized dashboard contract the frontend polls.
-
-    503 until the first refresh tick warms the cache - the frontend degrades
-    visibly (stale dots + "Data unavailable") on any non-200, never a blank panel.
-    """
+    """The dashboard doc; 503 until the first tick warms the cache."""
     doc = cache.read(_CACHE_KEY)
     if doc is None:
         return JSONResponse({"detail": "warming up"}, status_code=503)
@@ -363,17 +290,11 @@ def api_data() -> JSONResponse:
         as_weather_block(doc.get("weather")) is None
         or as_calendar_block(doc.get("calendar")) is None
     ):
-        # A source block that fails the contract means producer/consumer drift or
-        # a corrupt write. Log it - NEVER the doc itself, which carries calendar
-        # PII - and still serve it so the dashboard degrades rather than blanking.
+        # Never log the doc itself (calendar PII). Serve it anyway so the
+        # dashboard degrades rather than blanks.
         log.warning("cached dashboard block failed contract validation; serving as-is")
-    # clock_synced reflects the clock *now*, not when the doc was assembled.
-    # Overlay the live value (a cheap marker-file check) so the "clock not synced"
-    # warning clears within one frontend poll of NTP sync (~1 min after a boot or
-    # mid-day outage) instead of lingering until the next 15-min refresh tick
-    # rebuilds the cached doc. The boot tick stamps clock_synced=False because NTP
-    # hasn't synced yet (~1 min post-boot); without this overlay that stale False
-    # would be served for up to a full refresh interval.
+    # Live value, so the boot tick's stale False clears within one poll of NTP
+    # sync rather than lingering until the next refresh tick.
     if isinstance(doc, dict):
         doc = {**doc, "clock_synced": _clock_synced()}
     return JSONResponse(doc)
@@ -381,9 +302,7 @@ def api_data() -> JSONResponse:
 
 @app.post("/refresh")
 async def refresh() -> JSONResponse:
-    """Force an immediate refresh of every source (the status row's manual
-    refresh control). Serialized with the background loop via `_refresh_lock`
-    so it can't race a scheduled tick."""
+    """Force an immediate refresh of every source."""
     async with _refresh_lock:
         try:
             await _refresh_once(force=True)
@@ -394,17 +313,8 @@ async def refresh() -> JSONResponse:
 
 
 class _NoCacheStaticFiles(StaticFiles):
-    """`StaticFiles` that forces revalidation of the dashboard bundle.
-
-    Sends `Cache-Control: no-cache` on every static response so the kiosk's
-    Chromium keeps its cached copy but MUST revalidate it against the server on
-    each load. Combined with the ETag/Last-Modified `StaticFiles` already stamps,
-    an unchanged asset short-circuits to a 304 (free over localhost) while a
-    deploy (`git pull`) is picked up the instant the file differs - no stale
-    `app.js` surviving until a hard refresh / the next 06:00 cold boot.
-    `/api/data` is a separate route (unaffected); the frontend already fetches it
-    with `cache:"no-store"`.
-    """
+    """`no-cache` makes the kiosk revalidate each load: unchanged assets are a
+    cheap 304, and a deploy is picked up without a hard refresh."""
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         response = await super().get_response(path, scope)
@@ -414,31 +324,22 @@ class _NoCacheStaticFiles(StaticFiles):
 
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 
-# THEME/LAYOUT are user config interpolated into a filesystem path, so each must
-# be a bare slug - anything with a separator (or any other oddity) is rejected.
+# Slug settings are interpolated into filesystem paths, so only bare slugs pass.
 _SLUG_RE: Final = re.compile(r"[A-Za-z0-9_-]+")
 
-# Every slug-selected asset carries the same deploy-freshness contract as the
-# static bundle: keep the browser copy but MUST revalidate on each load.
+# Same revalidate-on-load contract as the static bundle.
 _NO_CACHE: Final = {"Cache-Control": "no-cache"}
 
 
 def _normalized(name: str) -> str:
-    """Canonicalize a THEME/LAYOUT value to how it resolves on disk: strip
-    surrounding whitespace from a hand-edited .env and lowercase it. The dev Mac's
-    filesystem is case-INSENSITIVE but the Pi's is case-SENSITIVE, so LAYOUT=HUD
-    "worked" in dev yet silently fell back to classic on the wall (layouts/HUD/
-    doesn't exist there). Every bundled theme/layout dir is lowercase, so this
-    makes HUD/Hud/hud (and a stray trailing space) all resolve to the same asset
-    on either filesystem - killing that dev/prod parity trap at the boundary where
-    the value is turned into a path."""
+    """Strip and lowercase a slug setting. The dev Mac's filesystem is
+    case-insensitive but the Pi's isn't, so LAYOUT=HUD would work in dev yet
+    fall back on the wall; every bundled asset dir is lowercase."""
     return name.strip().lower()
 
 
 def _valid_slug(name: str) -> bool:
-    """A bare slug is safe to interpolate into a filesystem path. Warn on a
-    non-empty non-slug (a config typo worth surfacing); an empty/unset value is
-    the benign default and stays quiet."""
+    """Warns on a non-empty non-slug; empty is the quiet default."""
     if _SLUG_RE.fullmatch(name):
         return True
     if name:
@@ -447,13 +348,9 @@ def _valid_slug(name: str) -> bool:
 
 
 def _builtin_slug_css(subdir: str, slug: str, leaf: str) -> str:
-    """A built-in slug asset's stylesheet, read defensively - the shared fail-soft
-    body for /layout.css (subdir "layouts", slug "classic", leaf "layout") and
-    /pack.css (subdir "packs", slug "weather-icons", leaf "pack"). Mirrors the
-    matching /layout.js / /pack.js fail-soft to the built-in MODULE, so a bad/ghost
-    LAYOUT or ICON_PACK renders the built-in default's styling (classic's region
-    CSS, weather-icons' glyph CSS) rather than the fallback DOM naked. Last-resort
-    empty if the built-in file is somehow missing (never a 500)."""
+    """The built-in default's stylesheet, the fallback when a slug won't resolve:
+    the matching .js route falls back to the built-in module, which would render
+    unstyled without it. Empty (never a 500) if the built-in file is missing."""
     try:
         return (_static_dir / subdir / slug / f"{leaf}.css").read_text(encoding="utf-8")
     except OSError:
@@ -468,17 +365,10 @@ def _serve_slug_css(
     leaf: str | None = None,
     fallback: Callable[[], str] = lambda: "",
 ) -> Response:
-    """Serve a slug-selected .css file, fail-soft to `fallback()`, always no-cache.
-
-    Shared by /theme.css and /layout.css. `name` is a user-controlled setting
-    interpolated into a filesystem path, so it must be a bare slug - validate
-    BEFORE touching disk. Path shape is the only per-route difference: flat
-    (theme) at static/<subdir>/<name>.css, or nested (layout) at
-    static/<subdir>/<name>/<leaf>.css. A non-slug name, or a valid name whose
-    file is absent/unreadable, degrades to `fallback()` - empty CSS for a theme
-    (the built-in palette wins), classic's stylesheet for a layout - because the
-    kiosk must never lose the dashboard over a bad config value. Read per request
-    (like the no-cache static bundle) so editing the file shows on next reload.
+    """Serve static/<subdir>/<name>.css, or <name>/<leaf>.css when `leaf` is
+    given. A bad slug or unreadable file degrades to `fallback()` - the kiosk
+    must never lose the dashboard over a bad config value. Read per request so
+    an edit shows on next reload.
     """
     name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
     if _valid_slug(name):
@@ -500,21 +390,10 @@ def _serve_slug_css(
 def _serve_module(
     name: str, subdir: str, default: str, export: str, *, leaf: str = "index.js"
 ) -> Response:
-    """A slug-selected asset's body: a generated one-line ES module re-exporting
-    the selected asset - it SELECTS a module rather than serving a stored file, so
-    it fail-softs to the valid `default` name, not to an empty body. Both a bad
-    slug AND a valid-slug-but-absent module fall back to `default`: a re-export of
-    a missing module would 404 the ES-module graph at LOAD time (which app.js's
-    usage-level try/catch can't catch → blank kiosk). If even the built-in
-    `default` module is missing (a broken deploy), its re-export target would 404
-    too, so the last resort is a non-empty inline stub exporting an empty object -
-    a body app.js's usage-level try/catch CAN survive, unlike a load-time 404.
-    Shared by /layout.js (export "layout" from layouts/, default "classic"),
-    /pack.js (export "iconPack" from packs/, default "weather-icons"), and
-    /admin.js (export "admin", leaf "admin.js" - the layout's admin skin). `leaf`
-    is the module file within the slug dir that must exist for it to resolve.
-    Shares _normalized, _valid_slug, and the no-cache header with the css
-    reader."""
+    """A generated one-line ES module re-exporting `export` from the selected
+    slug's `leaf`. A bad slug or missing module falls back to `default`: a
+    re-export of a missing module 404s the module graph at load time, which
+    app.js can't catch, blanking the kiosk."""
     name = _normalized(name)  # case/space-fold so HUD resolves like hud on the Pi
     slug = name if _valid_slug(name) else default
     if slug != default and not (_static_dir / subdir / slug / leaf).is_file():
@@ -523,10 +402,8 @@ def _serve_module(
         )
         slug = default
     if not (_static_dir / subdir / slug / leaf).is_file():
-        # Even the built-in default is absent: a re-export would 404 the ES-module
-        # graph at LOAD time and blank the kiosk (the exact failure the fallback to
-        # `default` exists to prevent). Emit a non-empty inline stub instead - an
-        # empty export is a body app.js's usage-level try/catch can handle.
+        # Broken deploy: an inline empty export is survivable by app.js's
+        # usage-level try/catch, unlike a load-time 404.
         log.warning(
             "%s default %r has no %s module; serving inline stub", subdir, default, leaf
         )
@@ -537,10 +414,7 @@ def _serve_module(
 
 
 def _available_slugs(subdir: str) -> list[str]:
-    """Dir names under static/<subdir>/ that carry an index.js module - the exact
-    set a LAYOUT (subdir "layouts") or ICON_PACK (subdir "packs") value can select.
-    Sorted for a stable log line; empty on an unreadable dir (never fatal: the
-    routes still fail-soft per request)."""
+    """Dirs under static/<subdir>/ with an index.js; empty if unreadable."""
     try:
         return sorted(
             p.name
@@ -554,20 +428,14 @@ def _available_slugs(subdir: str) -> list[str]:
 def _warn_on_unknown_slug(
     subdir: str, selected: str, default: str, *, label: str, noun: str
 ) -> None:
-    """Log ONCE at startup when a slug setting won't resolve, so a config typo is
-    visible in the journal instead of silently rendering the built-in default on a
-    headless wall. The matching routes still fail-soft per request - this only
-    surfaces the CAUSE, which was otherwise buried in a per-request warning. The
-    value is folded the same way the routes resolve it, so a mere case/space
-    variant (LAYOUT=HUD -> hud) does NOT warn; only a genuinely absent slug does.
-    `selected` (the raw value) is echoed so the operator recognizes exactly what
-    they typed. `label` is the setting name (LAYOUT/ICON_PACK) and `noun` the
-    singular kind (layout/pack) woven into the message."""
+    """Log once at startup when a slug setting won't resolve, so a typo shows in
+    the journal instead of silently rendering the default on a headless wall. A
+    case/space variant that the routes fold (HUD -> hud) doesn't warn."""
     name = _normalized(selected)
     if not name or name == default:
-        return  # unset/default: the intended built-in, nothing to warn
+        return
     if not _valid_slug(name):
-        return  # _valid_slug already warned that the value isn't a bare slug
+        return  # _valid_slug already warned
     if not (_static_dir / subdir / name / "index.js").is_file():
         log.warning(
             "%s=%r matches no %s under static/%s (have: %s); serving %s",
@@ -581,14 +449,12 @@ def _warn_on_unknown_slug(
 
 
 def _warn_on_unknown_layout() -> None:
-    """Startup warning for an unresolvable LAYOUT (see _warn_on_unknown_slug)."""
     _warn_on_unknown_slug(
         "layouts", settings.layout, "classic", label="LAYOUT", noun="layout"
     )
 
 
 def _warn_on_unknown_pack() -> None:
-    """Startup warning for an unresolvable ICON_PACK (see _warn_on_unknown_slug)."""
     _warn_on_unknown_slug(
         "packs", settings.icon_pack, "weather-icons", label="ICON_PACK", noun="pack"
     )
@@ -596,17 +462,15 @@ def _warn_on_unknown_pack() -> None:
 
 @app.get("/theme.css")
 def theme_css() -> Response:
-    """The configured palette override (THEME setting). index.html links this
-    after style.css so the theme's `:root` block wins the cascade; the default
-    empty-CSS fail-soft correctly means "keep the built-in palette"."""
+    """The THEME palette override, linked last so its `:root` wins; empty means
+    the built-in palette."""
     return _serve_slug_css(settings.theme, "themes")
 
 
 @app.get("/layout.css")
 def layout_css() -> Response:
-    """The selected layout's stylesheet (LAYOUT setting), linked BETWEEN
-    style.css and theme.css so the cascade is base < layout < theme. Fail-softs
-    to classic's stylesheet (see _builtin_slug_css), NOT empty."""
+    """The LAYOUT stylesheet; cascade is base < layout < theme. Falls back to
+    classic's, not empty."""
     return _serve_slug_css(
         settings.layout,
         "layouts",
@@ -617,18 +481,14 @@ def layout_css() -> Response:
 
 @app.get("/layout.js")
 def layout_js() -> Response:
-    """The generated ES module selecting the layout (see _serve_module);
-    app.js does `import {layout} from "/layout.js"` - no fetch race, no HTML
-    templating. MUST be served as text/javascript: a wrong JS MIME is silently
-    refused under strict ES-module loading and would blank the kiosk."""
+    """ES module selecting the layout. Must be text/javascript: strict module
+    loading silently refuses a wrong MIME, blanking the kiosk."""
     return _serve_module(settings.layout, "layouts", "classic", "layout")
 
 
 @app.get("/pack.css")
 def pack_css() -> Response:
-    """The selected icon pack's stylesheet (ICON_PACK setting), mirroring
-    /layout.css. Fail-softs to the weather-icons pack's stylesheet (see
-    _builtin_slug_css), NOT empty."""
+    """The ICON_PACK stylesheet. Falls back to weather-icons', not empty."""
     return _serve_slug_css(
         settings.icon_pack,
         "packs",
@@ -639,19 +499,13 @@ def pack_css() -> Response:
 
 @app.get("/pack.js")
 def pack_js() -> Response:
-    """The generated ES module selecting the icon pack (see _serve_module);
-    app.js does `import {iconPack} from "/pack.js"`. Like /layout.js it MUST be
-    served as text/javascript, and fail-softs to the weather-icons pack module
-    (never an empty body, which would 404 the ES-module graph and blank the
-    kiosk)."""
+    """ES module selecting the icon pack; must be text/javascript, as /layout.js."""
     return _serve_module(settings.icon_pack, "packs", "weather-icons", "iconPack")
 
 
 @app.get("/admin.css")
 def admin_css() -> Response:
-    """The selected layout's admin-skin stylesheet, lazy-linked by app.js on the
-    first #admin open. Fail-softs to classic's admin skin, coherent with
-    /admin.js."""
+    """The layout's admin-skin stylesheet; falls back to classic's, as /admin.js."""
     return _serve_slug_css(
         settings.layout,
         "layouts",
@@ -662,9 +516,7 @@ def admin_css() -> Response:
 
 @app.get("/admin.js")
 def admin_js() -> Response:
-    """The generated ES module selecting the layout's admin skin (see
-    _serve_module); app.js lazy-imports it on the first #admin open. A layout
-    with no admin.js yet falls back to classic's skin, never a 404."""
+    """ES module selecting the layout's admin skin; falls back to classic's."""
     return _serve_module(
         settings.layout, "layouts", "classic", "admin", leaf="admin.js"
     )
@@ -680,8 +532,7 @@ _CONFIG_ENV_KEYS: Final[dict[ConfigKey, EnvKey]] = {
     "icon_pack": "ICON_PACK",
 }
 
-# The same CWD-relative file config.py's Settings reads. Module-level so tests
-# can repoint it away from the real .env.
+# The CWD-relative file Settings reads. Module-level so tests can repoint it.
 _ENV_FILE = Path(".env")
 
 
@@ -708,9 +559,7 @@ class ConfigUpdate(BaseModel):
 
 
 def _available_themes() -> list[str]:
-    """Selectable THEME values: "" (the built-in palette) plus each stylesheet
-    stem under static/themes/. Themes are flat .css files, not dirs with an
-    index.js, so _available_slugs doesn't cover them."""
+    """"" (built-in palette) plus each stylesheet stem under static/themes/."""
     try:
         stems = sorted(
             p.stem for p in (_static_dir / "themes").iterdir() if p.suffix == ".css"
@@ -721,8 +570,8 @@ def _available_themes() -> list[str]:
 
 
 def _selectable(names: list[str]) -> list[str]:
-    """Only names a setting can actually resolve to (the routes lowercase the
-    value), and that are safe to write bare into .env."""
+    """Names a setting can resolve to (routes lowercase it) and that are safe to
+    write bare into .env."""
     return [n for n in names if _SLUG_RE.fullmatch(n) and n == n.lower()]
 
 
@@ -747,9 +596,8 @@ def _admin_config() -> AdminConfig:
 
 
 def _write_atomic(path: Path, text: str) -> None:
-    """Replace `path` with `text` via a same-dir temp file + os.replace, keeping
-    its permissions (.env holds a secret and is often 0600), so a crash or full
-    disk mid-write can never leave a truncated .env."""
+    """Atomic replace that keeps the file's mode (.env holds a secret, often
+    0600), so a crash or full disk can't leave a truncated .env."""
     try:
         mode = stat.S_IMODE(path.stat().st_mode)
     except FileNotFoundError:
@@ -786,9 +634,8 @@ def admin_config() -> JSONResponse:
 
 @app.post("/api/admin/config")
 def admin_config_apply(update: ConfigUpdate) -> JSONResponse:
-    """Apply staged knob values: validate all, write only the diff to .env, then
-    schedule a detached restart (the new values load on the next start). An
-    empty diff writes nothing and doesn't restart."""
+    """Validate, write only the diff to .env, and schedule a restart to load it.
+    An empty diff is a no-op."""
     config = _admin_config()
     staged: dict[ConfigKey, str | None] = {
         "layout": update.layout,
@@ -824,9 +671,8 @@ def admin_config_apply(update: ConfigUpdate) -> JSONResponse:
 
 @app.get("/api/admin/stats")
 def admin_stats() -> JSONResponse:
-    """A live health snapshot for the admin panel's 5s poll. Sync on purpose:
-    the ~0.1s CPU sample blocks a threadpool worker, not the event loop. Each
-    field fail-softs to null; this never 500s."""
+    """Sync on purpose: the ~0.1s CPU sample blocks a threadpool worker, not the
+    event loop. Never 500s."""
     try:
         snapshot = stats.collect()
     except Exception:
@@ -847,8 +693,8 @@ class ActionRequest(BaseModel):
 
 @app.post("/api/admin/restart")
 def admin_restart(_: ActionRequest) -> JSONResponse:
-    """Schedule the same detached restart Apply uses; the reply carries this
-    process's boot id so the client can wait for a different one."""
+    """The reply carries this process's boot id so the client can wait for a new
+    one."""
     log.info("admin requested a dashboard restart")
     if not service.restart_dashboard():
         return JSONResponse({"detail": "the restart failed"}, status_code=500)
@@ -872,8 +718,8 @@ _REBOOT_FAILED: Final[dict[service.RebootOutcome, tuple[int, str]]] = {
 
 @app.post("/api/admin/reboot")
 def admin_reboot(_: ActionRequest) -> JSONResponse:
-    """Reboot the Pi via logind. 200 only once logind accepted it, so the client
-    never shows "rebooting" for a reboot that won't happen."""
+    """200 only once logind accepted it, so the client never shows "rebooting"
+    for a reboot that won't happen."""
     log.warning("admin requested a reboot")
     outcome = service.reboot()
     if outcome == "rebooting":
@@ -882,7 +728,5 @@ def admin_reboot(_: ActionRequest) -> JSONResponse:
     return JSONResponse({"detail": detail}, status_code=status)
 
 
-# Serve the static dashboard. html=True serves index.html at "/". Mounted last
-# so /healthz, /api/* (incl. /api/admin/*), /theme.css, /layout.css, /layout.js, /pack.css, /pack.js,
-# /admin.css, and /admin.js take precedence over the catch-all static mount.
+# Mounted last so every route above takes precedence over the catch-all.
 app.mount("/", _NoCacheStaticFiles(directory=_static_dir, html=True), name="static")

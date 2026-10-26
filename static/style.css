@@ -1,16 +1,10 @@
-/* Pi Dashboard - TRUE BASE (layout-agnostic).
-   Reset, the :root palette that every layout and theme builds on, and the
-   fixed canvas sizing. Layout-specific look (the bento cards, ambient glow,
-   region styling) lives in the selected layout's CSS (layouts/<name>/layout.css),
-   which loads after this file; theme palette overrides load LAST and win.
-   Layout surface sized in rem against the 1280x800 effective viewport
-   (root 16px -> 80rem x 50rem). */
+/* Layout-agnostic base: reset, palette, fixed canvas. Cascade order is
+   base < layouts/<name>/layout.css < theme.css. Sized in rem against the
+   1280x800 viewport (16px root -> 80rem x 50rem). */
 
-/* PALETTE - the single source of truth. Every color a layout draws is either
-   one of these vars or a color-mix() alpha derivation of one, so an alternate
-   palette is a pure `:root { … }` override block (see static/themes/ and the
-   THEME setting; /theme.css loads last and wins the cascade). Themes should
-   override only these base colors - the glows/tints follow. */
+/* Palette - every color a layout draws is one of these vars or a color-mix()
+   of one, so a theme only overrides these base colors and the glows/tints
+   follow. */
 :root {
   --text: #eef2f7;
   --muted: #93a1b1;
@@ -54,19 +48,14 @@ body {
   cursor: none;
 }
 
-/* The layout mounts its .screen into this bare wrapper; keep #app layout-
-   transparent (display:contents) so .screen is body's flex item directly - the
-   pre-refactor structure was body>.screen, and an unstyled block #app would
-   otherwise become body's flex item and change .screen's shrink/overflow below
-   80rem. It generates no box, so the ambient-glow .screen rules are unaffected. */
+/* display:contents keeps .screen body's flex item directly; a block #app
+   would change .screen's shrink/overflow below 80rem. */
 #app {
   display: contents;
 }
 
-/* Admin overlay root: layered over the still-mounted dashboard (whose timers
-   keep running underneath), centering the skin's own 1280x800 canvas. The
-   [hidden] rule is needed because display:flex would otherwise beat the UA's
-   hidden -> display:none. Palette/skin come from the lazy-loaded /admin.css. */
+/* Admin overlay over the still-mounted dashboard. The [hidden] rule is needed
+   because display:flex would otherwise beat the UA's hidden -> display:none. */
 #admin-root {
   position: fixed;
   inset: 0;
@@ -79,8 +68,7 @@ body {
   display: none;
 }
 
-/* The fixed 1280x800 canvas - sizing + clipping only. The layout paints its
-   own background/structure onto this surface (see layouts/<name>/layout.css). */
+/* Sizing + clipping only; the layout paints the surface. */
 .screen {
   width: 80rem;
   height: 50rem;

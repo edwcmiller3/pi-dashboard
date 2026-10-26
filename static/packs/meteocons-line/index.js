@@ -1,16 +1,6 @@
-// The Meteocons LINE icon pack (IconPack, see core/contract.js): maps a semantic
-// IconToken (server-resolved weather condition) or a chrome GlyphName (wind /
-// humidity / precip / sunrise / sunset) onto a vendored static Meteocons SVG.
-// renderIcon builds an <i class="wx-icon wx-<name>"> the line pack.css paints as
-// a background-image; `extra` appends a caller class for sizing/color. The name
-// is an OWN value (a server-resolved token or a fixed chrome name), so it is safe
-// in the class attribute; human text never flows here.
-//
-// Side-effect-free on import (the core graph invariant, see core/machine.js): the
-// DOM is touched only inside renderIcon, via the shared core `el` helper. Loaded
-// at runtime by the server's /pack.js route (ICON_PACK setting), not statically
-// imported by app.js. renderIcon is byte-identical across every pack; only the
-// loaded pack.css differs.
+// Meteocons line icon pack (IconPack, see core/contract.js); pack.css paints each
+// .wx-<name> as a background-image. `name` is a server/fixed token, never user
+// text, so it is safe in the class attribute.
 
 import { el } from "../../core/dom.js";
 

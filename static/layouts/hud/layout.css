@@ -1,31 +1,24 @@
-/* HUD layout - the instrument-HUD design (design-mocks/instrument-hud-d.html),
-   ported as a selectable layout. Loads after style.css (base) and before
-   theme.css (a theme's :root palette override still wins last).
+/* HUD layout - ported from design-mocks/instrument-hud.html.
 
-   PALETTE - the phosphor ramp is mapped ONTO the shared base :root var names
-   (see static/style.css): the dominant phosphor green is --cool, white-hot is
-   --text, the amber annunciator is --accent. Every phosphor tint below is a
-   color-mix() alpha of those base vars, so a hue theme (nord, gruvbox, …)
-   retints the whole HUD through the unchanged cascade - exactly like classic's
-   glow tints. --ph0..--ph4 / --amb / --amb2 are convenience aliases derived
-   from the base vars, keeping the ported rules close to the mock.
+   The phosphor ramp maps onto the base palette vars (green = --cool, white-hot
+   = --text, amber = --accent) and every tint is a color-mix() of them, so hue
+   themes retint the whole HUD. --ph0..--ph4 / --amb / --amb2 are aliases that
+   keep the ported rules close to the mock.
 
-   NO backdrop-filter (Pi thermal constraint, style.css). The glow text-shadows
-   are additive and trivially reducible if the panel runs hot (plan Phase 4).
+   No backdrop-filter (Pi thermal constraint, see classic/layout.css). The glow
+   text-shadows are additive and the first thing to cut if the panel runs hot.
 
-   The vendored HUD typefaces (self-hosted, no CDN) - @import resolves against
-   /layout.css → /vendor/fonts/fonts.css, whose own url()s resolve beside it. */
+   @import resolves against /layout.css -> /vendor/fonts/fonts.css (self-hosted,
+   no CDN). */
 @import url("vendor/fonts/fonts.css");
 
 :root {
-  /* base-palette remap (phosphor) - a theme's :root override retints these */
   --text: #eafff6; /* ph0 - white-hot numerals */
   --cool: #5cffc5; /* phosphor green - the HUD's primary hue */
   --accent: #ffb454; /* amber - caution / holiday annunciator */
   --bg: #03080a; /* near-black canvas, faint green-blue cast */
   --canvas: #03080a;
 
-  /* phosphor ramp, all derived from the base vars above */
   --ph0: var(--text);
   --ph1: var(--cool);
   --ph2: color-mix(in srgb, var(--cool) 66%, transparent);
@@ -270,7 +263,7 @@
   bottom: 22px;
 }
 
-/* dial SVG elements - colors in CLASSES so the palette cascade retints them */
+/* Dial SVG colors live in classes, not attributes, so themes retint them. */
 .hud .g-arc-base {
   fill: none;
   stroke: color-mix(in srgb, var(--cool) 14%, transparent);
@@ -438,7 +431,7 @@
   font-size: 13.5px;
   line-height: 1.15;
   color: var(--ph2);
-  /* wraps to 2 lines, NO ellipsis (worst case: "Heavy freezing drizzle") */
+  /* wraps to 2 lines, no ellipsis (worst case: "Heavy freezing drizzle") */
 }
 .hud .frow .pp {
   grid-column: 7;
@@ -562,15 +555,15 @@
   flex-direction: column;
   min-height: 0;
 }
-/* the measured content column - flex:0 0 auto so it keeps its natural content
-   height (never shrunk to the container) and overflows into .arows's clip. */
+/* flex:0 0 auto keeps the measured column at its natural height so it
+   overflows into .arows's clip instead of shrinking. */
 .hud .acol {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
 }
-/* no-gap flex column + padding-only spacing so getBoundingClientRect heights
-   compose linearly (the fit invariant the classic shell documents). */
+/* No gap, padding-only spacing: heights must compose linearly for the fit
+   (see core/agenda.js). */
 .hud .dsection {
   display: flex;
   flex-direction: column;
@@ -765,8 +758,6 @@
   background: var(--amb);
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-/* admin entry cog - far bottom-left, ahead of the ruler strip; reads pressable
-   like RESYNC (design-mocks/instrument-hud.html). */
 .hud-footer .admin-cog {
   flex: 0 0 auto;
   display: inline-flex;
@@ -787,7 +778,6 @@
   height: 13px;
   display: block;
 }
-/* manual refresh control - reads pressable vs the .ok annunciators */
 .hud-footer .rfr {
   display: inline-flex;
   align-items: center;
@@ -836,8 +826,8 @@
   stroke: var(--ph0);
   stroke-width: 2.4;
 }
-/* In-flight manual refresh: spin the ⟳ glyph (tiny region - cheap on the Pi's
-   software compositor, unlike the shelved backdrop-filter). */
+/* In-flight refresh spin - tiny region, cheap on the Pi's software
+   compositor. */
 .hud-footer .rfr.is-spinning .sym-resync {
   transform-origin: 50% 50%;
   animation: hud-resync-spin 0.8s linear infinite;

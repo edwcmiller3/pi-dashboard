@@ -1,12 +1,10 @@
-/* swiss-mono admin skin - engineering-sheet idiom
-   (design-mocks/admin-swiss-mono.html). Single Swiss-red accent; no blur/glow.
+/* swiss-mono admin skin - ported from design-mocks/admin-swiss-mono.html.
+   Single Swiss-red accent; no blur/glow.
 
-   Theme-independent by construction: every token is declared on #admin-root,
-   not :root, so /theme.css's :root palette override never reaches the admin
-   subtree. Values are the mock's fixed light palette (the same one swiss-mono's
-   layout.css scopes to .swiss-mono). The typefaces come from the vendored
-   fonts.css swiss-mono's layout.css already imports - this skin only loads
-   alongside that layout. */
+   Tokens live on #admin-root, theme-independent (see classic/admin.css): the
+   same fixed light palette swiss-mono's layout.css uses. Fonts come from the
+   fonts.css that layout.css imports - this skin only loads alongside that
+   layout. */
 
 #admin-root {
   --paper: #f5f4f0;

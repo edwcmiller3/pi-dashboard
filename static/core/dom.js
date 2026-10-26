@@ -1,8 +1,5 @@
-// Core DOM builder - the one tiny imperative helper every layout shares.
-//
-// Layout-agnostic: wraps document.createElement with a class + text convenience.
-// document is touched only inside el(), never at module scope - the core graph's
-// no-import-side-effects invariant (see core/machine.js for why).
+// document is touched only inside el(), never at module scope (the core graph is
+// side-effect-free on import, see core/machine.js).
 
 /**
  * @param {string} tag

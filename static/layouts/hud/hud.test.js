@@ -1,19 +1,10 @@
-// Integration tests for the HUD layout's render hooks, run on Node's built-in
-// runner with a MINIMAL hand-rolled DOM stub (the JS suite ships zero deps - no
-// jsdom). Run:  node --test static/layouts/hud/hud.test.js
-//
-// Scope (the two things a pure geometry test can't reach):
-//   1. every distinct IconToken the WMO table resolves to is routed through the
-//      injected pack onto a forecast row (as a `wx-<token>` glyph), with its
-//      condition text intact and un-truncated (long strings included) - the
-//      "hand the resolved token to the pack, wrap the text without ellipsis"
-//      contract. `test_hud_glyphs.py` proves the other half: all 28 WMO codes
-//      map onto exactly these tokens, all drawable by the default pack.
-//   2. the six geometric marks (◆ ▸ ◂ ▲ ▼ ⟳) are drawn as SVG shapes, never
-//      emitted as text that would fall back to a system font on the kiosk.
-//
-// Like app.test.js / geometry.test.js, `// @ts-check` is intentionally NOT on
-// (no @types/node to resolve node:* builtins).
+// Integration tests for the HUD layout's render hooks, against a minimal local
+// DOM stub. Covers what the pure geometry tests can't:
+//   1. every IconToken reaches a forecast row via the injected pack, with its
+//      condition text un-truncated. tests/test_hud_glyphs.py covers the other
+//      half: all 28 WMO codes map onto these tokens.
+//   2. the geometric marks (◆ ▸ ◂ ▲ ▼ ⟳) are SVG shapes, never text that would
+//      fall back to a system font on the kiosk.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -123,10 +114,9 @@ function allByClass(node, cls, out = []) {
 }
 const firstByClass = (node, cls) => allByClass(node, cls)[0] ?? null;
 
-// Install a composable height model on the current document: a node whose class
-// is in `heights` returns that fixed px (a leaf row); any other node sums its
-// children - mirroring the no-gap flex-column invariant the pure planners assume,
-// so the fit shell runs against deterministic, exact heights.
+// Height model: a node whose class is in `heights` reports that fixed px; any
+// other node sums its children - the linear-composition invariant the fit
+// planners assume (see core/agenda.js).
 function installHeights(heights) {
   document._measure = function measure(node) {
     for (const cls of Object.keys(heights)) if (node.classList.contains(cls)) return heights[cls];
@@ -158,10 +148,9 @@ function dayKeyPlus(n) {
 globalThis.document = makeDocument();
 const { layout, solarMarkerDecision, showEndOfSchedule } = await import("./index.js");
 
-// A fake IconPack (core/contract.js): builds a stub <i class="wx-icon wx-<name>">
-// on the CURRENT document (freshMount swaps it per test) and records every
-// renderIcon call. Injection is required because a real `import "/pack.js"` is
-// unresolvable under node --test; the stub keeps the suite hermetic.
+// Fake IconPack that records renderIcon calls; builds on the current document
+// (freshMount swaps it per test). The real `/pack.js` route is unresolvable
+// under node --test.
 function makeIconPack() {
   /** @type {{ name: string, extra: string | undefined }[]} */
   const calls = [];
@@ -263,8 +252,8 @@ test("renderForecast: each resolved IconToken is routed through the pack onto it
 
 test("renderForecast: long condition text is kept whole (no ellipsis truncation)", () => {
   freshMount();
-  // Worst-case wrapping strings - the renderer must place them verbatim; the
-  // 2-line wrap (no ellipsis) is enforced by layout.css (asserted in Python).
+  // Worst-case wrapping strings must be placed verbatim; the no-ellipsis wrap is
+  // CSS, asserted in tests/test_hud_glyphs.py.
   const longs = ["Heavy freezing drizzle", "Thunderstorm with hail"];
   const days = longs.map((t, i) => fday("freezing-drizzle", t, i));
   layout.renderForecast(days);
@@ -342,8 +331,8 @@ test("renderClock: zero-padded hour + uppercase date + sync warning toggle", () 
   layout.renderClock(new Date(2026, 6, 15, 14, 6), true);
   assert.equal(document.getElementById("clock").textContent, "02:06");
   assert.equal(document.getElementById("ampm").textContent, "PM");
-  // Independent expectation (NOT the element's own text): pins the date CONTENT +
-  // uppercasing via a fresh Date, robust to the runner's locale.
+  // Expectation built from a fresh Date, not the element's own text - pins
+  // content + uppercasing regardless of the runner's locale.
   const expectedDate = new Date(2026, 6, 15)
     .toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
     .toUpperCase();
@@ -382,7 +371,7 @@ test("shared scale: mount() clears the window so a remount can't leak a stale on
   layout.renderCurrent({ ok: true, fetched_at: "x", current: { ...CURRENT, high_f: 105 }, forecast: fourDays() }); // sets 50–110
   const root2 = document.createElement("div");
   root2.id = "app2";
-  layout.mount(root2, { icon: iconPack }); // MUST reset scaleWindow → null
+  layout.mount(root2, { icon: iconPack }); // must reset scaleWindow → null
   layout.renderForecast(fourDays()); // falls back to forecast-only 50–90
   const rul = document.getElementById("rul");
   // 4 numerals (…110) here would mean the stale 50–110 leaked past the remount.

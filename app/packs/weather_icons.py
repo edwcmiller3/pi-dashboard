@@ -1,35 +1,10 @@
-"""The weather-icons reference icon pack: the semantic-name -> glyph map, its
-generated stylesheet, and the exact codepoint subset the vendored font must ship.
+"""The weather-icons reference pack: the semantic-name -> codepoint map, the
+generated stylesheet, and the codepoint subset the vendored font must ship.
 
-Pure, functional, no classes: an immutable name -> codepoint table plus pure
-generators. This module owns three things the frontend and the vendored font
-depend on:
-
-  * the mapping from each `IconToken` (weather condition, day/night-resolved by
-    app.weather_codes.describe) and each `GlyphName` (chrome: wind / humidity /
-    precip / sunrise / sunset) onto a concrete weather-icons PUA codepoint;
-  * `pack_css()`, which generates the full stylesheet (self-hosted @font-face +
-    the shared `.wx-icon` base + one `.wx-<name>::before` rule per name) served
-    at /pack.css and committed to static/packs/weather-icons/pack.css;
-  * `glyphs()`, the exact codepoint subset the pack requires: the pack test pins
-    this set equal to the vendored weather-icons.woff2 cmap (no tofu, no dead
-    weight). The woff2 was subset out-of-band - there is no in-repo subsetting
-    step today.
-
-Provenance of the codepoints: recovered from the ORIGINAL app/weather_codes.py
-`_WMO` wi-* right-hand side at commit f13e0e1 (`git show`). The font collapses
-several distinct conditions onto one drawing; those collapses are preserved
-here EXACTLY as the font subset had them:
-
-  * freezing-drizzle AND freezing-rain both -> wi-rain-mix (f017);
-  * snow-showers-night -> the NEUTRAL wi-sleet (f0b5), not a wi-night-alt-*
-    variant (the subset ships no wi-night-alt-sleet); snow-showers-day is
-    wi-day-sleet (f0b2).
-
-The five chrome codepoints (wind / humidity / precip / sunrise / sunset) lived
-pre-refactor only in a test constant, not in code; they are declared here fresh.
-The token distinction is preserved even where the font collapses it: two names
-may share a codepoint, but each name still gets its own `.wx-<name>` class.
+Some names share a codepoint where the subset font has no distinct drawing; each
+name still gets its own `.wx-<name>` class. The committed
+static/packs/weather-icons/pack.css must byte-match `pack_css()` (a test asserts
+it) - regenerate, never hand-edit.
 """
 
 from __future__ import annotations
@@ -40,11 +15,8 @@ from typing import Final, get_args
 from app.packs.vocab import GlyphName
 from app.weather_codes import IconToken
 
-# semantic name -> weather-icons PUA codepoint (bare hex, no leading backslash;
-# `pack_css` adds the CSS `\` escape). Keys are typed `IconToken | GlyphName`, so
-# a name outside either Literal vocabulary fails mypy rather than silently
-# shipping a class no glyph backs. The trailing comment on each row is the
-# original wi-* class this codepoint came from (the recovered ground truth).
+# semantic name -> PUA codepoint (bare hex; `pack_css` adds the `\` escape).
+# Trailing comments name the source wi-* class.
 _GLYPHS: Final[dict[IconToken | GlyphName, str]] = {
     # ── weather conditions (IconToken) ────────────────────────────────────────
     "clear-day": "f00d",  # wi-day-sunny
@@ -77,18 +49,14 @@ _GLYPHS: Final[dict[IconToken | GlyphName, str]] = {
     "sunset": "f052",  # wi-sunset
 }
 
-# Read-only view -> the table can't be mutated at runtime.
 GLYPHS: Final = MappingProxyType(_GLYPHS)
 
-# The self-hosted subset font. The url is RELATIVE to this pack's on-disk home
-# (static/packs/weather-icons/) back to the shared vendor dir, so the committed
-# pack.css resolves the woff2 both as a file and via the /pack.css route.
+# Relative to static/packs/weather-icons/, so the committed pack.css resolves
+# the woff2 both as a file and via the /pack.css route.
 _FONT_FAMILY: Final = "weathericons"
 _WOFF2_URL: Final = "../../vendor/weather-icons/weather-icons.woff2"
 
-# The shared base class every layout's sizing/color selectors target. Its
-# declarations are copied VERBATIM from the vendored `.wi` rule
-# (weather-icons.css) - only the class name changes (.wi -> .wx-icon).
+# Copied verbatim from the vendored `.wi` rule (weather-icons.css).
 _BASE_DECLS: Final[tuple[str, ...]] = (
     "display: inline-block",
     f"font-family: {_FONT_FAMILY}",
@@ -101,33 +69,18 @@ _BASE_DECLS: Final[tuple[str, ...]] = (
 
 
 def glyphs() -> frozenset[str]:
-    """Every PUA codepoint (bare hex) the pack renders - conditions AND chrome.
-
-    Defines the exact codepoint subset the pack requires: the pack test
-    (tests/test_weather_icons_pack.py) asserts this set equals the cmap of the
-    vendored static/vendor/weather-icons/weather-icons.woff2, both directions - no
-    tofu (missing glyph) and no dead weight (extra unused glyph). The woff2 was
-    subset out-of-band; there is no in-repo subsetting step today (a future
-    tools/vendor_weather_icons.py could consume this set, but none exists yet).
-    Collapsed names share a codepoint, so this is the DISTINCT set (26), not one
-    per name (27).
-    """
+    """The distinct codepoints the pack renders. A test asserts this equals the
+    vendored woff2's cmap exactly (no tofu, no dead weight); the woff2 was subset
+    out-of-band, with no in-repo subsetting step."""
     return frozenset(_GLYPHS.values())
 
 
 def _rule(name: str, codepoint: str) -> str:
-    """One `.wx-<name>::before { content: "\\fXXXX"; }` rule."""
     return f'.wx-{name}::before {{ content: "\\{codepoint}"; }}'
 
 
 def pack_css() -> str:
-    """Generate the pack's full stylesheet.
-
-    Deterministic and total: the @font-face, the shared `.wx-icon` base, then one
-    `.wx-<name>::before` rule for every `IconToken` (in vocabulary order) and
-    every `GlyphName`. The committed static/packs/weather-icons/pack.css must
-    byte-match this output (a test asserts it); regenerate, never hand-edit.
-    """
+    """The full stylesheet; the committed pack.css must byte-match it."""
     face = (
         "@font-face {\n"
         f"  font-family: {_FONT_FAMILY};\n"
