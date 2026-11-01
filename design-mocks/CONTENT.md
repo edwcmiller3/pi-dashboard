@@ -54,8 +54,8 @@ the real picker is driven by the server's `_available_slugs`). Changes stage,
 then a single **Apply** writes `.env` + restarts. Current (live) value is marked.
 
 - **Layout** — current: `classic`. Options: classic, hud, swiss-mono,
-  paper-editorial, neo-brutalist, soft-scandi.
-  (Each admin mock marks ITS OWN layout as current, e.g. the neo-brutalist mock → `neo-brutalist`.)
+  paper-editorial, soft-scandi.
+  (Each admin mock marks ITS OWN layout as current, e.g. the hud mock → `hud`.)
 - **Theme** — current: `default`. Options: default, catppuccin, gruvbox, nord, synthwave.
 - **Icon pack** — current: `weather-icons`. Options: weather-icons, meteocons,
   meteocons-flat, meteocons-line, meteocons-mono.
