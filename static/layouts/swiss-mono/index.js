@@ -5,7 +5,7 @@
 //
 // Side-effect-free on import (see core/machine.js).
 
-import { to12, pad2, fmtCompact, fmtCompactOr, fmtLong, localParts, localDate, localDayKey, dayLabel } from "../../core/time.js";
+import { to12, pad2, fmtCompact, fmtCompactOr, fmtLong, localParts, localDayKey, dayLabel } from "../../core/time.js";
 import {
   groupByDay,
   splitColumns,
@@ -203,7 +203,7 @@ function renderForecast(forecast) {
   root.replaceChildren();
   // The grid is a fixed repeat(4,1fr); slice so a long feed can't misalign it.
   for (const f of forecast.slice(0, 4)) {
-    const dname = localDate(f.date).toLocaleDateString(undefined, { weekday: "long" });
+    const { dname } = dayLabel(f.date); // "Today" or the long weekday
     const card = el("div", "fc");
 
     const { hi, lo } = fmtHiLo(f);

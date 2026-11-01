@@ -398,7 +398,7 @@ function renderForecast(forecast) {
   root.replaceChildren();
   const markers = forecastRangePlot(days, plotWindow);
   days.forEach((f, i) => {
-    const dname = localDate(f.date).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
+    const dname = dayLabel(f.date).isToday ? "TODAY" : localDate(f.date).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
     const row = el("div", "frow");
 
     const track = el("div", "track");

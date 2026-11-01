@@ -33,13 +33,13 @@ _PARAMS: Final[dict[str, str | int | float]] = {
     "wind_speed_unit": "mph",
     "precipitation_unit": "inch",
     "timezone": "auto",
-    "forecast_days": 5,
+    "forecast_days": 4,
 }
 
 _REQUEST_TIMEOUT_SECONDS: Final = 10
 
-# today (hero, daily[0]) + 4 future days (cards, daily[1:5]).
-_REQUIRED_DAILY_DAYS: Final = 5
+# today (hero + first card, daily[0]) + 3 future days (cards, daily[1:4]).
+_REQUIRED_DAILY_DAYS: Final = 4
 
 
 def _tz(utc_offset_seconds: int) -> timezone:
@@ -135,7 +135,7 @@ def normalize_weather(raw: dict[str, Any]) -> WeatherData:
         "sunrise": _with_offset(daily["sunrise"][0], tz),
         "sunset": _with_offset(daily["sunset"][0], tz),
     }
-    forecast = [_forecast_day(daily, i) for i in range(1, 5)]
+    forecast = [_forecast_day(daily, i) for i in range(4)]
     return {"current": _clamp_high_low(current), "forecast": forecast}
 
 

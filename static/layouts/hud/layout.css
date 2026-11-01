@@ -400,7 +400,7 @@
 .hud .fruler,
 .hud .frow {
   display: grid;
-  grid-template-columns: 40px 36px 132px 36px 1fr 44px 70px;
+  grid-template-columns: 58px 36px 132px 36px 1fr 44px 70px; /* col 1 fits "TODAY" */
   gap: 8px;
   align-items: center;
 }

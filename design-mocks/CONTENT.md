@@ -15,11 +15,11 @@ Same information architecture as the real dashboard; layout/visual treatment is 
 1. **Clock + date** - 2:46 PM · Saturday, July 11
 2. **Current conditions** - 82° Partly cloudy (daytime), H 88° / L 71°,
    Feels like 85°, Rain 15%, Humidity 52%, Wind 7 mph, Sunrise 5:47a, Sunset 8:29p
-3. **4-day forecast** (future days only):
+3. **4-day forecast** (today + next 3 days; today's card mirrors current H/L):
+   - Today - Partly cloudy, 88° / 71°, no precip line
    - Sunday - Clear, 90° / 72°, no precip line
    - Monday - Thunderstorm, 84° / 70°, 65% precip
    - Tuesday - Light rain, 78° / 66°, 45% precip
-   - Wednesday - Partly cloudy, 81° / 68°, no precip line
 4. **Agenda ("Upcoming")** - two columns or equivalent:
    - **Today · Jul 11**: holiday/observance pill "Summer Festival";
      ALL DAY - Cabin trip; "+5 earlier" roll-off marker;

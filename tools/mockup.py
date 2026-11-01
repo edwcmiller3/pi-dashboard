@@ -141,15 +141,16 @@ def build_doc(tz: tzinfo) -> DashboardDoc:
         "sunset": iso(now.replace(hour=20, minute=29, second=0, microsecond=0)),
     }
     # (code, high, low, precip %): a dry/wet mix to exercise the precip line.
+    # Today leads and mirrors `current` (code, H/L, precip %).
     forecast_days = [
+        (2, 88, 71, 15),
         (0, 90, 72, 5),
         (95, 84, 70, 65),
         (61, 78, 66, 45),
-        (2, 81, 68, 10),
     ]
     forecast: list[ForecastDay] = [
         {
-            "date": day(i + 1),
+            "date": day(i),  # today leads, matching the backend
             "code": code,
             **describe(code, is_day=True),
             "high_f": hi,

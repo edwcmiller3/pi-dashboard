@@ -154,40 +154,40 @@ def test_current_within_forecast_range_leaves_high_low_alone() -> None:
     assert cur["low_f"] == 61
 
 
-# ── normalize_weather: forecast (4 future days = daily[1:5]) ─────────────────
+# ── normalize_weather: forecast (today + 3 future days = daily[0:4]) ─────────
 
 
-def test_forecast_is_four_future_days() -> None:
+def test_forecast_is_today_plus_three_days() -> None:
     fc = weather.normalize_weather(RAW)["forecast"]
     assert [f["date"] for f in fc] == [
+        "2026-06-29",
         "2026-06-30",
         "2026-07-01",
         "2026-07-02",
-        "2026-07-03",
-    ]  # daily[1:5] - today (daily[0]) is excluded; it lives in the hero
+    ]  # daily[0:4] - today leads; daily[4] (if returned) is dropped
 
 
 def test_forecast_fields_resolved() -> None:
-    first = weather.normalize_weather(RAW)["forecast"][0]
-    assert first["code"] == 2
-    assert first["text"] == "Partly cloudy"
-    assert first["icon"] == "partly-cloudy-day"  # cards always use the daytime token
-    assert first["high_f"] == 78
-    assert first["low_f"] == 63
-    assert first["precip_prob_pct"] == 20
-    assert first["precip_expected"] is False  # code 2 (partly cloudy) is dry
+    second = weather.normalize_weather(RAW)["forecast"][1]
+    assert second["code"] == 2
+    assert second["text"] == "Partly cloudy"
+    assert second["icon"] == "partly-cloudy-day"  # cards always use the daytime token
+    assert second["high_f"] == 78
+    assert second["low_f"] == 63
+    assert second["precip_prob_pct"] == 20
+    assert second["precip_expected"] is False  # code 2 (partly cloudy) is dry
 
 
 def test_forecast_precip_expected_tracks_the_weather_code() -> None:
     # Gated on is_wet(code), not the %: a dry code hides the line even at 20%.
     fc = weather.normalize_weather(RAW)["forecast"]
-    assert fc[1]["code"] == 63 and fc[1]["precip_expected"] is True  # rain
-    assert all(f["precip_expected"] is False for f in (fc[0], fc[2], fc[3]))
+    assert fc[2]["code"] == 63 and fc[2]["precip_expected"] is True  # rain
+    assert all(f["precip_expected"] is False for f in (fc[0], fc[1], fc[3]))
 
 
 def test_forecast_uses_daytime_icons_regardless_of_current_is_day() -> None:
     fc = weather.normalize_weather(with_current(is_day=0))["forecast"]
-    assert fc[1]["icon"] == "rain-day"  # code 63 daytime
+    assert fc[2]["icon"] == "rain-day"  # code 63 daytime
 
 
 # ── robustness ──────────────────────────────────────────────────────────────
