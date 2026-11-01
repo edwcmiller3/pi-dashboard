@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pi-dashboard admin mock — soft scandi (warm Scandinavian light mode)</title>
-<!-- Admin screen in the soft-scandi idiom: warm linen canvas, Fraunces display
+<!-- Admin screen in the soft-scandi idiom: warm linen canvas, Lora display
      type, muted sage / terracotta / dusty-blue palette, soft rounded cards —
      matched to its dashboard sibling (soft-scandi.html). Theme-aware AND
      layout-skinned per the 2026-10-04 reversal. Fixture = CONTENT.md Admin section.
@@ -13,7 +13,7 @@
      Storyboard: five framed states; frame 1 (resting/nominal) is the gallery view. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&display=swap" rel="stylesheet">
 <style>
   :root {
     /* warm linen base (shared with soft-scandi.html) */
@@ -53,7 +53,7 @@
     gap: 2.2rem; padding: 40px 20px 72px;
   }
   .page-head { max-width: 80rem; width: 100%; }
-  .page-head h1 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 560; color: #2f2a22; }
+  .page-head h1 { font-family: 'Lora', serif; font-size: 22px; font-weight: 560; color: #2f2a22; }
   .page-head p { color: #6f675a; font-size: 13.5px; margin-top: 4px; max-width: 72ch; }
 
   /* storyboard frame chrome (mock-only, outside the 1280×800 canvas) */
@@ -87,7 +87,7 @@
   .back:hover { border-color: var(--sage); }
   .back svg { width: 1.4rem; height: 1.4rem; stroke: var(--sage); fill: none;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-  .ahead .title { font-family: 'Fraunces', serif; font-size: 1.9rem; font-weight: 560; letter-spacing: -0.01em; }
+  .ahead .title { font-family: 'Lora', serif; font-size: 1.9rem; font-weight: 560; letter-spacing: -0.01em; }
 
   /* ---- body grid: config (left) + right column ---- */
   .abody { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.1rem; min-height: 0; }
@@ -97,7 +97,7 @@
   .knob { padding: 0.95rem 0; }
   .knob + .knob { border-top: 1px solid var(--hairline); }
   .knob-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.7rem; }
-  .knob-name { font-family: 'Fraunces', serif; font-size: 1.35rem; font-weight: 560; }
+  .knob-name { font-family: 'Lora', serif; font-size: 1.35rem; font-weight: 560; }
   .knob-live { color: var(--faint); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
   .knob-live b { color: var(--muted); font-weight: 800; }
   .opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -129,7 +129,8 @@
     font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.2rem; }
   .metric .k svg { width: 0.9rem; height: 0.9rem; stroke: var(--muted); fill: none;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .metric .v { font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 560; font-variant-numeric: tabular-nums; }
+  /* proportional: Lora's tabular figures are very wide and space digits out */
+  .metric .v { font-family: 'Lora', serif; font-size: 1.5rem; font-weight: 560; font-variant-numeric: proportional-nums; }
   .metric .v small { font-family: 'Nunito Sans', sans-serif; font-size: 0.9rem; color: var(--muted); font-weight: 700; }
   .metric.wide { grid-column: 1 / -1; }
   .metric.is-warn .v { color: var(--alarm); }
@@ -167,7 +168,7 @@
     align-items: center; justify-content: center; margin-bottom: 1rem; background: var(--alarm-milk); }
   .dialog .dico svg { width: 1.6rem; height: 1.6rem; stroke: var(--alarm); fill: none;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .dialog h3 { font-family: 'Fraunces', serif; font-size: 1.6rem; font-weight: 580; margin-bottom: 0.5rem; }
+  .dialog h3 { font-family: 'Lora', serif; font-size: 1.6rem; font-weight: 580; margin-bottom: 0.5rem; }
   .dialog p { color: var(--muted); font-size: 1.05rem; font-weight: 600; line-height: 1.45; }
   .dialog .btns { display: flex; justify-content: flex-end; gap: 0.7rem; margin-top: 1.6rem; }
   .dbtn { font-size: 1.02rem; font-weight: 800; padding: 0.6rem 1.4rem; border-radius: 999px; cursor: pointer; }
@@ -180,7 +181,7 @@
   .terminal { display: flex; flex-direction: column; align-items: center; gap: 1.2rem; text-align: center; }
   .terminal .spin { width: 3.4rem; height: 3.4rem; border-radius: 50%;
     border: 3px solid rgba(255, 253, 248, 0.25); border-top-color: #FFFDF8; }
-  .terminal .big { font-family: 'Fraunces', serif; font-size: 2.1rem; font-weight: 580; color: #FFFDF8; }
+  .terminal .big { font-family: 'Lora', serif; font-size: 2.1rem; font-weight: 580; color: #FFFDF8; }
   .terminal .small { color: rgba(255, 253, 248, 0.82); font-size: 1.15rem; font-weight: 600; }
 </style>
 </head>
